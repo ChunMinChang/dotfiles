@@ -2,10 +2,10 @@
 
 function IsUserRoot()
 {
-  if [ "$EUID" -ne 0 ]; then
-    echo 0
-  else
+  if [ "$EUID" -eq 0 ]; then
     echo 1
+  else
+    echo 0
   fi
 }
 
@@ -69,13 +69,36 @@ function GetOSEnvironment()
 function GetPackageManager()
 {
   # Set the package manager
+  local envIndex=$1
   PackageManager[ENV_LINUX]=apt-get
   PackageManager[ENV_OSX]=brew
-  echo ${PackageManager[$1]}
+  echo ${PackageManager[$envIndex]}
 }
 
 function GetPackageCommand()
 {
-  local OS=$(GetOSEnvironment)
-  echo $(GetPackageManager $OS)
+  local os=$(GetOSEnvironment)
+  echo $(GetPackageManager $os)
+}
+
+# This function will declare global variable by the order
+# Example:
+#   ret=$(GrepStringInFile world hello.txt) // ret = 1
+#   hello.txt:
+#     hello
+#     world
+function GrepStringInFile()
+{
+  local string=$1 filepath=$2
+  if grep -q "$string" $filepath; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
+function AppendStringInFile()
+{
+  local string=$1 filepath=$2
+  echo -e "$1" >> $filepath
 }
