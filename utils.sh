@@ -81,6 +81,14 @@ function GetPackageCommand()
   echo $(GetPackageManager $os)
 }
 
+function GetTrashPath()
+{
+  local envIndex=$(GetOSEnvironment)
+  trashPath[ENV_LINUX]="$HOME/.local/share/Trash/files/"
+  trashPath[ENV_OSX]="$HOME/.Trash"
+  echo ${trashPath[$envIndex]}
+}
+
 # This function will declare global variable by the order
 # Example:
 #   ret=$(GrepStringInFile world hello.txt) // ret = 1
