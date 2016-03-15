@@ -20,7 +20,7 @@ trashPath=$(GetTrashPath)
 
 # If there is no any [include] is used,
 # then the config path will be append with [include]
-isIncludeUsed=$(GrepStringInFile "\[include\]" ~/.gitconfig)
+isIncludeUsed=$(GrepStringInFile "\[include\]" $gitconfigPath)
 if [ $isIncludeUsed -eq 0 ]; then
   # echo -e "[include]\n\tpath=$subGitConfigPath" >> $gitconfigPath
   AppendStringInFile "[include]\n\tpath=$subGitConfigPath" $gitconfigPath
