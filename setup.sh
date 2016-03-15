@@ -16,7 +16,7 @@ echo "== Link environment setting =="
 echo "== load sub-gitconfig setting =="
 gitconfigPath="$HOME/.gitconfig"
 subGitConfigPath="$(pwd)/git/config"
-trashPath="$HOME/.Trash"
+trashPath=$(GetTrashPath)
 
 # If there is no any [include] is used,
 # then the config path will be append with [include]
@@ -29,11 +29,12 @@ else
   # in the first line below [include]
   isFileIncluded=$(GrepStringInFile $subGitConfigPath $gitconfigPath)
   if [ $isFileIncluded -eq 0 ]; then
-    echo "insert to first line: $subGitConfigPath"
     # Insert the config path and save it to a temporary file
     awk '/\[include\]/ { print; print "\tpath='$subGitConfigPath'"; next }1' $gitconfigPath >> $gitconfigPath.temp
     # then replace git config with the temporary file
     mv $gitconfigPath $trashPath
     mv $gitconfigPath.temp $gitconfigPath
+  else
+    echo "You already include the git config"
   fi
 fi

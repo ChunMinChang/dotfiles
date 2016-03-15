@@ -66,19 +66,12 @@ function GetOSEnvironment()
   echo $OS
 }
 
-function GetPackageManager()
-{
-  # Set the package manager
-  local envIndex=$1
-  PackageManager[ENV_LINUX]=apt-get
-  PackageManager[ENV_OSX]=brew
-  echo ${PackageManager[$envIndex]}
-}
-
 function GetPackageCommand()
 {
-  local os=$(GetOSEnvironment)
-  echo $(GetPackageManager $os)
+  local envIndex=$(GetOSEnvironment)
+  packageManager[ENV_LINUX]=apt-get
+  packageManager[ENV_OSX]=brew
+  echo ${packageManager[$envIndex]}
 }
 
 function GetTrashPath()
