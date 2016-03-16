@@ -2,7 +2,6 @@
 
 # Common utilities
 # ============================================
-
 function GetTime
 {
   date +%Y-%m-%d:%H:%M:%S
