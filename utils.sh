@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# Common utilities
+# ============================================
+
+# Print the log with header 1 prefix
+function LogH1()
+{
+  echo ">>>>> $1"
+}
+
+# Print the log with header 2 prefix
+function LogH2()
+{
+  echo ">> $1"
+}
+
+# Return true if the user is root. Otherwise, return false
 function IsUserRoot()
 {
   if [ "$EUID" -eq 0 ]; then
@@ -9,13 +25,64 @@ function IsUserRoot()
   fi
 }
 
-# enum for os environment
-# ENV_LINUX=0
-# ENV_OSX=1
-# ENV_SOLARIS=2
-# ENV_BSD=3
-# ENV_Cygwin=4
-# ENV_OTHER=5
+# Return true if the the file exist. Otherwise, return false
+#
+# Parameters:
+#   $1: the file's path
+function DoseFileExist()
+{
+  local file=$1
+  if [ -f $file ]; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
+# Return true if the file has the input string pattern. Otherwise, return false
+# Example:
+#   ret=$(GrepStringInFile \[world\] hello.txt) // ret = 1
+#   hello.txt:
+#     hello
+#     [world]
+#
+# Parameters:
+#   $1: the string patteren with regular expression
+#   $2: the file's path
+function GrepStringInFile()
+{
+  local string=$1 filepath=$2
+
+  exist=$(DoseFileExist $filepath)
+
+  if [ $exist -eq 0 ]; then # if file doesn't exist, return false
+    echo 0
+  else
+    if grep -q "$string" $filepath; then
+      echo 1
+    else
+      echo 0
+    fi
+  fi
+}
+
+# Append the input string to the input file
+#
+# Parameters:
+#   $1: the string that will be appended
+#   $2: the file's path
+function AppendStringToFile()
+{
+  local string=$1 filepath=$2
+
+  exist=$(DoseFileExist $filepath)
+
+  if [ $exist -eq 0 ]; then # if file doesn't exist, return
+    return -1
+  fi
+
+  echo -e "$1" >> $filepath
+}
 
 # Imitate the enum type:
 # This function will declare global variable by the order
@@ -39,6 +106,15 @@ enum ()
     done
 }
 
+# Functions with OS dependency
+# ============================================
+# enum for os environment
+# ENV_LINUX=0
+# ENV_OSX=1
+# ENV_SOLARIS=2
+# ENV_BSD=3
+# ENV_Cygwin=4
+# ENV_OTHER=5
 enum ENV_MAP { ENV_LINUX, ENV_OSX, ENV_SOLARIS, ENV_BSD, ENV_Cygwin, ENV_OTHER }
 
 function GetOSEnvironment()
@@ -80,26 +156,4 @@ function GetTrashPath()
   trashPath[ENV_LINUX]="$HOME/.local/share/Trash/files/"
   trashPath[ENV_OSX]="$HOME/.Trash"
   echo ${trashPath[$envIndex]}
-}
-
-# This function will declare global variable by the order
-# Example:
-#   ret=$(GrepStringInFile world hello.txt) // ret = 1
-#   hello.txt:
-#     hello
-#     world
-function GrepStringInFile()
-{
-  local string=$1 filepath=$2
-  if grep -q "$string" $filepath; then
-    echo 1
-  else
-    echo 0
-  fi
-}
-
-function AppendStringInFile()
-{
-  local string=$1 filepath=$2
-  echo -e "$1" >> $filepath
 }
