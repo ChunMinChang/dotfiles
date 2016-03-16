@@ -3,6 +3,16 @@
 # Common utilities
 # ============================================
 
+function GetTime
+{
+  date +%Y-%m-%d:%H:%M:%S
+}
+
+function GetUnixTimestamp
+{
+  date +%s
+}
+
 # Print the log with header 1 prefix
 function LogH1()
 {
@@ -15,6 +25,11 @@ function LogH2()
   echo ">> $1"
 }
 
+function Warning()
+{
+  echo -e "## Warning ##\n  $1"
+}
+
 # Return true if the user is root. Otherwise, return false
 function IsUserRoot()
 {
@@ -25,7 +40,7 @@ function IsUserRoot()
   fi
 }
 
-# Return true if the the file exist. Otherwise, return false
+# Return true if the input path is a file and it exist. Otherwise, return false
 #
 # Parameters:
 #   $1: the file's path
@@ -37,6 +52,27 @@ function DoseFileExist()
   else
     echo 0
   fi
+}
+
+function Move()
+{
+  local oldPath=$1 newPath=$2
+
+  if [ ! -f $oldPath ]; then
+    Warning "$oldPath doesn't exist!"
+    return
+  fi
+
+  # if newPath already has a existing file and it's not a symblic link
+  # then we will rename the existing file to "FILENAME_TIMESTAMP".
+  if [ -f $newPath ] && [ ! -L $newPath ]; then
+    local timestamp=$(GetUnixTimestamp)
+    local pathWithDate="$newPath-$timestamp"
+    Warning "Rename $newPath to $pathWithDate"
+    Move $newPath $pathWithDate
+  fi
+
+  mv $oldPath $newPath
 }
 
 # Return true if the file has the input string pattern. Otherwise, return false
