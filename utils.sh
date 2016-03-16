@@ -2,16 +2,6 @@
 
 # Common utilities
 # ============================================
-function GetTime
-{
-  date +%Y-%m-%d:%H:%M:%S
-}
-
-function GetUnixTimestamp
-{
-  date +%s
-}
-
 # Print the log with header 1 prefix
 function LogH1()
 {
@@ -27,6 +17,28 @@ function LogH2()
 function Warning()
 {
   echo -e "## Warning ##\n  $1"
+}
+
+function GetTime()
+{
+  date +%Y-%m-%d:%H:%M:%S
+}
+
+function GetUnixTimestamp()
+{
+  date +%s
+}
+
+function StripPrefix()
+{
+  local string=$1 prefix=$2
+  echo ${string#$prefix}
+}
+
+function StripSuffix()
+{
+  local string=$1 suffix=$2
+  echo ${string%$suffix}
 }
 
 # Return true if the user is root. Otherwise, return false
