@@ -5,9 +5,13 @@
   br = branch -v
   st = status
   rt = remote -v
+  type = cat-file -t
+  dump = cat-file -p
+
   undochanged = !git checkout -f && git clean -df
   uncitill = "!f() { git reset HEAD~$1; }; f"
   undotill = "!f() { git uncitill $1 && git undochanged; }; f"
+
   mozpatch = "!f() { git format-patch -$1 --unified=8;  }; f"
 
   # Queue function
