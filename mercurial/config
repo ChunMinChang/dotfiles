@@ -1,3 +1,5 @@
+[extensions]
+purge =
 [alias]
 # General
 # Nuke everything in the working copy

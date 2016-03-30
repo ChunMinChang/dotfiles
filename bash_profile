@@ -7,3 +7,6 @@
 if [ -f $HOME/.bashrc ]; then
     source $HOME/.bashrc
 fi
+
+# Use macvim instead of vim if macvim exist
+type -P mvim &>/dev/null && alias vim='mvim -v'
