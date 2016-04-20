@@ -12,7 +12,7 @@ if [ $ENV_OSX == $(GetOSEnvironment) ]; then
 
   # if bash_profile already has a existing file and it's not a symblic link
   # then we will remove it to Trash.
-  if [ -f $bashProfile ] && [ ! -L $bashProfile ]; then
+  if [[ ! -L "$bashProfile" ]]; then
     Move $bashProfile "$(GetTrashPath)/bash_profile"
   fi
 

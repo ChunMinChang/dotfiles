@@ -1,0 +1,2 @@
+[alias]
+mochitest = mochitest --disable-e10s
