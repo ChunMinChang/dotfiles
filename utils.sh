@@ -29,6 +29,12 @@ function GetUnixTimestamp()
   date +%s
 }
 
+function GetRealLink()
+{
+  local link=$1
+  echo $(python -c "import os; print os.path.realpath('$link')")
+}
+
 function StripPrefix()
 {
   local string=$1 prefix=$2
@@ -129,6 +135,39 @@ function AppendStringToFile()
   fi
 
   echo -e "$1" >> $filepath
+}
+
+# Symbolically link source file to target file
+#
+# Parameters:
+#   $1: the source file
+#   $2: the target file
+function LinkFile()
+{
+  local sourceFile=$1 targetFile=$2
+  local postfix=_backup
+
+  # If the target file is a symblic link
+  if [[ -L "$targetFile" ]]; then
+    local link=$(GetRealLink $targetFile)
+    # if the target file is same as the source file, then it's nothing to do!
+    if [ "$link" == "$sourceFile" ]; then
+      return
+    # otherwise, we will remove the old symbolic link
+    else
+      echo "Remove the existing symlink to $targetFile and re-link it!"
+      rm $targetFile
+    fi
+  # If the target file is not a symblic link and it does exist,
+  # then we will rename it as ./machrc[postfix string]
+  elif [ -f $targetFile ]; then
+    echo "Rename the existing $targetFile to $targetFile$postfix"
+    mv $targetFile $targetFile$postfix
+  fi
+
+  # Link the source file to target file
+  echo "Symbolically link $sourceFile to $targetFile"
+  ln -s $sourceFile $targetFile
 }
 
 # Imitate the enum type:

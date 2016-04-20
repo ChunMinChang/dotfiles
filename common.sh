@@ -1,22 +1,18 @@
+source utils.sh # Common utilities
+
 # Personal shell commands
 # ====================================================================
 
 # Mozilla Gecko alias
 # --------------------------------------------------------------------
 source gecko/alias.sh
-machrc=$HOME/.mozbuild/.machrc
-# if machrc already has a existing file and it's a symblic link
-if [[ -L "$machrc" ]]; then
-  # then we will remove it
-  echo "Remove the existing symlink to $machrc and re-link it!"
-  rm $machrc
-else # if it's not a symblic link
-  # then we will rename it as ./machrc_backup
-  echo "Rename the existing .machrc to .machrc_backup!"
-  mv $machrc $machrc'_backup'
-fi
-ln -s $(pwd)/gecko/machrc $machrc
 
+function linkMachrc() {
+  local machrc_target=$HOME/.mozbuild/.machrc
+  local machrc_source=$(pwd)/gecko/machrc
+  LinkFile $machrc_source $machrc_target
+}
+linkMachrc
 
 # Mozillla Git Reviewboard:
 # --------------------------------------------------------------------
