@@ -6,12 +6,13 @@
 source gecko/alias.sh
 machrc=$HOME/.mozbuild/.machrc
 # if machrc already has a existing file and it's a symblic link
-# then we will remove it to Trash.
-# ln -s $(pwd)/gecko/machrc $machrc
 if [[ -L "$machrc" ]]; then
+  # then we will remove it
   echo "Remove the existing symlink to $machrc and re-link it!"
   rm $machrc
 else # if it's not a symblic link
+  # then we will rename it as ./machrc_backup
+  echo "Rename the existing .machrc to .machrc_backup!"
   mv $machrc $machrc'_backup'
 fi
 ln -s $(pwd)/gecko/machrc $machrc
