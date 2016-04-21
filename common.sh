@@ -26,4 +26,4 @@ export PATH=/Users/chunminchang/.mozbuild/version-control-tools/git/commands:$PA
 source git/alias.sh
 
 # Show git branch in prompt
-branchInPrompt
+BranchInPrompt

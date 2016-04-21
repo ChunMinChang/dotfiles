@@ -1,4 +1,5 @@
 # General
+# ------------------------------------------------
 alias gs='git status'
 alias ga='git add'
 alias gb='git branch'
@@ -7,13 +8,15 @@ alias gd='git diff'
 alias go='git checkout'
 
 # Typo
+# ------------------------------------------------
 alias got='git'
 alias get='git'
 alias gut='git'
 alias gkt='git'
 
 # Show git branch in prompt.
-function parse_git_branch {
+# ------------------------------------------------
+function parseGitBranch {
   # The following content is incorrect! please see the raw file
   # git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ \[\1\]/'
   # git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ (\1)/'
@@ -21,7 +24,7 @@ function parse_git_branch {
   git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
 }
 
-function branchInPrompt {
+function BranchInPrompt {
   local            BLACK="\[\033[0;30m\]"
   local       BOLD_BLACK="\[\033[1;30m\]"
   local       LINE_BLACK="\[\033[4;30m\]"
@@ -64,8 +67,8 @@ function branchInPrompt {
   local      BG_GRAY="\[\033[47m\]"
   # END OPTIONAL
   local     DEFAULT="\[\033[0m\]"
-  #PS1="\$(parse_git_branch)$PS1"
-  #PS1="$GREEN\u@\h$DEFAULT:\w$YELLOW\$(parse_git_branch)$DEFAULT\$ "
-  #PS1="\u@\h:\w$GREEN\$(parse_git_branch)$DEFAULT\$ "
-  PS1="$GREEN\$(parse_git_branch)$DEFAULT$PS1"
+  #PS1="\$(parseGitBranch)$PS1"
+  #PS1="$GREEN\u@\h$DEFAULT:\w$YELLOW\$(parseGitBranch)$DEFAULT\$ "
+  #PS1="\u@\h:\w$GREEN\$(parseGitBranch)$DEFAULT\$ "
+  PS1="$GREEN\$(parseGitBranch)$DEFAULT$PS1"
 }
