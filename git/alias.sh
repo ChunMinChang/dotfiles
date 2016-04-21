@@ -14,6 +14,15 @@ alias get='git'
 alias gut='git'
 alias gkt='git'
 
+# Open all modifi
+# ------------------------------------------------
+function GitEdit() {
+  local editor=$1
+  # git ls-files --modified --deleted --others -z | xargs -0 $editor
+  $editor $(git status --porcelain | awk '{print $2}')
+  # $editor $(git status --short | awk '$1 ~ /^M|A|U/ {print $2}' )
+}
+
 # Show git branch in prompt.
 # ------------------------------------------------
 function parseGitBranch {

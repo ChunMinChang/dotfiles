@@ -14,6 +14,9 @@
 
   mozpatch = "!f() { git format-patch -$1 --unified=8;  }; f"
 
+  # Open all edited files
+  edit = !$1 $(git status --short | awk '$1 ~ /^M|A|U/ {print $2}' )
+
   # Queue function
   # I use ~/.gittmppatch/ as a temp folder to save patches
   qpop = "!f() { git format-patch -$1 && mkdir -p ~/.gittmppatch && mv *.patch ~/.gittmppatch/ && git undotill $1; }; f"
