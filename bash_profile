@@ -12,6 +12,7 @@ fi
 type -P mvim &>/dev/null && alias vim='mvim -v'
 
 # Autocomplete for git alias
+# https://github.com/bobthecow/git-flow-completion/wiki/Install-Bash-git-completion
 if [ -f `brew --prefix`/etc/bash_completion ]; then
   . `brew --prefix`/etc/bash_completion
 else
