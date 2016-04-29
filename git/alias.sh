@@ -18,9 +18,12 @@ alias gkt='git'
 # ------------------------------------------------
 function GitEdit() {
   local editor=$1
-  # git ls-files --modified --deleted --others -z | xargs -0 $editor
+  # Load edited files into tabs if editor is vim
+  if [ "$editor" == "vim" ]; then #
+    editor="vim -p"
+  fi
   $editor $(git status --porcelain | awk '{print $2}')
-  # $editor $(git status --short | awk '$1 ~ /^M|A|U/ {print $2}' )
+  # git ls-files --modified --deleted --others -z | xargs -0 $editor
 }
 
 # Show git branch in prompt.
