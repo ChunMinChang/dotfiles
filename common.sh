@@ -14,9 +14,6 @@ function linkMachrc() {
 }
 linkMachrc
 
-# For mozreview of git version
-alias gmp='git mozreview push'
-
 # Mozillla Git Reviewboard:
 # --------------------------------------------------------------------
 # For git-cinnabar
