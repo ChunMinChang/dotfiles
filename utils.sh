@@ -55,6 +55,10 @@ function RecurFindAndDelete()
   find . -name ``$file'' -type f -delete
 }
 
+# Return the real path fromb a symblic link
+# Example:
+#  $ GetRealLink ~/.bash_profile
+#  /Users/chunminchang/dotfiles/bash_profile
 function GetRealLink()
 {
   local link=$1
