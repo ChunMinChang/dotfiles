@@ -65,12 +65,20 @@ function GetRealLink()
   echo $(python -c "import os; print os.path.realpath('$link')")
 }
 
+# Return the string without the prefix
+# Example:
+#   $ StripPrefix demoHelloWorld demo
+#   HelloWorld
 function StripPrefix()
 {
   local string=$1 prefix=$2
   echo ${string#$prefix}
 }
 
+# Return the string without the prefix
+# Example:
+#   $ StripSuffix demoHelloWorld World
+#   demoHello
 function StripSuffix()
 {
   local string=$1 suffix=$2
@@ -80,7 +88,8 @@ function StripSuffix()
 # Return true if the user is root. Otherwise, return false
 function IsUserRoot()
 {
-  if [ "$EUID" -eq 0 ]; then
+  # if [ "$(id -u)" == "0" ]; then
+  if [[ $EUID -eq 0 ]]; then
     echo 1
   else
     echo 0
