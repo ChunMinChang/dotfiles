@@ -29,6 +29,32 @@ function GetUnixTimestamp()
   date +%s
 }
 
+# List all file matches the input pattern
+# Example:
+#   $ RecurFind *.DS_Store
+#   ./.DS_Store
+#   ./css/.DS_Store
+#   ./images/.DS_Store
+#   ./images/chunmin/.DS_Store
+#   ./images/gallery/.DS_Store
+#   ./images/works/.DS_Store
+#   ./js/.DS_Store
+function RecurFind()
+{
+  local file=$1
+  find . -name ``$file''
+}
+
+# Delete all file matches the input pattern
+# Example:
+#   $ RecurFindAndDelete *.DS_Store
+# Then all the files list by ($ RecurFind *.DS_Store) will be removed
+function RecurFindAndDelete()
+{
+  local file=$1
+  find . -name ``$file'' -type f -delete
+}
+
 function GetRealLink()
 {
   local link=$1
