@@ -26,6 +26,11 @@ function GitEdit() {
   # git ls-files --modified --deleted --others -z | xargs -0 $editor
 }
 
+# Recursively delete all *.DS_Store files
+function GitDelDS() {
+  $(RecurFindAndDelete *.DS_Store)
+}
+
 # Show git branch in prompt.
 # ------------------------------------------------
 function parseGitBranch {
