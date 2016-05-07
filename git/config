@@ -14,6 +14,8 @@
 
   mozpatch = "!f() { git format-patch -$1 --unified=8;  }; f"
 
+  lastChange = "!f() { git log -p $1; }; f"
+
   # Open all edited files
   edit = !$1 $(git status --short | awk '$1 ~ /^M|A|U/ {print $2}' )
 
