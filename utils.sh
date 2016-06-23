@@ -131,6 +131,13 @@ function Move()
   mv $oldPath $newPath
 }
 
+function Trash()
+{
+  local file=$1
+  local trashcanPath=$(GetTrashPath)
+  mv $file $trashcanPath
+}
+
 # Return true if the file has the input string pattern. Otherwise, return false
 # Example:
 #   ret=$(GrepStringInFile \[world\] hello.txt) // ret = 1
