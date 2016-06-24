@@ -5,7 +5,8 @@ source utils.sh # Common utilities
 # Cross Compiler
 # --------------------------------------------------------------------
 # For IceCC
-$(ExportToPATH /usr/lib/icecc/bin/)
+ExportToPATH /usr/lib/icecc/bin/
+
 
 # Mozilla Gecko alias
 # --------------------------------------------------------------------
@@ -21,10 +22,10 @@ linkMachrc
 # Mozillla Git Reviewboard:
 # --------------------------------------------------------------------
 # For git-cinnabar
-$(ExportToPATH /Users/chunminchang/Work/git-cinnabar)
+ExportToPATH /Users/chunminchang/Work/git-cinnabar
 
 # For version-control-tools
-$(ExportToPATH /Users/chunminchang/.mozbuild/version-control-tools/git/commands)
+ExportToPATH /Users/chunminchang/.mozbuild/version-control-tools/git/commands
 
 # Git alias
 # --------------------------------------------------------------------
