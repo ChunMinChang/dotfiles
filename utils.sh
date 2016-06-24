@@ -110,6 +110,14 @@ function DoseFileExist()
   fi
 }
 
+function ExportToPATH()
+{
+  local directory=$1
+  if [ -d "$directory" ]; then
+    export PATH=$directory:$PATH
+  fi
+}
+
 function Move()
 {
   local oldPath=$1 newPath=$2
