@@ -19,7 +19,7 @@ function linkMachrc() {
 }
 linkMachrc
 
-# Mozillla Git Reviewboard:
+# Mozillla Git Reviewboard
 # --------------------------------------------------------------------
 source mozilla/reviewboard/export_path.sh
 
