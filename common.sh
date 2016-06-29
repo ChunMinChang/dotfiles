@@ -9,7 +9,15 @@ source mozilla/icecream/export_path.sh
 # Mozilla Gecko alias
 # --------------------------------------------------------------------
 source mozilla/gecko/alias.sh
-source mozilla/gecko/link.sh
+
+# Mozilla machrc
+# --------------------------------------------------------------------
+function linkMachrc() {
+  local machrc_target=$HOME/.mozbuild/.machrc
+  local machrc_source=$(pwd)/mozilla/gecko/machrc
+  LinkFile $machrc_source $machrc_target
+}
+linkMachrc
 
 # Mozillla Git Reviewboard:
 # --------------------------------------------------------------------
