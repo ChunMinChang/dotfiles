@@ -21,7 +21,7 @@ linkMachrc
 
 # Mozillla Git Reviewboard
 # --------------------------------------------------------------------
-source mozilla/reviewboard/export_path.sh
+source mozilla/mozreview/export_path.sh
 
 # Git
 # ====================================================================
