@@ -1,11 +1,15 @@
 # General
 # ------------------------------------------------
-alias gs='git status'
 alias ga='git add'
-alias gb='git branch'
+alias gb='git branch -v'
 alias gc='git commit'
 alias gd='git diff'
 alias go='git checkout'
+alias gpl='git pull'
+alias gps='git push'
+alias grb='git rebase'
+alias grt='git remote -v'
+alias gs='git status'
 
 # Typo
 # ------------------------------------------------

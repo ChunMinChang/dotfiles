@@ -1,10 +1,16 @@
 [alias]
   # General
-  co = checkout
-  ci = commit
   br = branch -v
-  st = status
+  ci = commit
+  co = checkout
+  df = diff --patience
+  fp = format-patch --patience
+  mr = merge
+  pl = pull
+  ps = push
+  rb = rebase
   rt = remote -v
+  st = status
   type = cat-file -t
   dump = cat-file -p
 
