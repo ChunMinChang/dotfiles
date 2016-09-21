@@ -1,9 +1,13 @@
 # dotfiles
-Common environment settings
+Common environment settings. Put this in ```$HOME/dotfiles```.
 
 # Notes
-After setup, the following local file will be moved to your __Trash__ can
-- $HOME/.gitconfig
-- $HOME/.hgrc
-- $HOME/.bash_profile, if OS X
-- $HOME/.bashrc, if Linux-based OS
+There are different branches for OS dependent settings
+like ```linux``` and ```osx```.
+The dependent settings should be implemented in different branches.
+
+## utils.sh
+- GetTrashPath
+- GetPackageCommand
+## mozilla
+- mozreview/export_path.sh
