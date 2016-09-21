@@ -9,14 +9,14 @@ LogH1 "Link environment setting"
 if [ $ENV_OSX == $(GetOSEnvironment) ]; then
   bashProfile="$HOME/.bash_profile"
 
-  LinkFile $(pwd)/bash_profile $bashProfile
+  LinkOrImportFile $(pwd)/bash_profile $bashProfile
 fi
 
 # If the environment is mac or linux, then link the bashrc to $HOME/.bashrc
 if [ $ENV_LINUX == $(GetOSEnvironment) ] || [ $ENV_OSX == $(GetOSEnvironment) ]; then
   bashrc="$HOME/.bashrc"
 
-  LinkFile $(pwd)/bashrc $bashrc
+  LinkOrImportFile $(pwd)/bashrc $bashrc
 fi
 
 # Git setting

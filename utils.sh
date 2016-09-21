@@ -191,7 +191,52 @@ function AppendStringToFile()
   echo -e "$1" >> $filepath
 }
 
+#
+function SourceFile()
+{
+  local sourceFile=$1 targetFile=$2
+  AppendStringToFile "source $sourceFile" $targetFile
+}
+
+# Link or import a file into others
+#   If the target file exist and it's a symblic link, then we just remove
+#   the it then link it. If the target file exist and it's not a symblic link,
+#   then we import our file into it.
+#
+function LinkOrImportFile()
+{
+  local sourceFile=$1 targetFile=$2
+
+  # If the target file is not a symblic link and it does exist,
+  # then we import our file into it
+  if [ -f $targetFile ]; then
+    echo "Import $sourceFile to $targetFile"
+    SourceFile $sourceFile $targetFile
+    return
+  fi
+
+  # If the target file exist and it is a symblic link
+  if [[ -L "$targetFile" ]]; then
+    local link=$(GetRealLink $targetFile)
+    # if the target file is same as the source file, then it's nothing to do!
+    if [ "$link" == "$sourceFile" ]; then
+      return
+    # otherwise, we will remove the old symbolic link
+    else
+      echo "Remove the existing symlink to $targetFile and re-link it!"
+      rm $targetFile
+    fi
+  fi
+
+  # Link the source file to target file
+  echo "Symbolically link $sourceFile to $targetFile"
+  ln -s $sourceFile $targetFile
+}
+
 # Symbolically link source file to target file
+#   If the target file exist and it's a symblic link, then we just remove
+#   the it then link it. If the target file exist and it's not a symblic link,
+#   then we rename the old file to <FILENAME>_backup and then link our file.
 #
 # Parameters:
 #   $1: the source file
