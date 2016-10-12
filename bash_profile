@@ -12,10 +12,14 @@ fi
 type -P mvim &>/dev/null && alias vim='mvim -v'
 
 # Autocomplete for git alias
-# https://github.com/bobthecow/git-flow-completion/wiki/Install-Bash-git-completion
-if [ -f `brew --prefix`/etc/bash_completion ]; then
-  . `brew --prefix`/etc/bash_completion
-else
-  echo 'Install bash-completion to use Git alias'
-  brew install git && brew install bash-completion
+# Download from https://github.com/git/git/blob/master/contrib/completion/git-completion.bash
+# Tutorial: https://gist.github.com/JuggoPop/10706934
+if [ -f git-completion.bash ]; then
+  . git-completion.bash
+
+  # Add git completion to aliases
+  __git_complete g __git_main
+  __git_complete gc _git_checkout
+  __git_complete gm __git_merge
+  __git_complete gp _git_pull
 fi
