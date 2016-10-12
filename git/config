@@ -2,6 +2,7 @@
   # General
   br = branch -v
   ci = commit
+  cl = clean
   co = checkout
   df = diff --patience
   fp = format-patch --patience

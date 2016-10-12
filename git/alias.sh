@@ -3,6 +3,7 @@
 alias ga='git add'
 alias gb='git branch -v'
 alias gc='git commit'
+alias gcl='git clean'
 alias gd='git diff'
 alias go='git checkout'
 alias gpl='git pull'
