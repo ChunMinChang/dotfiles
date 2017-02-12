@@ -110,6 +110,16 @@ function DoesFileExist()
   fi
 }
 
+function DoesCommandExist()
+{
+  local command=$1
+  if type "$command" > /dev/null; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
 function ExportToPATH()
 {
   local directory=$1
