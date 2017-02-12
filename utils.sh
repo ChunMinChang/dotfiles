@@ -262,6 +262,9 @@ function LinkFile()
   elif [ -f $targetFile ]; then
     echo "Rename the existing $targetFile to $targetFile$postfix"
     mv $targetFile $targetFile$postfix
+  else
+    echo $targetFile "does NOT exist, so we link nothing!"
+    return
   fi
 
   # Link the source file to target file
