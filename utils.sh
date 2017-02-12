@@ -100,7 +100,7 @@ function IsUserRoot()
 #
 # Parameters:
 #   $1: the file's path
-function DoseFileExist()
+function DoesFileExist()
 {
   local file=$1
   if [ -f $file ]; then
@@ -160,7 +160,7 @@ function GrepStringInFile()
 {
   local string=$1 filepath=$2
 
-  exist=$(DoseFileExist $filepath)
+  exist=$(DoesFileExist $filepath)
 
   if [ $exist -eq 0 ]; then # if file doesn't exist, return false
     echo 0
@@ -182,7 +182,7 @@ function AppendStringToFile()
 {
   local string=$1 filepath=$2
 
-  exist=$(DoseFileExist $filepath)
+  exist=$(DoesFileExist $filepath)
 
   if [ $exist -eq 0 ]; then # if file doesn't exist, return
     return -1
