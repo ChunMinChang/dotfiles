@@ -1,6 +1,13 @@
 #!/bin/bash
 source ../utils.sh
 
+# Do nothing if "git" doesn't exist
+exist=$(DoesCommandExist git)
+if [ $exist -eq 0 ]; then
+  echo "No need to apply git settings since git doesn't exist"
+  return
+fi
+
 # Includ config to .gitconfig
 # -------------------------------------------------------------
 gitconfigPath="$HOME/.gitconfig"
