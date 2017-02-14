@@ -131,6 +131,8 @@ function ExportToPATH()
   local directory=$1
   if [ -d "$directory" ]; then
     export PATH=$directory:$PATH
+  else
+    echo "$directory doen't exist, so we couldn't export it to PATH!"
   fi
 }
 
