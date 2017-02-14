@@ -15,7 +15,9 @@ source mozilla/gecko/alias.sh
 function linkMachrc() {
   local machrc_target=$HOME/.mozbuild/.machrc
   local machrc_source=$(pwd)/mozilla/gecko/machrc
-  LinkFile $machrc_source $machrc_target
+  # Append any string as third parameter of LinkFile to force add symbolic link
+  # when machrc_target doesn't exist.
+  LinkFile $machrc_source $machrc_target 1
 }
 linkMachrc
 

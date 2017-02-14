@@ -120,6 +120,12 @@ function DoesCommandExist()
   fi
 }
 
+function GetParentDirectory
+{
+  local source=$1
+  echo "$(dirname "$source")"
+}
+
 function ExportToPATH()
 {
   local directory=$1
@@ -201,7 +207,6 @@ function AppendStringToFile()
   echo -e "$1" >> $filepath
 }
 
-#
 function SourceFile()
 {
   local sourceFile=$1 targetFile=$2
@@ -254,7 +259,12 @@ function LinkOrImportFile()
 function LinkFile()
 {
   local sourceFile=$1 targetFile=$2
+  local parentPath=$(GetParentDirectory $targetFile)
   local postfix=_backup
+  if [ ! -d "$parentPath" ]; then
+    echo "$parentPath doesn't exist, so we link nothing!"
+    return
+  fi
 
   # If the target file is a symblic link
   if [[ -L "$targetFile" ]]; then
@@ -272,9 +282,6 @@ function LinkFile()
   elif [ -f $targetFile ]; then
     echo "Rename the existing $targetFile to $targetFile$postfix"
     mv $targetFile $targetFile$postfix
-  else
-    echo $targetFile "does NOT exist, so we link nothing!"
-    return
   fi
 
   # Link the source file to target file
