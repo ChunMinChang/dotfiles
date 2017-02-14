@@ -32,10 +32,3 @@ LogH1 "Mercurial setting"
 cd mercurial
 bash setup.sh
 cd ..
-
-# Vim setting
-# -------------------------------------------------------------
-LogH1 "Vim setting"
-cd vim
-bash setup.sh
-cd ..
