@@ -11,6 +11,10 @@ fi
 # Use macvim instead of vim if macvim exist
 type -P mvim &>/dev/null && alias vim='mvim -v'
 
+# Show different colors for ls
+export CLICOLOR='true'
+export LSCOLORS="gxfxcxdxcxegedabagacad"
+
 # Autocomplete for git alias
 # Download from https://github.com/git/git/blob/master/contrib/completion/git-completion.bash
 # Tutorial: https://gist.github.com/JuggoPop/10706934
