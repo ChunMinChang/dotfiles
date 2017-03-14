@@ -5,7 +5,7 @@ source ../utils.sh
 exist=$(DoesCommandExist hg)
 if [ $exist -eq 0 ]; then
   echo "No need to apply mercurial settings since hg doesn't exist"
-  return
+  exit
 fi
 
 # Include config to .hgrc
