@@ -5,7 +5,7 @@ source ../utils.sh
 exist=$(DoesCommandExist git)
 if [ $exist -eq 0 ]; then
   echo "No need to apply git settings since git doesn't exist"
-  return
+  exit
 fi
 
 # Includ config to .gitconfig
@@ -13,6 +13,12 @@ fi
 gitconfigPath="$HOME/.gitconfig"
 subGitConfigPath="$(pwd)/config"
 trashPath=$(GetTrashPath)
+
+exist=$(DoesFileExist $gitconfigPath)
+if [ $exist -eq 0 ]; then
+  echo "No need to apply git settings since gitconfig doesn't exist"
+  exit
+fi
 
 # If there is no any [include] is used,
 # then the config path will be append with [include]
