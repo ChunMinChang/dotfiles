@@ -1,6 +1,10 @@
 # dotfiles
 My personal environment settings.
-Please clone this repo in $HOME/dotfiles.
+
+We will add the following links to your ```$HOME``` directory
+- ```~/.dotfiles``` to the path of this repo.
+- ```~/.bashrc``` to ```dot.bashrc```
+- ```~/.bash_profile``` to ```dot.bash_profile``` if it's OS X
 
 # TODO
 - git setting
