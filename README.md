@@ -6,7 +6,7 @@ We will add the following links to your ```$HOME``` directory
 - ```~/.bashrc``` to ```dot.bashrc```
 - ```~/.bash_profile``` to ```dot.bash_profile``` if it's OS X
 
+and add ```path/to/repo/git/config``` into ```[include]``` of ```~/.gitconfig```
+
 # TODO
-- git setting
 - mozilla stuff
-- utils
