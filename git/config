@@ -1,0 +1,56 @@
+[alias]
+  # General
+  br = branch -v
+  ci = commit
+  cl = clean
+  co = checkout
+  df = diff --patience
+  fp = format-patch --patience
+  mr = merge
+  pl = pull
+  ps = push
+  rb = rebase
+  rt = remote -v
+  st = status
+  type = cat-file -t
+  dump = cat-file -p
+
+  undochanged = !git checkout -f && git clean -df
+  uncitill = "!f() { git reset HEAD~$1; }; f"
+  undotill = "!f() { git uncitill $1 && git undochanged; }; f"
+
+  mozpatch = "!f() { git format-patch -$1 --unified=8;  }; f"
+
+  lastChange = "!f() { git log -p $1; }; f"
+
+  # Open all edited files
+  edit = !$1 $(git status --short | awk '$1 ~ /^M|A|U/ {print $2}' )
+
+  # Queue function
+  # I use ~/.gittmppatch/ as a temp folder to save patches
+  qpop = "!f() { git format-patch -$1 && mkdir -p ~/.gittmppatch && mv *.patch ~/.gittmppatch/ && git undotill $1; }; f"
+  qpushback = "!f() {\
+                  arr=$(ls ~/.gittmppatch/*.patch) &&\
+                  for i in $arr;\
+                    do echo $i;\
+                    git am -3 < $i;\
+                    rm $i;\
+                  done;\
+                }; f"
+  qbackto = "!f() {\
+                if [ $1 -eq '1' ]; then git uncitill 1; return 0; fi;\
+                num=$(expr $1 - 1) &&\
+                echo 'pop' $num 'patches and un-commit 1 patch..' &&\
+                git qpop $num &&\
+                git uncitill 1;\
+              }; f"
+
+  # Log Graph
+  hist = log --graph HEAD
+  his = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
+  glog1 = log --graph
+  glog2 = log --graph --oneline --all
+  glog3 = log --graph --abbrev-commit --decorate --date=relative --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(bold yellow)%d%C(reset)' --all
+  glog4 = log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold cyan)%aD%C(reset) %C(bold green)(%ar)%C(reset)%C(bold yellow)%d%C(reset)%n'' %C(white)%s%C(reset) %C(dim white)- %an%C(reset)' --all
+  glog5 = log --graph --all --date=short --pretty=format':%C(yellow)%h%Cblue%d%Creset %s %Cgreen %aN, %ad%Creset'
+  lg = !"git glog4"
