@@ -28,7 +28,7 @@ def bash_link():
             print 'unlink {}'.format(link_name)
             os.unlink(link_name)
 
-        print 'link {} to {}'.format(f, target_name)
+        print 'link {} to {}'.format(link_name, target_name)
         os.symlink(target_name, link_name)
 
 def main(argv):
