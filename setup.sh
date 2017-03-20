@@ -88,10 +88,46 @@ def git_init():
     print 'Include {} from {}'.format(path, cfg)
     append_to_next_line_after(cfg, '\[include\]', '\tpath = ' + path)
 
+# mozilla stuff
+# ---------------------------------------
+def mozilla_init():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mozilla', nargs = '*',
+                        help = 'Installing the toolkit for developing gecko')
+    args = parser.parse_args()
+
+    if args.mozilla is None:
+        print 'Skip installing mozilla toolkit'
+        return
+
+    init_functions = {
+      'hg': hg_init
+    }
+
+    if args.mozilla:
+        for i in args.mozilla:
+            if i in init_functions:
+                print 'Install {}'.format(i)
+                init_functions[i]()
+            else:
+                print 'Skip the unknown {} setting'.format(i)
+
+    else:
+        print 'Install all the mozilla toolkit!'
+        for i in init_functions:
+            print 'Install {}'.format(i)
+            init_functions[i]()
+
+def hg_init():
+    print 'hg init'
+
 def main(argv):
     dotfiles_link()
     bash_link()
     git_init()
+
+    # Install by --mozilla
+    mozilla_init()
 
 if __name__ == '__main__':
     try:
