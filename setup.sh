@@ -13,7 +13,7 @@ import sys
 # Global variables
 # ------------------------------------------------------------------------------
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-TARGET_DIR = os.environ['HOME']
+HOME_DIR = os.environ['HOME']
 
 # Utils
 # ------------------------------------------------------------------------------
@@ -42,7 +42,7 @@ def append_to_next_line_after(name, pattern, value = ''):
 # ------------------------------------------------------------------------------
 # Link this dotfiles path to $HOME/.dotfiles
 def dotfiles_link():
-    link(BASE_DIR, TARGET_DIR + '/.dotfiles')
+    link(BASE_DIR, HOME_DIR + '/.dotfiles')
 
 # Link dot.* to ~/.*
 def bash_link():
@@ -57,7 +57,7 @@ def bash_link():
             print 'skip link {}'.format(f)
             continue
 
-        target = os.path.join(TARGET_DIR, f[3:]) # Get name after dot
+        target = os.path.join(HOME_DIR, f[3:]) # Get name after dot
         src = os.path.join(BASE_DIR, f)
         link(src, target)
 
@@ -67,7 +67,7 @@ def git_init():
         print 'Please install git first!'
         return
 
-    cfg = TARGET_DIR + '/.gitconfig'
+    cfg = HOME_DIR + '/.gitconfig'
 
     if not os.path.isfile(cfg):
         print 'No {} exist! Abort!'.format(cfg)
