@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 # vim: set sw=4 ts=4 sts=4 et fileencoding=utf-8 :
 
-import os
-import sys
-import platform
+import argparse
+import distutils.spawn
 import fileinput
+import os
+import platform
 import re
-from distutils.spawn import find_executable
+import sys
 
 # Global variables
 # ------------------------------------------------------------------------------
@@ -27,9 +28,9 @@ def link(source, target):
 
 # Check whether `name` is on PATH and marked as executable.
 def is_tool(name):
-    return find_executable(name) is not None
+    return distutils.spawn.find_executable(name) is not None
 
-def append_to_next_line_after(name, pattern, value = ""):
+def append_to_next_line_after(name, pattern, value = ''):
     file = fileinput.input(name, inplace = True)
     for line in file:
         replacement = line + ('\n' if '\n' not in line else '') + value
