@@ -103,6 +103,7 @@ def mozilla_init():
     funcs = {
       'gecko': gecko_init,
       'hg': hg_init,
+      'mozreview': mozreview_init,
     }
 
     options = (set(funcs.keys()).intersection(set(args.mozilla)) if args.mozilla
@@ -161,6 +162,47 @@ def hg_init():
             f.write('%include ' + path)
         f.close()
         return
+
+def mozreview_init():
+    # We need git-cinnabar and version-control-tools to use mozreview on git
+    vct = HOME_DIR + '/.mozbuild/version-control-tools/git/commands'
+    if not os.path.isdir(vct):
+        print ''.join(['No {} exists! Abort!'.format(vct),
+                       '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n'])
+        return
+
+    cinnabar = HOME_DIR + '/Work/git-cinnabar'
+    if not os.path.isdir(cinnabar):
+        print 'No {} exist! Please clone it or change path to git-cinnabar!'
+        return
+
+    bashrc = HOME_DIR + '/.bashrc'
+    if not os.path.isfile(bashrc):
+        print 'No {} exist! Abort!'.format(bashrc)
+        return
+
+    # Write the path into mozilla/gecko/mozreview.sh
+    path = BASE_DIR + '/mozilla/gecko/mozreview.sh'
+    with open(path, 'r+a') as f:
+        content = f.read()
+        if vct in content:
+            print '{} is already exported to $PATH!'.format(vct)
+        else:
+            f.write('export PATH=' + vct + ':$PATH\n')
+
+        if cinnabar in content:
+            print '{} is already exported to $PATH!'.format(cinnabar)
+        else:
+            f.write('export PATH=' + cinnabar + ':$PATH\n')
+        f.close()
+
+    # Load mozilla/gecko/mozreview.sh in bashrc
+    with open(bashrc, 'r+a') as f:
+        if path in f.read():
+            print '{} is already loaded in {}!'.format(path, bashrc)
+        else:
+            f.write('[ -r ' + path + ' ] && . ' + path + '\n')
+        f.close()
 
 def main(argv):
     dotfiles_link()
