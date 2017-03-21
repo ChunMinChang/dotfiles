@@ -41,6 +41,9 @@ def append_to_next_line_after(name, pattern, value = ''):
 def bash_export_command(path):
     return ''.join(['export PATH=', path,':$PATH'])
 
+def bash_load_comamnd(path):
+    return ''.join(['[ -r ', path, ' ] && . ', path])
+
 # Setup functions
 # ------------------------------------------------------------------------------
 # Link this dotfiles path to $HOME/.dotfiles
@@ -138,7 +141,7 @@ def gecko_init():
         if path in f.read():
             print '{} is already included!'.format(path)
         else:
-            f.write('[ -r ' + path + ' ] && . ' + path + '\n')
+            f.write(bash_load_comamnd(path) + '\n')
         f.close()
 
 def hg_init():
@@ -203,7 +206,7 @@ def mozreview_init():
         if path in f.read():
             print '{} is already loaded in {}!'.format(path, bashrc)
         else:
-            f.write('[ -r ' + path + ' ] && . ' + path + '\n')
+            f.write(bash_load_comamnd(path) + '\n')
         f.close()
 
 def main(argv):

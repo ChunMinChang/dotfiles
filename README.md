@@ -31,4 +31,5 @@ Run ```$ python setup.sh -h``` to get the messages for optional settings.
   - [x] useless ```return``` in ```hg_init```
   - [x] add ```\n``` in file write
   - [ ] duplicated files read-then-write pattern
-  - [x] export bash commands
+  - [x] duplicated export bash commands
+  - [x] duplicated bash-loading commands
