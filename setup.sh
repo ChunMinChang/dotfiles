@@ -38,6 +38,9 @@ def append_to_next_line_after(name, pattern, value = ''):
         sys.stdout.write(line)
     file.close()
 
+def bash_export_command(path):
+    return ''.join(['export PATH=', path,':$PATH'])
+
 # Setup functions
 # ------------------------------------------------------------------------------
 # Link this dotfiles path to $HOME/.dotfiles
@@ -187,12 +190,12 @@ def mozreview_init():
         if vct in content:
             print '{} is already exported to $PATH!'.format(vct)
         else:
-            f.write('export PATH=' + vct + ':$PATH\n')
+            f.write( bash_export_command(vct)+ '\n')
 
         if cinnabar in content:
             print '{} is already exported to $PATH!'.format(cinnabar)
         else:
-            f.write('export PATH=' + cinnabar + ':$PATH\n')
+            f.write( bash_export_command(cinnabar)+ '\n')
         f.close()
 
     # Load mozilla/gecko/mozreview.sh in bashrc
