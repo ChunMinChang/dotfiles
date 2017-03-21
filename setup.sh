@@ -101,6 +101,7 @@ def mozilla_init():
         return
 
     funcs = {
+      'gecko': gecko_init,
       'hg': hg_init,
     }
 
@@ -109,6 +110,22 @@ def mozilla_init():
     for k in options:
         print 'Install {}'.format(k)
         funcs[k]()
+
+def gecko_init():
+    bashrc = HOME_DIR + '/.bashrc'
+
+    if not os.path.isfile(bashrc):
+        print 'No {} exist! Abort!'.format(bashrc)
+        return
+
+    path = BASE_DIR + '/mozilla/gecko/alias.sh'
+
+    with open(bashrc, 'r+a') as f:
+        if path in f.read():
+            print '{} is already included!'.format(path)
+        else:
+            f.write('[ -r ' + path + ' ] && . ' + path)
+        f.close()
 
 def hg_init():
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']
