@@ -4,3 +4,13 @@ if [ $(CommandExists brew) -eq 0 ]; then
   echo Please install brew!
   return
 fi
+
+# Auto-completion
+# ====================================================================
+if [ -f $(brew --prefix)/etc/bash_completion ]; then
+  . $(brew --prefix)/etc/bash_completion
+else
+  echo No bash_completion, Installing it ...
+  brew install bash-completion
+  echo Auto-completion will be started after reloading bash!
+fi
