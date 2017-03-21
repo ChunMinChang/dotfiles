@@ -112,6 +112,16 @@ def mozilla_init():
         funcs[k]()
 
 def gecko_init():
+    machrc = HOME_DIR + '/.mozbuild/.machrc'
+
+    if not os.path.isfile(machrc):
+        print ''.join(['No {} exist! Abort!'.format(machrc),
+                       '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n'])
+        return
+
+    path = BASE_DIR + '/mozilla/gecko/machrc'
+    link(path, machrc)
+
     bashrc = HOME_DIR + '/.bashrc'
 
     if not os.path.isfile(bashrc):
