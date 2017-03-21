@@ -33,3 +33,4 @@ Run ```$ python setup.sh -h``` to get the messages for optional settings.
   - [x] duplicated files read-then-write pattern
   - [x] duplicated export bash commands
   - [x] duplicated bash-loading commands
+  - [x] log format

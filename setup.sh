@@ -52,16 +52,24 @@ def append_nonexistent_lines_to_file(file, lines):
                 print '{} is already in {}'.format(l, file)
                 continue
             f.write(l + '\n')
+            print '{} is appended into {}'.format(l, file)
         f.close()
+
+def print_installing_title(name, bold=False):
+    print ''.join(['\n', name,
+                   ('\n==============================' if bold
+                    else '\n--------------------')])
 
 # Setup functions
 # ------------------------------------------------------------------------------
 # Link this dotfiles path to $HOME/.dotfiles
 def dotfiles_link():
+    print_installing_title('dotfile path')
     link(BASE_DIR, HOME_DIR + '/.dotfiles')
 
 # Link dot.* to ~/.*
 def bash_link():
+    print_installing_title('bash startup scripts')
     files_only_for = {
       'dot.bash_profile': ['Darwin'], # dot.bash_profile is only for OS X
     }
@@ -78,6 +86,7 @@ def bash_link():
 
 # Include git/config from ~/.giconfig
 def git_init():
+    print_installing_title('git settings')
     if not is_tool('git'):
         print 'Please install git first!'
         return
@@ -104,6 +113,7 @@ def git_init():
 # mozilla stuff
 # ---------------------------------------
 def mozilla_init():
+    print_installing_title('mozilla settings', True)
     parser = argparse.ArgumentParser()
     parser.add_argument('--mozilla', nargs = '*',
                         help = 'Installing the toolkit for developing gecko')
@@ -122,10 +132,10 @@ def mozilla_init():
     options = (set(funcs.keys()).intersection(set(args.mozilla)) if args.mozilla
                else funcs.keys())
     for k in options:
-        print 'Install {}'.format(k)
         funcs[k]()
 
 def gecko_init():
+    print_installing_title('gecko alias and machrc')
     machrc = HOME_DIR + '/.mozbuild/.machrc'
     if not os.path.isfile(machrc):
         print ''.join(['{} is nonexistent! Abort!'.format(machrc),
@@ -144,6 +154,7 @@ def gecko_init():
     append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
 
 def hg_init():
+    print_installing_title('hg settings')
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']
 
     if not is_tool('hg'):
@@ -161,6 +172,7 @@ def hg_init():
     append_nonexistent_lines_to_file(hg_config, ['%include ' + path])
 
 def mozreview_init():
+    print_installing_title('mozreview settings')
     # We need git-cinnabar and version-control-tools to use mozreview on git
     vct = HOME_DIR + '/.mozbuild/version-control-tools/git/commands'
     if not os.path.isdir(vct):
