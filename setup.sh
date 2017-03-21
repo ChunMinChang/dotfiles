@@ -127,6 +127,7 @@ def mozilla_init():
       'gecko': gecko_init,
       'hg': hg_init,
       'mozreview': mozreview_init,
+      'rust': rust_init,
     }
 
     options = (set(funcs.keys()).intersection(set(args.mozilla)) if args.mozilla
@@ -197,6 +198,23 @@ def mozreview_init():
 
     # Load mozilla/gecko/mozreview.sh in bashrc
     append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
+
+def rust_init():
+    print_installing_title('rust settings')
+    error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']
+
+    bashrc = HOME_DIR + '/.bashrc'
+    if not os.path.isfile(bashrc):
+        print '{} is nonexistent! Abort!'.format(bashrc)
+        return
+
+    cargo_env = HOME_DIR + '/.cargo/env'
+    if not os.path.isfile(cargo_env):
+        error_messages.insert(0, '{} is nonexistent! Abort!'.format(cargo_env));
+        print ''.join(error_messages)
+        return
+
+    append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(cargo_env)])
 
 def main(argv):
     dotfiles_link()

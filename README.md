@@ -32,5 +32,6 @@ Run ```$ python setup.sh -h``` to get the messages for optional settings.
   - [x] hg
   - [x] gecko alias
   - [x] mozreview(check git-cinnabar first)
+  - [x] rust stuff
   - [ ] icecc
   - [ ] lldb on osx
