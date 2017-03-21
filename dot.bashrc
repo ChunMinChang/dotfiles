@@ -14,3 +14,6 @@ if [ $(CommandExists git) -eq 1 ] && [ -r $HOME/.gitconfig ]; then
 else
   echo Please install git before loading its settings.
 fi
+
+# Optional settings
+# ====================================================================
