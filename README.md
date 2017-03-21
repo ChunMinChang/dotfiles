@@ -16,21 +16,21 @@ We currently provide the following options:
   - All toolkit: ```$ python setup.sh --mozilla```
   - hg: ```$ python setup.sh --mozilla hg```
     - add ```%include path/to/repo/mozilla/hg/config``` into ```~/.hgrc```
+  - mach alias and machrc
+    - ```~/.mozbuild/.machrc``` to the ```path/to/repo/mozilla/gecko/machrc```.
+    - load ```path/to/repo/mozilla/gecko/alias.sh``` in ```~/.bashrc```
+  - mozreview
+    - export ```~/.mozbuild/version-control-tools/git/commands``` to ```$PATH```
+    - export ```path/to/git-cinnabar``` to ```$PATH```
 
 Run ```$ python setup.sh -h``` to get the messages for optional settings.
 
 # TODO
+- platform-dependent scripts
+  - osx: auto-completion for self-defined alias, vim to macvim, ...
 - mozilla stuff
   - [x] hg
   - [x] gecko alias
   - [x] mozreview(check git-cinnabar first)
   - [ ] icecc
   - [ ] lldb on osx
-
-- clean-up
-  - [x] useless ```return``` in ```hg_init```
-  - [x] add ```\n``` in file write
-  - [x] duplicated files read-then-write pattern
-  - [x] duplicated export bash commands
-  - [x] duplicated bash-loading commands
-  - [x] log format
