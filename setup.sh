@@ -100,23 +100,15 @@ def mozilla_init():
         print 'Skip installing mozilla toolkit'
         return
 
-    init_functions = {
-      'hg': hg_init
+    funcs = {
+      'hg': hg_init,
     }
 
-    if args.mozilla:
-        for i in args.mozilla:
-            if i in init_functions:
-                print 'Install {}'.format(i)
-                init_functions[i]()
-            else:
-                print 'Skip the unknown {} setting'.format(i)
-
-    else:
-        print 'Install all the mozilla toolkit!'
-        for i in init_functions:
-            print 'Install {}'.format(i)
-            init_functions[i]()
+    options = (set(funcs.keys()).intersection(set(args.mozilla)) if args.mozilla
+               else funcs.keys())
+    for k in options:
+        print 'Install {}'.format(k)
+        funcs[k]()
 
 def hg_init():
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']
