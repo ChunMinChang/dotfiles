@@ -44,7 +44,7 @@ def bash_export_command(path):
 def bash_load_comamnd(path):
     return ''.join(['[ -r ', path, ' ] && . ', path])
 
-def append_inexistent_lines_to_file(file, lines):
+def append_nonexistent_lines_to_file(file, lines):
     with open(file, 'r+a') as f:
         content = f.read()
         for l in lines:
@@ -72,7 +72,6 @@ def bash_link():
         if f in files_only_for and platform.system() not in files_only_for[f]:
             print 'skip link {}'.format(f)
             continue
-
         target = os.path.join(HOME_DIR, f[3:]) # Get name after dot
         src = os.path.join(BASE_DIR, f)
         link(src, target)
@@ -83,15 +82,13 @@ def git_init():
         print 'Please install git first!'
         return
 
-    cfg = HOME_DIR + '/.gitconfig'
-
-    if not os.path.isfile(cfg):
-        print 'No {} exist! Abort!'.format(cfg)
+    git_config = HOME_DIR + '/.gitconfig'
+    if not os.path.isfile(git_config):
+        print '{} is nonexistent! Abort!'.format(git_config)
         return
 
     path = BASE_DIR + '/git/config'
-
-    with open(cfg, 'r+a') as f:
+    with open(git_config, 'r+a') as f:
         content = f.read()
         if '[include]' not in content:
             f.write('[include]')
@@ -101,8 +98,8 @@ def git_init():
             return
         f.close()
 
-    print 'Include {} from {}'.format(path, cfg)
-    append_to_next_line_after(cfg, '\[include\]', '\tpath = ' + path)
+    print 'Include {} from {}'.format(path, git_config)
+    append_to_next_line_after(git_config, '\[include\]', '\tpath = ' + path)
 
 # mozilla stuff
 # ---------------------------------------
@@ -130,9 +127,8 @@ def mozilla_init():
 
 def gecko_init():
     machrc = HOME_DIR + '/.mozbuild/.machrc'
-
     if not os.path.isfile(machrc):
-        print ''.join(['No {} exist! Abort!'.format(machrc),
+        print ''.join(['{} is nonexistent! Abort!'.format(machrc),
                        '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n'])
         return
 
@@ -140,13 +136,12 @@ def gecko_init():
     link(path, machrc)
 
     bashrc = HOME_DIR + '/.bashrc'
-
     if not os.path.isfile(bashrc):
-        print 'No {} exist! Abort!'.format(bashrc)
+        print '{} is nonexistent! Abort!'.format(bashrc)
         return
 
     path = BASE_DIR + '/mozilla/gecko/alias.sh'
-    append_inexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
+    append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
 
 def hg_init():
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']
@@ -156,41 +151,40 @@ def hg_init():
         print ''.join(error_messages)
         return
 
-    cfg = HOME_DIR + '/.hgrc'
-
-    if not os.path.isfile(cfg):
-        error_messages.insert(0, 'No {} exist! Abort!\n'.format(cfg));
+    hg_config = HOME_DIR + '/.hgrc'
+    if not os.path.isfile(hg_config):
+        error_messages.insert(0, '{} is nonexistent! Abort!\n'.format(hg_config));
         print ''.join(error_messages)
         return
 
     path = BASE_DIR + '/mozilla/hg/config'
-    append_inexistent_lines_to_file(cfg, ['%include ' + path])
+    append_nonexistent_lines_to_file(hg_config, ['%include ' + path])
 
 def mozreview_init():
     # We need git-cinnabar and version-control-tools to use mozreview on git
     vct = HOME_DIR + '/.mozbuild/version-control-tools/git/commands'
     if not os.path.isdir(vct):
-        print ''.join(['No {} exists! Abort!'.format(vct),
+        print ''.join(['{} is nonexistent! Abort!'.format(vct),
                        '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n'])
         return
 
     cinnabar = HOME_DIR + '/Work/git-cinnabar'
     if not os.path.isdir(cinnabar):
-        print 'No {} exist! Please clone it or change path to git-cinnabar!'
+        print '{} is nonexistent! Please clone it or change path to git-cinnabar!'
         return
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
-        print 'No {} exist! Abort!'.format(bashrc)
+        print '{} is nonexistent! Abort!'.format(bashrc)
         return
 
     # Write the path into mozilla/gecko/mozreview.sh
     path = BASE_DIR + '/mozilla/gecko/mozreview.sh'
-    append_inexistent_lines_to_file(path, [bash_export_command(vct),
+    append_nonexistent_lines_to_file(path, [bash_export_command(vct),
                                            bash_export_command(cinnabar)])
 
     # Load mozilla/gecko/mozreview.sh in bashrc
-    append_inexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
+    append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
 
 def main(argv):
     dotfiles_link()
