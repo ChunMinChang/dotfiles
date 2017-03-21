@@ -14,3 +14,13 @@ else
   brew install bash-completion
   echo Auto-completion will be started after reloading bash!
 fi
+
+# mac vim
+# ====================================================================
+if [ $(CommandExists mvim) -eq 0 ]; then
+  echo Installing mac vim ...
+  brew update
+  brew install macvim
+  brew unlink macvim && brew link macvim
+fi
+alias vim='mvim -v'
