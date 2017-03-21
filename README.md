@@ -21,8 +21,14 @@ Run ```$ python setup.sh -h``` to get the messages for optional settings.
 
 # TODO
 - mozilla stuff
-  - [ ] hg
-  - [ ] gecko alias
-  - [ ] mozreview(check git-cinnabar first)
+  - [x] hg
+  - [x] gecko alias
+  - [x] mozreview(check git-cinnabar first)
   - [ ] icecc
   - [ ] lldb on osx
+
+- clean-up
+  - [ ] useless ```return``` in ```hg_init```
+  - [ ] add ```\n``` in file write
+  - [ ] duplicated files read-then-write pattern
+  - [ ] export bash commands
