@@ -28,7 +28,7 @@ Run ```$ python setup.sh -h``` to get the messages for optional settings.
   - [ ] lldb on osx
 
 - clean-up
-  - [ ] useless ```return``` in ```hg_init```
+  - [x] useless ```return``` in ```hg_init```
   - [ ] add ```\n``` in file write
   - [ ] duplicated files read-then-write pattern
   - [ ] export bash commands

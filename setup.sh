@@ -161,7 +161,6 @@ def hg_init():
         else:
             f.write('%include ' + path)
         f.close()
-        return
 
 def mozreview_init():
     # We need git-cinnabar and version-control-tools to use mozreview on git
