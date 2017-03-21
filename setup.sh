@@ -44,6 +44,16 @@ def bash_export_command(path):
 def bash_load_comamnd(path):
     return ''.join(['[ -r ', path, ' ] && . ', path])
 
+def append_inexistent_lines_to_file(file, lines):
+    with open(file, 'r+a') as f:
+        content = f.read()
+        for l in lines:
+            if l in content:
+                print '{} is already in {}'.format(l, file)
+                continue
+            f.write(l + '\n')
+        f.close()
+
 # Setup functions
 # ------------------------------------------------------------------------------
 # Link this dotfiles path to $HOME/.dotfiles
@@ -136,13 +146,7 @@ def gecko_init():
         return
 
     path = BASE_DIR + '/mozilla/gecko/alias.sh'
-
-    with open(bashrc, 'r+a') as f:
-        if path in f.read():
-            print '{} is already included!'.format(path)
-        else:
-            f.write(bash_load_comamnd(path) + '\n')
-        f.close()
+    append_inexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
 
 def hg_init():
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']
@@ -160,13 +164,7 @@ def hg_init():
         return
 
     path = BASE_DIR + '/mozilla/hg/config'
-
-    with open(cfg, 'r+a') as f:
-        if path in f.read():
-            print '{} is already included!'.format(path)
-        else:
-            f.write('%include ' + path + '\n')
-        f.close()
+    append_inexistent_lines_to_file(cfg, ['%include ' + path])
 
 def mozreview_init():
     # We need git-cinnabar and version-control-tools to use mozreview on git
@@ -188,26 +186,11 @@ def mozreview_init():
 
     # Write the path into mozilla/gecko/mozreview.sh
     path = BASE_DIR + '/mozilla/gecko/mozreview.sh'
-    with open(path, 'r+a') as f:
-        content = f.read()
-        if vct in content:
-            print '{} is already exported to $PATH!'.format(vct)
-        else:
-            f.write( bash_export_command(vct)+ '\n')
-
-        if cinnabar in content:
-            print '{} is already exported to $PATH!'.format(cinnabar)
-        else:
-            f.write( bash_export_command(cinnabar)+ '\n')
-        f.close()
+    append_inexistent_lines_to_file(path, [bash_export_command(vct),
+                                           bash_export_command(cinnabar)])
 
     # Load mozilla/gecko/mozreview.sh in bashrc
-    with open(bashrc, 'r+a') as f:
-        if path in f.read():
-            print '{} is already loaded in {}!'.format(path, bashrc)
-        else:
-            f.write(bash_load_comamnd(path) + '\n')
-        f.close()
+    append_inexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
 
 def main(argv):
     dotfiles_link()
