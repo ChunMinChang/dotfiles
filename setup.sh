@@ -145,8 +145,7 @@ def hg_init():
     path = BASE_DIR + '/mozilla/hg/config'
 
     with open(cfg, 'r+a') as f:
-        content = f.read()
-        if path in content:
+        if path in f.read():
             print '{} is already included!'.format(path)
         else:
             f.write('%include ' + path)
