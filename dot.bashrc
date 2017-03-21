@@ -15,5 +15,11 @@ else
   echo Please install git before loading its settings.
 fi
 
+# Platform-dependent settings
+# ====================================================================
+PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
+BASHRC_PLATFORM=~/.bashrc_${PLATFORM}
+[ -r $BASHRC_PLATFORM ] && . $BASHRC_PLATFORM
+
 # Optional settings
 # ====================================================================

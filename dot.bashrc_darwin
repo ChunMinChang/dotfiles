@@ -1,0 +1,6 @@
+# Check homebrew
+# ====================================================================
+if [ $(CommandExists brew) -eq 0 ]; then
+  echo Please install brew!
+  return
+fi
