@@ -1,0 +1,23 @@
+[extensions]
+purge =
+[alias]
+# General
+# Nuke everything in the working copy
+nuke = !hg up -C . && hg clean
+
+# show graph log branch tree
+# remember to add the graph log commands into 'pager'
+lg = log -G --template 'changeset:   {rev}:{node|short} {tags}\nsummary:     {desc|firstline|fill68|tabindent|tabindent}\n\n'
+his = glog --template "\033[31m{node|short}\033[0m \033[1;34m<{author|person}>\033[0m \033[32m({date|age})\033[0m \n\t\t{desc|firstline|fill68|tabindent|tabindent}\n"
+
+# Mercurial Queue
+qs = qseries -v -s
+qin = !hg qimport $1 ; filename=$(basename $1) ; hg qpush $filename
+qout = !output=$(hg qpop) ; filename=$(echo $output | cut -d' ' -f 2) ; echo "delete $filename" ; hg qdel $filename
+
+# push to try server
+og = outgoing
+putry = push -f ssh://hg.mozilla.org/try/
+# example: 1)hg trydummy "try: -b do -u crashtest" 2)hg trydummy
+trydummy = !syntax="$1" ; ${syntax:="try: -b do -p all -u all -t none"} ; hg qnew dummy -m "$syntax"
+pudummy = !hg trydummy $1 ; hg putry

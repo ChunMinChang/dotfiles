@@ -15,6 +15,7 @@ We currently provide the following options:
 - Mozilla
   - All toolkit: ```$ python setup.sh --mozilla```
   - hg: ```$ python setup.sh --mozilla hg```
+    - add ```%include path/to/repo/mozilla/hg/config``` into ```~/.hgrc```
 
 Run ```$ python setup.sh -h``` to get the messages for optional settings.
 

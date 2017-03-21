@@ -119,7 +119,30 @@ def mozilla_init():
             init_functions[i]()
 
 def hg_init():
-    print 'hg init'
+    error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']
+
+    if not is_tool('hg'):
+        error_messages.insert(0, 'Please install hg(mercurial) first!\n');
+        print ''.join(error_messages)
+        return
+
+    cfg = HOME_DIR + '/.hgrc'
+
+    if not os.path.isfile(cfg):
+        error_messages.insert(0, 'No {} exist! Abort!\n'.format(cfg));
+        print ''.join(error_messages)
+        return
+
+    path = BASE_DIR + '/mozilla/hg/config'
+
+    with open(cfg, 'r+a') as f:
+        content = f.read()
+        if path in content:
+            print '{} is already included!'.format(path)
+        else:
+            f.write('%include ' + path)
+        f.close()
+        return
 
 def main(argv):
     dotfiles_link()
