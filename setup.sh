@@ -135,7 +135,7 @@ def gecko_init():
         if path in f.read():
             print '{} is already included!'.format(path)
         else:
-            f.write('[ -r ' + path + ' ] && . ' + path)
+            f.write('[ -r ' + path + ' ] && . ' + path + '\n')
         f.close()
 
 def hg_init():
@@ -159,7 +159,7 @@ def hg_init():
         if path in f.read():
             print '{} is already included!'.format(path)
         else:
-            f.write('%include ' + path)
+            f.write('%include ' + path + '\n')
         f.close()
 
 def mozreview_init():
