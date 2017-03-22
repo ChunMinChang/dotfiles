@@ -1,33 +1,34 @@
 # dotfiles
 My personal environment settings.
 
-We will add the following links to your ```$HOME``` directory
-- ```~/.dotfiles``` to the ```path/to/repo```.
-- ```~/.bashrc``` to ```dot.bashrc```
-- ```~/.bash_profile``` to ```dot.bash_profile``` if it's OS X
-
-and add ```path/to/repo/git/config``` into ```[include]``` of ```~/.gitconfig```
+- link ```~/.dotfiles``` to the ```path/to/repo```.
+- link ```~/.bashrc``` to ```dot.bashrc```
+- link ```~/.bash_profile``` to ```dot.bash_profile``` on OS X
+- link ```~/.bashrc_darwin``` to ```dot.bashrc_darwin``` and load it in ```~/.bashrc``` on OS X
+- add ```git/config``` into ```[include]``` of ```~/.gitconfig```
+- load ```git/utils.sh``` in ```~/.bashrc```
 
 # How to use
-Run ```$ python setup.sh```.
+Run ```$ python setup.sh``` to do the common settings above.
 
+## Optional settings
 We currently provide the following options:
-- Mozilla
+- mozilla
   - All toolkit: ```$ python setup.sh --mozilla```
   - hg: ```$ python setup.sh --mozilla hg```
-    - add ```%include path/to/repo/mozilla/hg/config``` into ```~/.hgrc```
-  - mach alias and machrc
-    - ```~/.mozbuild/.machrc``` to the ```path/to/repo/mozilla/gecko/machrc```.
-    - load ```path/to/repo/mozilla/gecko/alias.sh``` in ```~/.bashrc```
-  - mozreview
+    - add ```%include mozilla/hg/config``` into ```~/.hgrc```
+  - mach alias and machrc: ```$ python setup.sh --mozilla gecko```
+    - link ```~/.mozbuild/.machrc``` to the ```mozilla/gecko/machrc```.
+    - load ```mozilla/gecko/alias.sh``` in ```~/.bashrc```
+  - mozreview: ```$ python setup.sh --mozilla mozreview```
     - export ```~/.mozbuild/version-control-tools/git/commands``` to ```$PATH```
     - export ```path/to/git-cinnabar``` to ```$PATH```
+  - rust: ```$ python setup.sh --mozilla rust```
+    - load ```~/.cargo/env``` in ```~/.bashrc```
 
 Run ```$ python setup.sh -h``` to get the messages for optional settings.
 
 # TODO
-- platform-dependent scripts
-  - osx: auto-completion for self-defined alias, vim to macvim, ...
 - mozilla stuff
   - [x] hg
   - [x] gecko alias
