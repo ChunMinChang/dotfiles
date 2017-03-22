@@ -16,10 +16,10 @@ alias gum='git add -u && git commit -m'
 
 # Typo
 # ------------------------------------------------
-alias got='git'
 alias get='git'
-alias gut='git'
 alias gkt='git'
+alias got='git'
+alias gut='git'
 
 # Open all modified files
 # ------------------------------------------------
