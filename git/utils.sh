@@ -11,6 +11,7 @@ alias gps='git push'
 alias grb='git rebase'
 alias grt='git remote -v'
 alias gs='git status'
+alias gum='git add -u && git commit -m'
 
 # Typo
 # ------------------------------------------------
