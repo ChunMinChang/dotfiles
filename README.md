@@ -22,7 +22,9 @@ We currently provide the following options:
     - load ```mozilla/gecko/alias.sh``` in ```~/.bashrc```
   - mozreview: ```$ python setup.sh --mozilla mozreview```
     - export ```~/.mozbuild/version-control-tools/git/commands``` to ```$PATH```
-    - export ```path/to/git-cinnabar``` to ```$PATH```
+    - export ```~/Work/git-cinnabar``` to ```$PATH```
+    - export ```helper=~/Work/git-cinnabar/git-cinnabar-helper```
+      under ```[cinnabar]``` of ```~/.gitconfig```
   - rust: ```$ python setup.sh --mozilla rust```
     - load ```~/.cargo/env``` in ```~/.bashrc```
 

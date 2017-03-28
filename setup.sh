@@ -55,6 +55,19 @@ def append_nonexistent_lines_to_file(file, lines):
             print '{} is appended into {}'.format(l, file)
         f.close()
 
+def add_nonexistent_line_under_topic(file, topic, line):
+    with open(file, 'r+a') as f:
+        content = f.read()
+        if '[' + topic + ']' not in content:
+            f.write('[' + topic + ']\n')
+        elif line in content:
+            f.close()
+            return False
+        f.close()
+
+    append_to_next_line_after(file, '\[' + topic + '\]', line)
+    return True
+
 def print_installing_title(name, bold=False):
     print ''.join(['\n', name,
                    ('\n==============================' if bold
@@ -97,18 +110,11 @@ def git_init():
         return
 
     path = BASE_DIR + '/git/config'
-    with open(git_config, 'r+a') as f:
-        content = f.read()
-        if '[include]' not in content:
-            f.write('[include]')
-        elif path in content:
-            print '{} is already included!'.format(path)
-            f.close()
-            return
-        f.close()
 
-    print 'Include {} from {}'.format(path, git_config)
-    append_to_next_line_after(git_config, '\[include\]', '\tpath = ' + path)
+    if add_nonexistent_line_under_topic(git_config, 'include', '\tpath = ' + path):
+        print '{} is included in {}'.format(path, git_config)
+    else:
+        print '{} is already included!'.format(path)
 
 # mozilla stuff
 # ---------------------------------------
@@ -186,6 +192,14 @@ def mozreview_init():
         print '{} is nonexistent! Please clone it or change path to git-cinnabar!'
         return
 
+    git_config = HOME_DIR + '/.gitconfig'
+    path = cinnabar + '/git-cinnabar-helper'
+    if add_nonexistent_line_under_topic(git_config, 'cinnabar',
+                                        '\thelper = ' + path):
+        print 'Add cinnabar : {} to {}'.format(path, git_config)
+    else:
+        print '{} is already included!'.format(path)
+
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
         print '{} is nonexistent! Abort!'.format(bashrc)
@@ -194,7 +208,7 @@ def mozreview_init():
     # Write the path into mozilla/gecko/mozreview.sh
     path = BASE_DIR + '/mozilla/gecko/mozreview.sh'
     append_nonexistent_lines_to_file(path, [bash_export_command(vct),
-                                           bash_export_command(cinnabar)])
+                                            bash_export_command(cinnabar)])
 
     # Load mozilla/gecko/mozreview.sh in bashrc
     append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
