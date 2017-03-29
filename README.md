@@ -31,6 +31,10 @@ We currently provide the following options:
 Run ```$ python setup.sh -h``` to get the messages for optional settings.
 
 # TODO
+- git alias
+  - [ ] Rewrite the ```qbackto``` and ```qpush```
+    - The operations should belong to certain branch
+    - Warning users when switching branches with un-pushbacked patches
 - mozilla stuff
   - [x] hg
   - [x] gecko alias
