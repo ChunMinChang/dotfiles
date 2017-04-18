@@ -31,6 +31,11 @@ We currently provide the following options:
 Run ```$ python setup.sh -h``` to get the messages for optional settings.
 
 # TODO
+- Don't remove old ```~/.bashrc```. 
+  If it exists, then append ```source ~/.dotfiles/dot.bashrc``` to it
+- common
+  - Move files to trash can
+  - Recursive delete ```.DS_Store``` on OS X
 - git alias
   - [ ] Rewrite the ```qbackto``` and ```qpush```
     - The operations should belong to certain branch
