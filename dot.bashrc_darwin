@@ -1,3 +1,8 @@
+# Show colors for ls
+# ====================================================================
+export CLICOLOR=true
+export LSCOLORS="gxfxcxdxcxegedabagacad"
+
 # Check homebrew
 # ====================================================================
 if [ $(CommandExists brew) -eq 0 ]; then
