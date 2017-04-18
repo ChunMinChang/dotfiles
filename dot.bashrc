@@ -1,5 +1,9 @@
 DOTFILES=~/.dotfiles
 
+# Show colors for ls
+export CLICOLOR=true
+export LSCOLORS="gxfxcxdxcxegedabagacad"
+
 # Load common utils
 [[ -r $DOTFILES/utils.sh ]] && . $DOTFILES/utils.sh
 
@@ -23,3 +27,6 @@ BASHRC_PLATFORM=~/.bashrc_${PLATFORM}
 
 # Optional settings
 # ====================================================================
+[ -r /Users/cchang/dotfiles/mozilla/gecko/mozreview.sh ] && . /Users/cchang/dotfiles/mozilla/gecko/mozreview.sh
+[ -r /Users/cchang/dotfiles/mozilla/gecko/alias.sh ] && . /Users/cchang/dotfiles/mozilla/gecko/alias.sh
+[ -r /Users/cchang/.cargo/env ] && . /Users/cchang/.cargo/env
