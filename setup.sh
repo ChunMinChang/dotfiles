@@ -15,6 +15,16 @@ import sys
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 HOME_DIR = os.environ['HOME']
 
+class colors:
+    HEADER = '\033[94m'   # Blue
+    HINT = '\033[93m'     # Yellow
+    OK = '\033[92m'       # Green
+    WARNING = '\033[95m'  # Purple
+    FAIL = '\033[91m'     # Red
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    END = '\033[0m'
+
 # Utils
 # ------------------------------------------------------------------------------
 # Symbolically link source to target
@@ -69,9 +79,18 @@ def add_nonexistent_line_under_topic(file, topic, line):
     return True
 
 def print_installing_title(name, bold=False):
-    print ''.join(['\n', name,
-                   ('\n==============================' if bold
-                    else '\n--------------------')])
+    print colors.HEADER + ''.join(['\n', name,
+        ('\n==============================' if bold
+         else '\n--------------------')]) + colors.END
+
+def print_hint(message):
+    print colors.HINT + message + colors.END
+
+def print_warning(message):
+    print colors.WARNING + message + colors.END
+
+def print_fail(message):
+    print colors.FAIL + message + colors.END
 
 # Setup functions
 # ------------------------------------------------------------------------------
@@ -91,7 +110,7 @@ def bash_link():
 
     for f in files:
         if f in files_only_for and platform.system() not in files_only_for[f]:
-            print 'skip link {}'.format(f)
+            print_hint('skip link {}'.format(f))
             continue
         target = os.path.join(HOME_DIR, f[3:]) # Get name after dot
         src = os.path.join(BASE_DIR, f)
@@ -101,12 +120,12 @@ def bash_link():
 def git_init():
     print_installing_title('git settings')
     if not is_tool('git'):
-        print 'Please install git first!'
+        print_fail('Please install git first!')
         return
 
     git_config = HOME_DIR + '/.gitconfig'
     if not os.path.isfile(git_config):
-        print '{} is nonexistent! Abort!'.format(git_config)
+        print_fail('{} is nonexistent! Abort!'.format(git_config))
         return
 
     path = BASE_DIR + '/git/config'
@@ -114,7 +133,7 @@ def git_init():
     if add_nonexistent_line_under_topic(git_config, 'include', '\tpath = ' + path):
         print '{} is included in {}'.format(path, git_config)
     else:
-        print '{} is already included!'.format(path)
+        print_hint('{} is already included!'.format(path))
 
 # mozilla stuff
 # ---------------------------------------
@@ -126,7 +145,7 @@ def mozilla_init():
     args = parser.parse_args()
 
     if args.mozilla is None:
-        print 'Skip installing mozilla toolkit'
+        print_warning('Skip installing mozilla toolkit')
         return
 
     funcs = {
@@ -145,8 +164,8 @@ def gecko_init():
     print_installing_title('gecko alias and machrc')
     machrc = HOME_DIR + '/.mozbuild/.machrc'
     if not os.path.isfile(machrc):
-        print ''.join(['{} is nonexistent! Abort!'.format(machrc),
-                       '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n'])
+        print_fail(''.join(['{} is nonexistent! Abort!'.format(machrc),
+                            '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']))
         return
 
     path = BASE_DIR + '/mozilla/gecko/machrc'
@@ -154,7 +173,7 @@ def gecko_init():
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
-        print '{} is nonexistent! Abort!'.format(bashrc)
+        print_fail('{} is nonexistent! Abort!'.format(bashrc))
         return
 
     path = BASE_DIR + '/mozilla/gecko/alias.sh'
@@ -166,13 +185,13 @@ def hg_init():
 
     if not is_tool('hg'):
         error_messages.insert(0, 'Please install hg(mercurial) first!\n');
-        print ''.join(error_messages)
+        print_fail(''.join(error_messages))
         return
 
     hg_config = HOME_DIR + '/.hgrc'
     if not os.path.isfile(hg_config):
         error_messages.insert(0, '{} is nonexistent! Abort!\n'.format(hg_config));
-        print ''.join(error_messages)
+        print_fail(''.join(error_messages))
         return
 
     path = BASE_DIR + '/mozilla/hg/config'
@@ -183,13 +202,13 @@ def mozreview_init():
     # We need git-cinnabar and version-control-tools to use mozreview on git
     vct = HOME_DIR + '/.mozbuild/version-control-tools/git/commands'
     if not os.path.isdir(vct):
-        print ''.join(['{} is nonexistent! Abort!'.format(vct),
-                       '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n'])
+        print_fail(''.join(['{} is nonexistent! Abort!'.format(vct),
+                            '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']))
         return
 
     cinnabar = HOME_DIR + '/Work/git-cinnabar'
     if not os.path.isdir(cinnabar):
-        print '{} is nonexistent! Please clone it or change path to git-cinnabar!'
+        print_fail('{} is nonexistent! Please clone it or change path to git-cinnabar!')
         return
 
     git_config = HOME_DIR + '/.gitconfig'
@@ -198,11 +217,11 @@ def mozreview_init():
                                         '\thelper = ' + path):
         print 'Add cinnabar : {} to {}'.format(path, git_config)
     else:
-        print '{} is already included!'.format(path)
+        print_hint('{} is already included!'.format(path))
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
-        print '{} is nonexistent! Abort!'.format(bashrc)
+        print_fail('{} is nonexistent! Abort!'.format(bashrc))
         return
 
     # Write the path into mozilla/gecko/mozreview.sh
@@ -219,13 +238,13 @@ def rust_init():
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
-        print '{} is nonexistent! Abort!'.format(bashrc)
+        print_fail('{} is nonexistent! Abort!'.format(bashrc))
         return
 
     cargo_env = HOME_DIR + '/.cargo/env'
     if not os.path.isfile(cargo_env):
         error_messages.insert(0, '{} is nonexistent! Abort!'.format(cargo_env));
-        print ''.join(error_messages)
+        print_fail(''.join(error_messages))
         return
 
     append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(cargo_env)])
