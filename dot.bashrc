@@ -9,12 +9,16 @@ export LSCOLORS="gxfxcxdxcxegedabagacad"
 
 # Git
 # ====================================================================
-if [ $(CommandExists git) -eq 1 ] && [ -r $HOME/.gitconfig ]; then
-  # load git alias and utils functions
-  [[ -r $DOTFILES/git/utils.sh ]] && . $DOTFILES/git/utils.sh
+if [ $(CommandExists git) -eq 1 ]; then
+  if [ -r $HOME/.gitconfig ]; then
+    # load git alias and utils functions
+    [[ -r $DOTFILES/git/utils.sh ]] && . $DOTFILES/git/utils.sh
 
-  # Show git branch in prompt
-  BranchInPrompt
+    # Show git branch in prompt
+    BranchInPrompt
+  else
+    echo Please set .gitconfig first
+  fi
 else
   echo Please install git before loading its settings.
 fi
