@@ -19,7 +19,7 @@ We currently provide the following options:
     - add ```%include mozilla/hg/config``` into ```~/.hgrc```
   - mach alias and machrc: ```$ python setup.sh --mozilla gecko```
     - link ```~/.mozbuild/.machrc``` to the ```mozilla/gecko/machrc```.
-    - load ```mozilla/gecko/alias.sh``` in ```~/.bashrc```
+    - load ```mozilla/gecko/alias.sh``` into ```~/.bashrc```
   - mozreview: ```$ python setup.sh --mozilla mozreview```
     - export ```~/.mozbuild/version-control-tools/git/commands``` to ```$PATH```
     - export ```~/Work/git-cinnabar``` to ```$PATH```
@@ -27,7 +27,7 @@ We currently provide the following options:
       under ```[cinnabar]``` of ```~/.gitconfig```
   - phabricator: ```$ python setup.sh --mozilla phabricator```
     - export ```~/Work/arcanist/bin``` to ```$PATH```
-    - load ```mozilla/gecko/phabricator.sh``` in ```~/.bashrc```
+    - load ```mozilla/gecko/phabricator.sh``` into ```~/.bashrc```
   - rust: ```$ python setup.sh --mozilla rust```
     - load ```~/.cargo/env``` in ```~/.bashrc```
 
