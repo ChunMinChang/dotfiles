@@ -25,13 +25,16 @@ We currently provide the following options:
     - export ```~/Work/git-cinnabar``` to ```$PATH```
     - export ```helper=~/Work/git-cinnabar/git-cinnabar-helper```
       under ```[cinnabar]``` of ```~/.gitconfig```
+  - phabricator: ```$ python setup.sh --mozilla phabricator```
+    - export ```~/Work/arcanist/bin``` to ```$PATH```
+    - load ```mozilla/gecko/phabricator.sh``` in ```~/.bashrc```
   - rust: ```$ python setup.sh --mozilla rust```
     - load ```~/.cargo/env``` in ```~/.bashrc```
 
 Run ```$ python setup.sh -h``` to get the messages for optional settings.
 
 # TODO
-- Don't remove old ```~/.bashrc```. 
+- Don't remove old ```~/.bashrc```.
   If it exists, then append ```source ~/.dotfiles/dot.bashrc``` to it
 - common
   - Move files to trash can

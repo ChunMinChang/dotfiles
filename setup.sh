@@ -152,6 +152,7 @@ def mozilla_init():
       'gecko': gecko_init,
       'hg': hg_init,
       'mozreview': mozreview_init,
+      'phabricator': phabricator_init,
       'rust': rust_init,
     }
 
@@ -230,6 +231,17 @@ def mozreview_init():
                                             bash_export_command(cinnabar)])
 
     # Load mozilla/gecko/mozreview.sh in bashrc
+    append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
+
+def phabricator_init():
+    print_installing_title('phabricator settings')
+
+    bashrc = HOME_DIR + '/.bashrc'
+    if not os.path.isfile(bashrc):
+        print_fail('{} is nonexistent! Abort!'.format(bashrc))
+        return
+
+    path = BASE_DIR + '/mozilla/gecko/phabricator.sh'
     append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
 
 def rust_init():
