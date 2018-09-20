@@ -10,3 +10,8 @@ function CommandExists()
     echo 0
   fi
 }
+
+function RecursivelyRemove()
+{
+  find . -name "$1" -type f -delete
+}
