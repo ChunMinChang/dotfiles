@@ -11,3 +11,10 @@ if [ -d $GIT_CINNABAR ]; then
 else
   echo "Please update path for git-cinnabar commands"
 fi
+
+PHLAY=$HOME/Work/phlay/
+if [ -d $PHLAY ]; then
+  export PATH=$PHLAY:$PATH
+else
+  echo "Please update path for phlay commands"
+fi
