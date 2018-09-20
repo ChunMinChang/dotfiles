@@ -151,7 +151,6 @@ def mozilla_init():
     funcs = {
       'gecko': gecko_init,
       'hg': hg_init,
-      'mozreview': mozreview_init,
       'phabricator': phabricator_init,
       'rust': rust_init,
     }
@@ -197,41 +196,6 @@ def hg_init():
 
     path = BASE_DIR + '/mozilla/hg/config'
     append_nonexistent_lines_to_file(hg_config, ['%include ' + path])
-
-def mozreview_init():
-    print_installing_title('mozreview settings')
-    # We need git-cinnabar and version-control-tools to use mozreview on git
-    vct = HOME_DIR + '/.mozbuild/version-control-tools/git/commands'
-    if not os.path.isdir(vct):
-        print_fail(''.join(['{} is nonexistent! Abort!'.format(vct),
-                            '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']))
-        return
-
-    cinnabar = HOME_DIR + '/Work/git-cinnabar'
-    if not os.path.isdir(cinnabar):
-        print_fail('{} is nonexistent! Please clone it or change path to git-cinnabar!')
-        return
-
-    git_config = HOME_DIR + '/.gitconfig'
-    path = cinnabar + '/git-cinnabar-helper'
-    if add_nonexistent_line_under_topic(git_config, 'cinnabar',
-                                        '\thelper = ' + path):
-        print 'Add cinnabar : {} to {}'.format(path, git_config)
-    else:
-        print_hint('{} is already included!'.format(path))
-
-    bashrc = HOME_DIR + '/.bashrc'
-    if not os.path.isfile(bashrc):
-        print_fail('{} is nonexistent! Abort!'.format(bashrc))
-        return
-
-    # Write the path into mozilla/gecko/mozreview.sh
-    path = BASE_DIR + '/mozilla/gecko/mozreview.sh'
-    append_nonexistent_lines_to_file(path, [bash_export_command(vct),
-                                            bash_export_command(cinnabar)])
-
-    # Load mozilla/gecko/mozreview.sh in bashrc
-    append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
 
 def phabricator_init():
     print_installing_title('phabricator settings')

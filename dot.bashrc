@@ -31,6 +31,5 @@ BASHRC_PLATFORM=~/.bashrc_${PLATFORM}
 
 # Optional settings
 # ====================================================================
-[ -r /Users/cchang/dotfiles/mozilla/gecko/mozreview.sh ] && . /Users/cchang/dotfiles/mozilla/gecko/mozreview.sh
 [ -r /Users/cchang/dotfiles/mozilla/gecko/alias.sh ] && . /Users/cchang/dotfiles/mozilla/gecko/alias.sh
 [ -r /Users/cchang/.cargo/env ] && . /Users/cchang/.cargo/env
