@@ -44,6 +44,7 @@
                 git qpop $num &&\
                 git uncitill 1;\
               }; f"
+  emptycommit= "!f() { git commit --allow-empty -m \"$1\"; }; f"
 
   # Log Graph
   hist = log --graph HEAD
