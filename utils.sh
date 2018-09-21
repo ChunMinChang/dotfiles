@@ -15,3 +15,27 @@ function RecursivelyRemove()
 {
   find . -name "$1" -type f -delete
 }
+
+function PrintError()
+{
+  local msg=$1
+  local bold_red="\033[1;31m"
+  local normal="\033[0m"
+  echo -e ${bold_red}ERROR:${normal} $msg
+}
+
+function PrintHint()
+{
+  local msg=$1
+  local bold_cyan_bkg="\033[1;46m"
+  local normal="\033[0m"
+  echo -e ${bold_cyan_bkg}HINT:${normal} $msg
+}
+
+function PrintWarning()
+{
+  local msg=$1
+  local bold_yellow="\033[1;33m"
+  local normal="\033[0m"
+  echo -e ${bold_yellow}WARNING:${normal} $msg
+}

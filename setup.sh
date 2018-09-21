@@ -15,11 +15,12 @@ import sys
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 HOME_DIR = os.environ['HOME']
 
+# TODO: Use Print{Error, Hint, Warning} instead
 class colors:
     HEADER = '\033[94m'   # Blue
-    HINT = '\033[93m'     # Yellow
+    HINT = '\033[46m'     # Background Cyan
     OK = '\033[92m'       # Green
-    WARNING = '\033[95m'  # Purple
+    WARNING = '\033[93m'  # Yellow
     FAIL = '\033[91m'     # Red
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
@@ -83,6 +84,7 @@ def print_installing_title(name, bold=False):
         ('\n==============================' if bold
          else '\n--------------------')]) + colors.END
 
+# TODO: Use Print{Error, Hint, Warning} instead
 def print_hint(message):
     print colors.HINT + message + colors.END
 
