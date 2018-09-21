@@ -162,14 +162,13 @@ def mozilla_init():
 
 def gecko_init():
     print_installing_title('gecko alias and machrc')
-    machrc = HOME_DIR + '/.mozbuild/.machrc'
-    if not os.path.isfile(machrc):
-        print_fail(''.join(['{} is nonexistent! Abort!'.format(machrc),
-                            '\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']))
-        return
-
-    path = BASE_DIR + '/mozilla/gecko/machrc'
-    link(path, machrc)
+    machrc = HOME_DIR + '/.mozbuild/machrc'
+    if os.path.isfile(machrc):
+        print_fail(''.join(['{} exists! Abort!'.format(machrc),
+                            '\tApply default settings for now.\n']))
+    else:
+        path = BASE_DIR + '/mozilla/gecko/machrc'
+        link(path, machrc)
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
