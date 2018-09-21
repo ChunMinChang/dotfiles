@@ -87,10 +87,10 @@ def print_hint(message):
     print colors.HINT + message + colors.END
 
 def print_warning(message):
-    print colors.WARNING + message + colors.END
+    print colors.WARNING + 'WARNING: ' + message + colors.END
 
 def print_fail(message):
-    print colors.FAIL + message + colors.END
+    print colors.FAIL + 'ERROR: ' + message + colors.END
 
 # Setup functions
 # ------------------------------------------------------------------------------
