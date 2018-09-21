@@ -11,3 +11,7 @@ alias minst='./mach install'
 alias mm='./mach mochitest'
 # alias mmt='./mach mochitest [your_parameters] [your_test_file]'
 
+# try server
+alias mt='./mach try'
+alias mt-all='./mach try -b do -p all -u all -t none'
+alias mt-debug-all='./mach try -b d -p all -u all -t none'
