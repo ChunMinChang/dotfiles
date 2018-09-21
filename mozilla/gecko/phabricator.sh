@@ -5,11 +5,11 @@ else
   echo "Please update path for arcanist commands"
 fi
 
-GIT_CINNABAR=$HOME/Work/git-cinnabar/
+GIT_CINNABAR=$HOME/.mozbuild/git-cinnabar
 if [ -d $GIT_CINNABAR ]; then
   export PATH=$GIT_CINNABAR:$PATH
 else
-  echo "Please update path for git-cinnabar commands"
+  echo "No git-cinnabar command!\n\tRun: \"$ ./mach bootstrap\" under gecko repo to fix it!"
 fi
 
 PHLAY=$HOME/Work/phlay/
