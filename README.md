@@ -20,14 +20,11 @@ We currently provide the following options:
   - mach alias and machrc: ```$ python setup.sh --mozilla gecko```
     - link ```~/.mozbuild/.machrc``` to the ```mozilla/gecko/machrc```.
     - load ```mozilla/gecko/alias.sh``` into ```~/.bashrc```
-  - mozreview: ```$ python setup.sh --mozilla mozreview```
-    - export ```~/.mozbuild/version-control-tools/git/commands``` to ```$PATH```
-    - export ```~/Work/git-cinnabar``` to ```$PATH```
-    - export ```helper=~/Work/git-cinnabar/git-cinnabar-helper```
-      under ```[cinnabar]``` of ```~/.gitconfig```
   - phabricator: ```$ python setup.sh --mozilla phabricator```
-    - export ```~/Work/arcanist/bin``` to ```$PATH```
     - load ```mozilla/gecko/phabricator.sh``` into ```~/.bashrc```
+      - export ```~/Work/arcanist/bin``` to ```$PATH```
+      - export ```~/.mozbuild/git-cinnabar``` to ```$PATH```
+      - export ```~/Work/phlay/``` to ```$PATH``` (TODO: It will be imported to moz-phab soon.)
   - rust: ```$ python setup.sh --mozilla rust```
     - load ```~/.cargo/env``` in ```~/.bashrc```
 
