@@ -35,15 +35,14 @@ Run ```$ python setup.sh -h``` to get the messages for optional settings.
   If it exists, then append ```source ~/.dotfiles/dot.bashrc``` to it
 - common
   - Move files to trash can
-  - Recursive delete ```.DS_Store``` on OS X
 - git alias
   - [ ] Rewrite the ```qbackto``` and ```qpush```
     - The operations should belong to certain branch
     - Warning users when switching branches with un-pushbacked patches
+  - [ ] Add alias to create branches for git pulls
 - mozilla stuff
   - [x] hg
   - [x] gecko alias
-  - [x] mozreview(check git-cinnabar first)
   - [x] rust stuff
   - [ ] icecc
   - [ ] lldb on osx
