@@ -11,6 +11,10 @@ My personal environment settings.
 # How to use
 Run ```$ python setup.sh``` to do the common settings above.
 
+## Git
+- Create a branch for a pull request on a remote tracked repositories
+  - ex: `$ CreateGitBranchForPullRequest upstream 463`
+
 ## Optional settings
 We currently provide the following options:
 - mozilla
@@ -31,6 +35,7 @@ We currently provide the following options:
 Run ```$ python setup.sh -h``` to get the messages for optional settings.
 
 # TODO
+- Write examples to use the commands, in case I forget.
 - Don't remove old ```~/.bashrc```.
   If it exists, then append ```source ~/.dotfiles/dot.bashrc``` to it
 - common
@@ -39,7 +44,6 @@ Run ```$ python setup.sh -h``` to get the messages for optional settings.
   - [ ] Rewrite the ```qbackto``` and ```qpush```
     - The operations should belong to certain branch
     - Warning users when switching branches with un-pushbacked patches
-  - [ ] Add alias to create branches for git pulls
 - mozilla stuff
   - [x] hg
   - [x] gecko alias
