@@ -14,6 +14,8 @@ Run ```$ python setup.sh``` to do the common settings above.
 ## Git
 - Create a branch for a pull request on a remote tracked repositories
   - ex: `$ CreateGitBranchForPullRequest upstream 463`
+- Open the changed/modified files in the code editor
+  - ex: `$ GitEdit vim` or `$ GitEdit code`
 
 ## Optional settings
 We currently provide the following options:
@@ -44,6 +46,10 @@ Run ```$ python setup.sh -h``` to get the messages for optional settings.
   - [ ] Rewrite the ```qbackto``` and ```qpush```
     - The operations should belong to certain branch
     - Warning users when switching branches with un-pushbacked patches
+- vim
+  - add some basic environment settings for vim
+- vscode
+  - add some basic environment settings for vscode
 - mozilla stuff
   - [x] hg
   - [x] gecko alias
