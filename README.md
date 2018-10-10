@@ -13,7 +13,8 @@ Run ```$ python setup.sh``` to do the common settings above.
 
 ## Git
 - Create a branch for a pull request on a remote tracked repositories
-  - ex: `$ CreateGitBranchForPullRequest upstream 463`
+  - ex: Create a branch for pull request 463 on upstream repo
+    - `$ CreateGitBranchForPullRequest upstream 463`
 - Open the changed/modified files in the code editor
   - ex: `$ GitEdit vim` or `$ GitEdit code`
 
