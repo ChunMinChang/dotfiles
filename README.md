@@ -32,6 +32,9 @@ We currently provide the following options:
       - export ```~/Work/arcanist/bin``` to ```$PATH```
       - export ```~/.mozbuild/git-cinnabar``` to ```$PATH```
       - export ```~/Work/phlay/``` to ```$PATH``` (TODO: It will be imported to moz-phab soon.)
+        - [mystor/phlay](https://github.com/mystor/phlay)
+      - export ```~/Work/review/``` to ```$PATH``` (TODO: Check if `phlay` can be replaced by this.)
+        - [mozilla-conduit/review](https://github.com/mozilla-conduit/review)
   - rust: ```$ python setup.sh --mozilla rust```
     - load ```~/.cargo/env``` in ```~/.bashrc```
 

@@ -18,3 +18,10 @@ if [ -d $PHLAY ]; then
 else
   PrintError 'Please update path for phlay commands'
 fi
+
+MOZ_PHAB=$HOME/Work/review/
+if [ -d $MOZ_PHAB ]; then
+  export PATH=$MOZ_PHAB:$PATH
+else
+  PrintError 'Please update path for moz-phab commands'
+fi
