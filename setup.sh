@@ -178,7 +178,7 @@ def gecko_init():
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
-        print_fail('{} is nonexistent! Abort!'.format(bashrc))
+        print_fail('{} does not exist! Abort!'.format(bashrc))
         return
 
     path = BASE_DIR + '/mozilla/gecko/alias.sh'
@@ -195,7 +195,7 @@ def hg_init():
 
     hg_config = HOME_DIR + '/.hgrc'
     if not os.path.isfile(hg_config):
-        error_messages.insert(0, '{} is nonexistent! Abort!\n'.format(hg_config));
+        error_messages.insert(0, '{} does not exist! Abort!\n'.format(hg_config));
         print_fail(''.join(error_messages))
         return
 
@@ -207,7 +207,7 @@ def phabricator_init():
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
-        print_fail('{} is nonexistent! Abort!'.format(bashrc))
+        print_fail('{} does not exist! Abort!'.format(bashrc))
         return
 
     path = BASE_DIR + '/mozilla/gecko/phabricator.sh'
@@ -219,12 +219,12 @@ def rust_init():
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
-        print_fail('{} is nonexistent! Abort!'.format(bashrc))
+        print_fail('{} does not exist! Abort!'.format(bashrc))
         return
 
     cargo_env = HOME_DIR + '/.cargo/env'
     if not os.path.isfile(cargo_env):
-        error_messages.insert(0, '{} is nonexistent! Abort!'.format(cargo_env));
+        error_messages.insert(0, '{} does not exist! Abort!'.format(cargo_env));
         print_fail(''.join(error_messages))
         return
 
