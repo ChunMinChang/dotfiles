@@ -52,7 +52,7 @@ def append_to_next_line_after(name, pattern, value = ''):
 def bash_export_command(path):
     return ''.join(['export PATH=', path,':$PATH'])
 
-def bash_load_comamnd(path):
+def bash_load_command(path):
     return ''.join(['[ -r ', path, ' ] && . ', path])
 
 def append_nonexistent_lines_to_file(file, lines):
@@ -118,7 +118,7 @@ def bash_link():
         src = os.path.join(BASE_DIR, f)
         if os.path.isfile(target):
             print('Append a command to load {} in {}'.format(src, target))
-            append_nonexistent_lines_to_file(target, [bash_load_comamnd(src)])
+            append_nonexistent_lines_to_file(target, [bash_load_command(src)])
         else:
             link(src, target)
 
@@ -182,7 +182,7 @@ def gecko_init():
         return
 
     path = BASE_DIR + '/mozilla/gecko/alias.sh'
-    append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
+    append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
 
 def hg_init():
     print_installing_title('hg settings')
@@ -211,7 +211,7 @@ def phabricator_init():
         return
 
     path = BASE_DIR + '/mozilla/gecko/phabricator.sh'
-    append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(path)])
+    append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
 
 def rust_init():
     print_installing_title('rust settings')
@@ -228,7 +228,7 @@ def rust_init():
         print_fail(''.join(error_messages))
         return
 
-    append_nonexistent_lines_to_file(bashrc, [bash_load_comamnd(cargo_env)])
+    append_nonexistent_lines_to_file(bashrc, [bash_load_command(cargo_env)])
 
 def main(argv):
     dotfiles_link()
