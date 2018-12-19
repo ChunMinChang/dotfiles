@@ -31,10 +31,10 @@ class colors:
 # Symbolically link source to target
 def link(source, target):
     if os.path.islink(target):
-        print 'unlink {}'.format(target)
+        print('unlink {}'.format(target))
         os.unlink(target)
 
-    print 'link {} to {}'.format(source, target)
+    print('link {} to {}'.format(source, target))
     os.symlink(source, target)
 
 # Check whether `name` is on PATH and marked as executable.
@@ -56,18 +56,18 @@ def bash_load_comamnd(path):
     return ''.join(['[ -r ', path, ' ] && . ', path])
 
 def append_nonexistent_lines_to_file(file, lines):
-    with open(file, 'r+a') as f:
+    with open(file, 'a+') as f:
         content = f.read()
         for l in lines:
             if l in content:
-                print '{} is already in {}'.format(l, file)
+                print('{} is already in {}'.format(l, file))
                 continue
             f.write(l + '\n')
-            print '{} is appended into {}'.format(l, file)
+            print('{} is appended into {}'.format(l, file))
         f.close()
 
 def add_nonexistent_line_under_topic(file, topic, line):
-    with open(file, 'r+a') as f:
+    with open(file, 'a+') as f:
         content = f.read()
         if '[' + topic + ']' not in content:
             f.write('[' + topic + ']\n')
@@ -80,19 +80,19 @@ def add_nonexistent_line_under_topic(file, topic, line):
     return True
 
 def print_installing_title(name, bold=False):
-    print colors.HEADER + ''.join(['\n', name,
+    print(colors.HEADER + ''.join(['\n', name,
         ('\n==============================' if bold
-         else '\n--------------------')]) + colors.END
+         else '\n--------------------')]) + colors.END)
 
 # TODO: Use Print{Error, Hint, Warning} instead
 def print_hint(message):
-    print colors.HINT + message + colors.END
+    print(colors.HINT + message + colors.END)
 
 def print_warning(message):
-    print colors.WARNING + 'WARNING: ' + message + colors.END
+    print(colors.WARNING + 'WARNING: ' + message + colors.END)
 
 def print_fail(message):
-    print colors.FAIL + 'ERROR: ' + message + colors.END
+    print(colors.FAIL + 'ERROR: ' + message + colors.END)
 
 # Setup functions
 # ------------------------------------------------------------------------------
@@ -116,7 +116,11 @@ def bash_link():
             continue
         target = os.path.join(HOME_DIR, f[3:]) # Get name after dot
         src = os.path.join(BASE_DIR, f)
-        link(src, target)
+        if os.path.isfile(target):
+            print('Append a command to load {} in {}'.format(src, target))
+            append_nonexistent_lines_to_file(target, [bash_load_comamnd(src)])
+        else:
+            link(src, target)
 
 # Include git/config from ~/.giconfig
 def git_init():
@@ -127,13 +131,13 @@ def git_init():
 
     git_config = HOME_DIR + '/.gitconfig'
     if not os.path.isfile(git_config):
-        print_fail('{} is nonexistent! Abort!'.format(git_config))
-        return
+        print_warning('{} does not exist! Create a new one!'.format(git_config))
+        with open(git_config, 'w'): pass
 
     path = BASE_DIR + '/git/config'
 
     if add_nonexistent_line_under_topic(git_config, 'include', '\tpath = ' + path):
-        print '{} is included in {}'.format(path, git_config)
+        print('{} is included in {}'.format(path, git_config))
     else:
         print_hint('{} is already included!'.format(path))
 
@@ -238,4 +242,4 @@ if __name__ == '__main__':
     try:
         main(sys.argv)
     except KeyboardInterrupt:
-        print 'abort'
+        print('abort')
