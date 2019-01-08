@@ -53,7 +53,7 @@ Run ```$ python setup.sh -h``` to get the messages for optional settings.
 - vim
   - add some basic environment settings for vim
 - vscode
-  - add some basic environment settings for vscode
+  - Link `setting.json` to the *vscode* application from `~/dotfiles/vscode/settings.json`
 - mozilla stuff
   - [x] hg
   - [x] gecko alias

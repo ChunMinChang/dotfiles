@@ -1,0 +1,9 @@
+{
+    "editor.tabSize": 2,
+    "editor.fontSize":20,
+    "markdown.preview.fontSize": 20,
+    "window.zoomLevel": 0,
+    "terminal.integrated.fontSize": 20,
+    "files.trimTrailingWhitespace": true,
+    "diffEditor.ignoreTrimWhitespace": false,
+}
