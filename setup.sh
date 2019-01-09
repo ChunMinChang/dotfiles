@@ -104,21 +104,28 @@ def dotfiles_link():
 # Link dot.* to ~/.*
 def bash_link():
     print_installing_title('bash startup scripts')
-    files_only_for = {
-      'dot.bash_profile': ['Darwin'], # dot.bash_profile is only for OS X
+    platform_files = {
+        'Darwin': [
+            'dot.bashrc',
+            'dot.bash_profile',
+            'dot.bashrc_darwin'
+        ],
+        'Linux': [
+            'dot.bashrc',
+            'dot.bashrc_linux'
+        ],
     }
 
-    files = filter(lambda f: f.startswith('dot.'), os.listdir(BASE_DIR))
-
+    #files = filter(lambda f: f.startswith('dot.'), os.listdir(BASE_DIR))
+    files = platform_files[platform.system()];
     for f in files:
-        if f in files_only_for and platform.system() not in files_only_for[f]:
-            print_hint('skip link {}'.format(f))
-            continue
         target = os.path.join(HOME_DIR, f[3:]) # Get name after dot
         src = os.path.join(BASE_DIR, f)
         if os.path.isfile(target):
-            print('Append a command to load {} in {}'.format(src, target))
-            append_nonexistent_lines_to_file(target, [bash_load_command(src)])
+            print_warning('{} already exists!'.format(target));
+            if f is 'dot.bashrc':
+                print('Append a command to load {} in {}'.format(src, target))
+                append_nonexistent_lines_to_file(target, [bash_load_command(src)])
         else:
             link(src, target)
 

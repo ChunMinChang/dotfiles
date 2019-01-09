@@ -40,11 +40,11 @@ We currently provide the following options:
 
 Run ```$ python setup.sh -h``` to get the messages for optional settings.
 
+## Note
+- If `~/.bashrc` exists, a command loading `dot.bashrc` will be append in current `~/.bashrc`.
+
 # TODO
-- Correct `bash_link` in *setup.sh* so we won't install *dot.bashrc_darwin* on linux(non-darwin platforms)!
 - Write examples to use the commands, in case I forget.
-- Don't remove old ```~/.bashrc```.
-  If it exists, then append ```source ~/.dotfiles/dot.bashrc``` to it
 - common
   - Move files to trash can
 - git alias
