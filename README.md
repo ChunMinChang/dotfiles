@@ -73,6 +73,7 @@ Run `$ python setup.sh -h` to get the messages for optional settings.
 
 # TODO
 - Write examples to use the commands, in case I forget.
+- Write commands to uninstall all the settings and remove all the links.
 - common
   - Move files to trash can
 - git alias
