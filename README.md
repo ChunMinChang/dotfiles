@@ -33,7 +33,7 @@ My personal environment settings.
 - add ```git/config``` into ```[include]``` of ```~/.gitconfig```
 - load ```git/utils.sh``` in ```~/.bashrc```
 
-# How to use
+## How to use
 Run ```$ python setup.sh``` to do the common settings above.
 
 ## Git
