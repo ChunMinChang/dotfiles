@@ -1,1 +1,5 @@
 alias open='xdg-open'
+
+# platform-dependent paths
+# ====================================================================
+TRASH=$HOME/.local/share/Trash/files

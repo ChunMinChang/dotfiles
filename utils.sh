@@ -39,3 +39,18 @@ function PrintWarning()
   local normal="\033[0m"
   echo -e ${bold_yellow}WARNING:${normal} $msg
 }
+
+function Trash()
+{
+  local items=$@
+  if [ -d "$TRASH" ]; then
+    if [ ! -z "$items" ]; then
+      echo "Move $items to $TRASH"
+      mv $items $TRASH
+    else
+      echo "Throw nothing to trash."
+    fi
+  else
+    echo "$TRASH directory not found! Please set TRASH in dot.bashrc_$PLATFORM"
+  fi
+}
