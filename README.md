@@ -1,6 +1,31 @@
 # dotfiles
 My personal environment settings.
 
+## Files
+- *dot.bashrc*
+  - Cross-platform common settings
+  - Prompt users to install *git*
+  - Load *utils.sh*
+  - Load *dot.bashrc_${PLATFORM}*, where *${PLATFORM}* is *darwin*(OSX) or *linux*
+  - Will be symbolically linked from *$HOME/.bashrc*, no matter what the platform users have
+    - *$HOME/.bashrc* is a shell script and the entry point to initialize the shell sessions on the *Linux* platforms
+    - If *$HOME/.bashrc* exists, a command loading *dot.bashrc* will be append in current *$HOME/.bashrc*
+- *utils.sh*
+  - Personal cross-platform commands
+- OSX files
+  - *dot.bash_profile*
+    - Will be symbolically linked from *$HOME/.bash_profile* on the *OSX* platforms
+      - *$HOME/.bash_profile* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms
+    - Load *$HOME/.bashrc* (and that's why *$HOME/.bashrc* can be cross-platform script)
+  - *dot.bashrc_darwin*
+    - Will be loaded by *dot.bashrc* if the platform is *OSX*
+    - Personal settings on *OSX*
+- Linux files
+  - *dot.bashrc_linux*
+    - Will be loaded by *dot.bashrc* if the platform is *Linux*
+      - Personal settings on *Linux*
+
+## Links
 - link ```~/.dotfiles``` to the ```path/to/repo```.
 - link ```~/.bashrc``` to ```dot.bashrc```
 - link ```~/.bash_profile``` to ```dot.bash_profile``` on OS X
@@ -39,9 +64,6 @@ We currently provide the following options:
     - load ```~/.cargo/env``` in ```~/.bashrc```
 
 Run ```$ python setup.sh -h``` to get the messages for optional settings.
-
-## Note
-- If `~/.bashrc` exists, a command loading `dot.bashrc` will be append in current `~/.bashrc`.
 
 # TODO
 - Write examples to use the commands, in case I forget.
