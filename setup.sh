@@ -122,6 +122,9 @@ def bash_link():
         target = os.path.join(HOME_DIR, f[3:]) # Get name after dot
         src = os.path.join(BASE_DIR, f)
         if os.path.isfile(target):
+            if os.path.samefile(src, target):
+                print_warning('{} is already linked!'.format(target));
+                continue
             print_warning('{} already exists!'.format(target));
             if f is 'dot.bashrc':
                 print('Append a command to load {} in {}'.format(src, target))
