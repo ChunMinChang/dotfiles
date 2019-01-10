@@ -51,6 +51,6 @@ function Trash()
       echo "Throw nothing to trash."
     fi
   else
-    echo "$TRASH directory not found! Please set TRASH in dot.bashrc_$PLATFORM"
+    echo "TRASH path not found! Please set TRASH in dot.bashrc_$PLATFORM"
   fi
 }
