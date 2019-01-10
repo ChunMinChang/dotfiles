@@ -29,3 +29,7 @@ if [ $(CommandExists mvim) -eq 0 ]; then
   brew unlink macvim && brew link macvim
 fi
 alias vim='mvim -v'
+
+# platform-dependent paths
+# ====================================================================
+TRASH=$HOME/.Trash
