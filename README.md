@@ -72,6 +72,7 @@ Run `$ python setup.sh -h` to get the messages for optional settings.
   - ex: `$ GitEdit vim` or `$ GitEdit code`
 
 # TODO
+- Make it work on Windows!
 - Write examples to use the commands, in case I forget.
 - Write commands to uninstall all the settings and remove all the links.
 - Set `$Trash` path on *OSX*
