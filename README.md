@@ -77,10 +77,7 @@ Run `$ python setup.sh -h` to get the messages for optional settings.
 - Write commands to uninstall all the settings and remove all the links.
 - Set `$Trash` path on *OSX*
 - git alias
-  - [ ] Rewrite the `qbackto` and `qpush`
-    - The operations should belong to certain branch
-    - Warning users when switching branches with un-pushbacked patches
-    - Use third party alias to do the same job maybe
+  - [ ] Remove `qbackto` and `qpush`! Use `git rebase -i` instead!
 - vim
   - add some basic environment settings for vim
 - vscode
