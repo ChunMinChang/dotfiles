@@ -45,7 +45,7 @@ function CreateGitBranchForPullRequest {
 
 # Show git branch in prompt.
 # ------------------------------------------------
-function parseGitBranch {
+function ParseGitBranch {
   git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
 }
 
@@ -92,5 +92,5 @@ function BranchInPrompt {
   local      BG_GRAY="\[\033[47m\]"
   # END OPTIONAL
   local     DEFAULT="\[\033[0m\]"
-  PS1="$GREEN\$(parseGitBranch)$DEFAULT$PS1"
+  PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
 }
