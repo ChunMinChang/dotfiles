@@ -82,8 +82,4 @@ Run `$ python setup.sh -h` to get the messages for optional settings.
   - Link `setting.json` to the *vscode* application from `~/dotfiles/vscode/settings.json`
   - Sync the extensions
 - mozilla stuff
-  - [x] hg
-  - [x] gecko alias
-  - [x] rust stuff
-  - [ ] icecc
-  - [ ] lldb on osx
+  - Append `~/dotfiles/mozilla/machrc` into `~/.mozbuild/machrc`

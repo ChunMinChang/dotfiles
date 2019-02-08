@@ -3,13 +3,20 @@ alias mb='./mach build'
 alias mr='./mach run'
 alias mc='./mach clobber'
 
+# Debug
+alias mmd10='./mach mochitest --disable-e10s'
+alias mrgd10='./mach run --disable-e10s --debug --debugger=gdb'
+alias mrrd10='./mach run --disable-e10s --debug --debugger=rr'
+
 # Install Fennec to Android
 alias mpack='./mach package'
 alias minst='./mach install'
 
 # mochitest
 alias mm='./mach mochitest'
-# alias mmt='./mach mochitest [your_parameters] [your_test_file]'
+
+# gtest
+alias mg='./mach gtest'
 
 # try server
 alias mt='./mach try'

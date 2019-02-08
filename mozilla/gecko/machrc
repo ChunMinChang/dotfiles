@@ -1,2 +1,2 @@
 [alias]
-mn10= mochitest --disable-e10s
+md10=mochitest --disable-e10s
