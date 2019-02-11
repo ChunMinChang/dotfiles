@@ -70,6 +70,11 @@ Run `$ python setup.sh -h` to get the messages for optional settings.
     - `$ CreateGitBranchForPullRequest upstream 463`
 - Open the changed/modified files in the code editor
   - ex: `$ GitEdit vim` or `$ GitEdit code`
+### Utils
+- RecursivelyFind
+  - ex: `$ RecursivelyFind "*.sh"`
+- RecursivelyRemove
+  - ex: `$ RecursivelyFind ".DS_Store"`
 
 # TODO
 - Make it work on Windows!
