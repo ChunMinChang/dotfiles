@@ -11,6 +11,11 @@ function CommandExists()
   fi
 }
 
+function RecursivelyFind()
+{
+  find . -name "$1"
+}
+
 function RecursivelyRemove()
 {
   find . -name "$1" -type f -delete
