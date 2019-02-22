@@ -43,6 +43,34 @@ function CreateGitBranchForPullRequest {
   git branch -v
 }
 
+# Add some files except some certian files
+# ------------------------------------------------
+function GitAddExcept {
+  local option=""
+  local files=()
+  while [[ $# -gt 0 ]]
+  do
+  arg="$1"
+
+  case $arg in
+      -A|--all)
+      option=$arg
+      shift # past argument
+      ;;
+      -u|--update)
+      option=$arg
+      shift # past argument
+      ;;
+      *)    # unknown option
+      files+=("$1") # save it in an array for later
+      shift # past argument
+      ;;
+  esac
+  done
+  git add $option
+  git reset "${files[@]}"
+}
+
 # Show git branch in prompt.
 # ------------------------------------------------
 function ParseGitBranch {
