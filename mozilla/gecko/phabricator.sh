@@ -12,13 +12,6 @@ else
   PrintError 'No git-cinnabar command!\nRun: "$ ./mach bootstrap" under gecko repo to fix it!'
 fi
 
-PHLAY=$HOME/Work/phlay/
-if [ -d $PHLAY ]; then
-  export PATH=$PHLAY:$PATH
-else
-  PrintError 'Please update path for phlay commands'
-fi
-
 MOZ_PHAB=$HOME/Work/review/
 if [ -d $MOZ_PHAB ]; then
   export PATH=$MOZ_PHAB:$PATH

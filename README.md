@@ -54,9 +54,7 @@ My personal environment settings.
     - Load *mozilla/gecko/phabricator.sh* into *~/.bashrc*
       - Export `~/Work/arcanist/bin` to `$PATH`
       - Export `~/.mozbuild/git-cinnabar` to `$PATH`
-      - Export `~/Work/phlay/` to `$PATH` (TODO: It will be imported to moz-phab soon.)
-        - [mystor/phlay](https://github.com/mystor/phlay)
-      - Export `~/Work/review/` to `$PATH` (TODO: Check if `phlay` can be replaced by this.)
+      - Export `~/Work/review/` to `$PATH`
         - [mozilla-conduit/review](https://github.com/mozilla-conduit/review)
   - *Rust*: `$ python setup.sh --mozilla rust`
     - Load *~/.cargo/env* in *~/.bashrc*
