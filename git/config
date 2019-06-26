@@ -4,6 +4,7 @@
   ci = commit
   cl = clean
   co = checkout
+  cp = cherry-pick
   df = diff --patience
   fp = format-patch --patience
   mr = merge
