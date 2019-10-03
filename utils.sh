@@ -1,7 +1,5 @@
 #!/bin/bash
 
-alias RSSTimestamp='TZ=GMT date +"%a, %d %b %Y %T %Z"'
-
 function CommandExists()
 {
   local cmd=$1

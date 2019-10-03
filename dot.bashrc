@@ -29,5 +29,9 @@ PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
 BASHRC_PLATFORM=~/.bashrc_${PLATFORM}
 [ -r $BASHRC_PLATFORM ] && . $BASHRC_PLATFORM
 
+# Alias
+# ====================================================================
+alias RSSTimestamp='TZ=GMT date +"%a, %d %b %Y %T %Z"'
+
 # Optional settings
 # ====================================================================
