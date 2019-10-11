@@ -61,14 +61,18 @@ My personal environment settings.
 
 Run `$ python setup.sh -h` to get the messages for optional settings.
 
-## Usage
+## Utils Usage
 ### Git
 - Create a branch for a pull request on a remote tracked repositories
   - ex: Create a branch for pull request 463 on upstream repo
     - `$ CreateGitBranchForPullRequest upstream 463`
 - Open the changed/modified files in the code editor
   - ex: `$ GitEdit vim` or `$ GitEdit code`
-### Utils
+### Gecko
+- Generate a W3C Spec page from a _bs_ file
+  - ex: Generate a w3c spec page called _test.html_ from _index.bs_
+    - `$ W3CSpec index.bs test.html`
+### Common
 - RecursivelyFind
   - ex: `$ RecursivelyFind "*.sh"`
 - RecursivelyRemove
