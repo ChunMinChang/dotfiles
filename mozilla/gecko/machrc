@@ -1,2 +1,5 @@
 [alias]
-md10=mochitest --disable-e10s
+tde10 = mochitest --disable-e10s
+
+[build]
+telemetry = true
