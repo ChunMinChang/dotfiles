@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# vim: set sw=4 ts=4 sts=4 et fileencoding=utf-8 :
-
 import argparse
 import distutils.spawn
 import fileinput

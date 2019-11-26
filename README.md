@@ -2,7 +2,7 @@
 My personal environment settings.
 
 ## Files
-- *setup.sh*: A python program to install all my personal settings
+- *setup.py*: A python program to install all my personal settings
   - Link my *dot files* settings to *$HOME*
   - Load my personal commands and alias
   - Load settings that my work needs (personal *Mozilla* settings and commands)
@@ -44,19 +44,19 @@ My personal environment settings.
 
 ## Optional settings
 - mozilla
-  - All toolkit: `$ python setup.sh --mozilla`
-  - hg: `$ python setup.sh --mozilla hg`
+  - All toolkit: `$ python setup.py --mozilla`
+  - hg: `$ python setup.py --mozilla hg`
     - add `%include mozilla/hg/config` into *~/.hgrc*
-  - mach alias and machrc: ```$ python setup.sh --mozilla gecko```
+  - mach alias and machrc: ```$ python setup.py --mozilla gecko```
     - Link *~/.mozbuild/.machrc* to the *mozilla/gecko/machrc*.
     - Load *mozilla/gecko/alias.sh* into *~/.bashrc*
-  - tools: `$ python setup.sh --mozilla tools`
+  - tools: `$ python setup.py --mozilla tools`
     - Load *mozilla/gecko/tools.sh* into *~/.bashrc*
       - check if *git-cinnabar* is downloaded
-  - *Rust*: `$ python setup.sh --mozilla rust`
+  - *Rust*: `$ python setup.py --mozilla rust`
     - Load *~/.cargo/env* in *~/.bashrc*
 
-Run `$ python setup.sh -h` to get the messages for optional settings.
+Run `$ python setup.py -h` to get the messages for optional settings.
 
 ## Utils Usage
 ### Git
