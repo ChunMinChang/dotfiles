@@ -167,7 +167,7 @@ def mozilla_init():
     funcs = {
       'gecko': gecko_init,
       'hg': hg_init,
-      'phabricator': phabricator_init,
+      'tools': tools_init,
       'rust': rust_init,
     }
 
@@ -212,15 +212,15 @@ def hg_init():
     path = BASE_DIR + '/mozilla/hg/config'
     append_nonexistent_lines_to_file(hg_config, ['%include ' + path])
 
-def phabricator_init():
-    print_installing_title('phabricator settings')
+def tools_init():
+    print_installing_title('tools settings')
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return
 
-    path = BASE_DIR + '/mozilla/gecko/phabricator.sh'
+    path = BASE_DIR + '/mozilla/gecko/tools.sh'
     append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
 
 def rust_init():

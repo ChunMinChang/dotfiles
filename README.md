@@ -50,12 +50,9 @@ My personal environment settings.
   - mach alias and machrc: ```$ python setup.sh --mozilla gecko```
     - Link *~/.mozbuild/.machrc* to the *mozilla/gecko/machrc*.
     - Load *mozilla/gecko/alias.sh* into *~/.bashrc*
-  - phabricator: `$ python setup.sh --mozilla phabricator`
-    - Load *mozilla/gecko/phabricator.sh* into *~/.bashrc*
-      - Export `~/Work/arcanist/bin` to `$PATH`
-      - Export `~/.mozbuild/git-cinnabar` to `$PATH`
-      - Export `~/Work/review/` to `$PATH`
-        - [mozilla-conduit/review](https://github.com/mozilla-conduit/review)
+  - tools: `$ python setup.sh --mozilla tools`
+    - Load *mozilla/gecko/tools.sh* into *~/.bashrc*
+      - check if *git-cinnabar* is downloaded
   - *Rust*: `$ python setup.sh --mozilla rust`
     - Load *~/.cargo/env* in *~/.bashrc*
 
