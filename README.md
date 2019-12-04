@@ -63,8 +63,10 @@ Run `$ python setup.py -h` to get the messages for optional settings.
 - Create a branch for a pull request on a remote tracked repositories
   - ex: Create a branch for pull request 463 on upstream repo
     - `$ CreateGitBranchForPullRequest upstream 463`
-- Open the changed/modified files in the code editor
-  - ex: `$ GitEdit vim` or `$ GitEdit code`
+- Open all the added/changed/modified files in the code editor
+  - ex: `$ GitUncommit vim` or `$ GitUncommit code`
+- Open all the files in the last commit
+  - ex: `$ GitLastCommit vim` or `$ GitLastCommit code`
 ### Gecko
 - Generate a W3C Spec page from a _bs_ file
   - ex: Generate a w3c spec page called _test.html_ from _index.bs_
