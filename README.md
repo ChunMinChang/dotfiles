@@ -1,6 +1,8 @@
 # dotfiles
 My personal environment settings.
 
+Run `$ python setup.py` to set up the common environment settings. For more specific needs, see _Optional settings_ below.
+
 ## Files
 - *setup.py*: A python program to install all my personal settings
   - Link my *dot files* settings to *$HOME*
@@ -8,21 +10,21 @@ My personal environment settings.
   - Load settings that my work needs (personal *Mozilla* settings and commands)
 - *dot.bashrc*: Cross-platform common settings
   - Prompt users to install *git*
-  - Load *utils.sh*
-  - Load *git/utils.sh*
-  - Load *dot.bashrc_${PLATFORM}*, where *${PLATFORM}* is *darwin*(OSX) or *linux*
-  - Will be symbolically linked from *$HOME/.bashrc*, no matter what the platform users have
+  - Load *utils.sh* for common commands and alias
+  - Load *git/utils.sh* for common git commands and alias
+  - Load *dot.bashrc_${PLATFORM}*, where *${PLATFORM}* is *darwin*(OSX) or *linux*, for platform-denpendent settings
+  - Will be symbolically linked from *$HOME/.bashrc*, if users don't have *$HOME/.bashrc*.
+    Or be loaded from *$HOME/.bashrc* if users already have their own *$HOME/.bashrc*.
     - *$HOME/.bashrc* is a shell script and the entry point to initialize the shell sessions on the *Linux* platforms
-    - If *$HOME/.bashrc* exists, a command loading *dot.bashrc* will be append in current *$HOME/.bashrc*
-- *utils.sh*: Personal cross-platform commands
+- *utils.sh*: common cross-platform commands
 - *git*
-  - *git/config*: Personal *git* alias
-  - *git/utils.sh*: Personal commands using `git *`
+  - *git/config*: common *git* alias
+  - *git/utils.sh*: common commands using `git *`
 - *OSX* files
   - *dot.bash_profile*
     - Will be symbolically linked from *$HOME/.bash_profile* on the *OSX* platforms
       - *$HOME/.bash_profile* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms
-    - Load *$HOME/.bashrc* (and that's why *$HOME/.bashrc* can be cross-platform script)
+    - Load *$HOME/.bashrc*
   - *dot.bashrc_darwin*
     - Will be loaded by *dot.bashrc* if the platform is *OSX*
     - Personal settings on *OSX*
@@ -35,7 +37,7 @@ My personal environment settings.
 
 ### Links
 - Link *~/.dotfiles* to the *path/to/repo*.
-- Link *~/.bashrc* to *dot.bashrc*
+- Link *~/.bashrc* to *dot.bashrc* if there is no *~/.bashrc*, or load *dot.bashrc* in *~/.bashrc*
 - Link *~/.bash_profile* to *dot.bash_profile* on *OS X*
 - Link *~/.bashrc_darwin* to *dot.bashrc_darwin* and load it in *~/.bashrc* on *OS X*
 - Link *~/.bashrc_linux* to *dot.bashrc_linux* and load it in *~/.bashrc* on *Linux*
