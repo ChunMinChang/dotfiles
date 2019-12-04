@@ -60,18 +60,18 @@ Run `$ python setup.py -h` to get the messages for optional settings.
 
 ## Utils Usage
 ### Git
-- Create a branch for a pull request on a remote tracked repositories
-  - ex: Create a branch for pull request 463 on upstream repo
-    - `$ CreateGitBranchForPullRequest upstream 463`
-- Open all the added/changed/modified files in the code editor
-  - ex: `$ GitUncommit vim` or `$ GitUncommit code`
 - Open all the files in the last commit
   - ex: `$ GitLastCommit vim` or `$ GitLastCommit code`
+- Open all the added/changed/modified files in the code editor
+  - ex: `$ GitUncommit vim` or `$ GitUncommit code`
 - Add all/updated files except _f1, f2, f3, ..._
   - ex: Add all updated files, except _A_ and _B_
     - `$ GitAddExcept -u A B`
   - ex: Add all files, except _P_, _Q_ and _R_
     - `$ GitAddExcept -A P Q R`
+- Create a branch for a pull request on a remote tracked repositories
+  - ex: Create a branch for pull request _123_ on upstream repo
+    - `$ CreateGitBranchForPullRequest upstream 123`
 ### Gecko
 - Generate a W3C Spec page from a _bs_ file
   - ex: Generate a w3c spec page called _test.html_ from _index.bs_

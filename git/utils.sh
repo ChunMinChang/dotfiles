@@ -45,16 +45,6 @@ function GitUncommit() {
   # git ls-files --modified --deleted --others -z | xargs -0 $editor
 }
 
-# Create a branch for pull #
-# ------------------------------------------------
-function CreateGitBranchForPullRequest {
-  local remote=$1
-  local number=$2
-  git fetch $remote pull/$number/head:pr-$number
-  printf "\nCurrent git branches:\n"
-  git branch -v
-}
-
 # Add some files except some certian files
 # ------------------------------------------------
 function GitAddExcept {
@@ -82,6 +72,17 @@ function GitAddExcept {
   git add $option
   git reset "${files[@]}"
 }
+
+# Create a branch for pull #
+# ------------------------------------------------
+function CreateGitBranchForPullRequest {
+  local remote=$1
+  local number=$2
+  git fetch $remote pull/$number/head:pr-$number
+  printf "\nCurrent git branches:\n"
+  git branch -v
+}
+
 
 # Show git branch in prompt.
 # ------------------------------------------------
