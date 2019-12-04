@@ -77,11 +77,15 @@ Run `$ python setup.py -h` to get the messages for optional settings.
   - ex: Generate a w3c spec page called _test.html_ from _index.bs_
     - `$ W3CSpec index.bs test.html`
 ### Common
-- RecursivelyFind
-  - ex: `$ RecursivelyFind "*.sh"`
-- RecursivelyRemove
-  - ex: `$ RecursivelyFind ".DS_Store"`
-
+- Recursively find files under the current folder
+  - ex: Recursively list all the _.sh_ files
+    - `$ RecursivelyFind "*.sh"`
+- Recursively remove files under the current folder
+  - ex: Recursively delete all the *.DS_Store* files
+    - `$ RecursivelyFind "*.DS_Store"`
+- Throw files to trash can
+  - ex: Throw _hello.txt_ and _world.log_ to Trash
+    - `$ Trash hello.txt world.log`
 # TODO
 - Make it work on Windows!
 - Write examples to use the commands, in case I forget.

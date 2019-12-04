@@ -1,5 +1,31 @@
 #!/bin/bash
 
+function RecursivelyFind()
+{
+  find . -name "$1"
+}
+
+function RecursivelyRemove()
+{
+  find . -name "$1" -type f -delete
+}
+
+function Trash()
+{
+  local items=$@
+  if [ -d "$TRASH" ]; then
+    if [ ! -z "$items" ]; then
+      echo "Move $items to $TRASH"
+      mv $items $TRASH
+    else
+      echo "Throw nothing to trash."
+    fi
+  else
+    echo "TRASH path not found! Please set TRASH in dot.bashrc_$PLATFORM"
+  fi
+}
+
+# The following commands are used internally in this repo
 function CommandExists()
 {
   local cmd=$1
@@ -9,16 +35,6 @@ function CommandExists()
     echo >&2 "$cmd is not installed.";
     echo 0
   fi
-}
-
-function RecursivelyFind()
-{
-  find . -name "$1"
-}
-
-function RecursivelyRemove()
-{
-  find . -name "$1" -type f -delete
 }
 
 function PrintError()
@@ -43,19 +59,4 @@ function PrintWarning()
   local bold_yellow="\033[1;33m"
   local normal="\033[0m"
   echo -e ${bold_yellow}WARNING:${normal} $msg
-}
-
-function Trash()
-{
-  local items=$@
-  if [ -d "$TRASH" ]; then
-    if [ ! -z "$items" ]; then
-      echo "Move $items to $TRASH"
-      mv $items $TRASH
-    else
-      echo "Throw nothing to trash."
-    fi
-  else
-    echo "TRASH path not found! Please set TRASH in dot.bashrc_$PLATFORM"
-  fi
 }
