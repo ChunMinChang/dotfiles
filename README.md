@@ -67,6 +67,11 @@ Run `$ python setup.py -h` to get the messages for optional settings.
   - ex: `$ GitUncommit vim` or `$ GitUncommit code`
 - Open all the files in the last commit
   - ex: `$ GitLastCommit vim` or `$ GitLastCommit code`
+- Add all/updated files except _f1, f2, f3, ..._
+  - ex: Add all updated files, except _A_ and _B_
+    - `$ GitAddExcept -u A B`
+  - ex: Add all files, except _P_, _Q_ and _R_
+    - `$ GitAddExcept -A P Q R`
 ### Gecko
 - Generate a W3C Spec page from a _bs_ file
   - ex: Generate a w3c spec page called _test.html_ from _index.bs_
