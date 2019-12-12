@@ -89,10 +89,9 @@ Run `$ python setup.py -h` to get the messages for optional settings.
   - ex: Throw _hello.txt_ and _world.log_ to Trash
     - `$ Trash hello.txt world.log`
 # TODO
+- Use *zsh* configuration tool (e.g. *ohmyzsh*) on zsh
 - Make it work on Windows!
-- Write examples to use the commands, in case I forget.
 - Write commands to uninstall all the settings and remove all the links.
-- more git alias
 - vim
   - add some basic environment settings for vim
 - vscode
