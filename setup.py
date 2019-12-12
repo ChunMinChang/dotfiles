@@ -103,7 +103,7 @@ def bash_link():
     platform_files = {
         'Darwin': [
             'dot.bashrc',
-            'dot.bash_profile',
+            'dot.zshrc',
             'dot.bashrc_darwin'
         ],
         'Linux': [

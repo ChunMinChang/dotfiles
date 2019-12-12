@@ -21,9 +21,9 @@ Run `$ python setup.py` to set up the common environment settings. For more spec
   - *git/config*: common *git* alias
   - *git/utils.sh*: common commands using `git *`
 - *OSX* files
-  - *dot.bash_profile*
-    - Will be symbolically linked from *$HOME/.bash_profile* on the *OSX* platforms
-      - *$HOME/.bash_profile* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms
+  - *dot.zshrc*
+    - Will be symbolically linked from *$HOME/.zshrc* on the *OSX* platforms
+      - *$HOME/.zshrc* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms
     - Load *$HOME/.bashrc*
   - *dot.bashrc_darwin*
     - Will be loaded by *dot.bashrc* if the platform is *OSX*
@@ -38,7 +38,7 @@ Run `$ python setup.py` to set up the common environment settings. For more spec
 ### Links
 - Link *~/.dotfiles* to the *path/to/repo*.
 - Link *~/.bashrc* to *dot.bashrc* if there is no *~/.bashrc*, or load *dot.bashrc* in *~/.bashrc*
-- Link *~/.bash_profile* to *dot.bash_profile* on *OS X*
+- Link *~/.zshrc* to *dot.zshrc* on *OS X*
 - Link *~/.bashrc_darwin* to *dot.bashrc_darwin* and load it in *~/.bashrc* on *OS X*
 - Link *~/.bashrc_linux* to *dot.bashrc_linux* and load it in *~/.bashrc* on *Linux*
 - Append *git/config* under `[include]` of *~/.gitconfig*
