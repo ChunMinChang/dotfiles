@@ -27,7 +27,7 @@ alias gut='git'
 function GitLastCommit() {
   local editor=$1
   # Load edited files into tabs if editor is vim
-  if [ "$editor" == "vim" ]; then #
+  if [ "$editor" == "vim" ]; then
     editor="vim -p" # open files in tabs
   fi
   git diff-tree --no-commit-id --name-only --diff-filter=d -r HEAD | xargs $editor
@@ -38,7 +38,7 @@ function GitLastCommit() {
 function GitUncommit() {
   local editor=$1
   # Load edited files into tabs if editor is vim
-  if [ "$editor" == "vim" ]; then #
+  if [ "$editor" == "vim" ]; then
     editor="vim -p" # open files in tabs
   fi
   $editor $(git status --porcelain | awk '{print $2}')
