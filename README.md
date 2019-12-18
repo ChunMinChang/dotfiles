@@ -1,7 +1,11 @@
 # dotfiles
 My personal environment settings.
 
+## Install
 Run `$ python setup.py` to set up the common environment settings. For more specific needs, see _Optional settings_ below.
+
+## Uninstall
+Run `$ sh uninstall.sh`
 
 ## Files
 - *setup.py*: A python program to install all my personal settings
@@ -91,7 +95,6 @@ Run `$ python setup.py -h` to get the messages for optional settings.
 # TODO
 - Use *zsh* configuration tool (e.g. *ohmyzsh*) on zsh
 - Make it work on Windows!
-- Write commands to uninstall all the settings and remove all the links.
 - vim
   - add some basic environment settings for vim
 - vscode
