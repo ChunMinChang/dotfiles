@@ -1,5 +1,3 @@
-#!/bin/bash
-
 function RecursivelyFind()
 {
   find . -name "$1"
