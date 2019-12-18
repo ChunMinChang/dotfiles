@@ -19,4 +19,3 @@ alias RSSTimestamp='TZ=GMT date +"%a, %d %b %Y %T %Z"'
 
 # Optional settings
 # ====================================================================
-export GIT_EDITOR=vim
