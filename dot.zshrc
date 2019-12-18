@@ -27,3 +27,8 @@ vcs_info_wrapper() {
 
 # Set the prompt in the right side
 RPROMPT=$'$(vcs_info_wrapper)'
+
+# Auto-completion
+# ====================================================================
+# Enable the default zsh completions
+autoload -Uz compinit && compinit
