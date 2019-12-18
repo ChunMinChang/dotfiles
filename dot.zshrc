@@ -4,8 +4,6 @@
 
 # Prompt for version control tool
 # ====================================================================
-[[ -r $DOTFILES/git/utils.sh ]] && . $DOTFILES/git/utils.sh
-
 # Allow for functions in the prompt.
 setopt PROMPT_SUBST
 
