@@ -1,3 +1,9 @@
+# Alias
+# ====================================================================
+alias RSSTimestamp='TZ=GMT date +"%a, %d %b %Y %T %Z"'
+
+# Utils functions
+# ====================================================================
 function RecursivelyFind()
 {
   find . -name "$1"
