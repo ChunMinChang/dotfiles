@@ -4,6 +4,7 @@ import fileinput
 import os
 import platform
 import re
+import subprocess
 import sys
 
 # Global variables
@@ -52,28 +53,20 @@ def bash_load_command(path):
     return ''.join(['[ -r ', path, ' ] && . ', path])
 
 def append_nonexistent_lines_to_file(file, lines):
-    with open(file, 'a+') as f:
+    with open(file, 'r+') as f:
         content = f.read()
         for l in lines:
             if l in content:
-                print('{} is already in {}'.format(l, file))
+                print_warning('{} is already in {}'.format(l, file))
                 continue
             f.write(l + '\n')
             print('{} is appended into {}'.format(l, file))
         f.close()
 
-def add_nonexistent_line_under_topic(file, topic, line):
-    with open(file, 'a+') as f:
-        content = f.read()
-        if '[' + topic + ']' not in content:
-            f.write('[' + topic + ']\n')
-        elif line in content:
-            f.close()
-            return False
-        f.close()
-
-    append_to_next_line_after(file, '\[' + topic + '\]', line)
-    return True
+    # Show the current file
+    with open(file, 'r') as f:
+        print_hint('{}:'.format(file))
+        print(content)
 
 def print_installing_title(name, bold=False):
     print(colors.HEADER + ''.join(['\n', name,
@@ -139,15 +132,20 @@ def git_init():
 
     git_config = HOME_DIR + '/.gitconfig'
     if not os.path.isfile(git_config):
-        print_warning('{} does not exist! Create a new one!'.format(git_config))
-        with open(git_config, 'w'): pass
+        print_warning('{} does not exist! Create a new one with default settings!'.format(git_config))
+        # Set global user name and email
+        subprocess.call(['git', 'config', '--global', 'user.name', 'Chun-Min Chang'])
+        subprocess.call(['git', 'config', '--global', 'user.email', 'chun.m.chang@gmail.com'])
 
+    # Include git config here in global gitconfig file
     path = BASE_DIR + '/git/config'
+    subprocess.call(['git', 'config', '--global', 'include.path', path])
 
-    if add_nonexistent_line_under_topic(git_config, 'include', '\tpath = ' + path):
-        print('{} is included in {}'.format(path, git_config))
-    else:
-        print_hint('{} is already included!'.format(path))
+    # Show the current file:
+    with open(git_config, 'r') as f:
+        content = f.read()
+        print_hint('{}:'.format(git_config))
+        print(content)
 
 # mozilla stuff
 # ---------------------------------------

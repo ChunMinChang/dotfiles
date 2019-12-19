@@ -17,5 +17,5 @@ SETTINGS_PREFIX=$HOME/.settings_
 SETTINGS_PLATFORM=$SETTINGS_PREFIX$PLATFORM
 [ -r $SETTINGS_PLATFORM ] && . $SETTINGS_PLATFORM
 
-# Optional settings
+# Optional settings (ssettings might be appended by setup.py)
 # ====================================================================
