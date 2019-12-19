@@ -32,7 +32,7 @@ PrintSubTitle "\nUnlink Mozilla stuff\n"\
 MACHRC_GLOBAL=$HOME/.mozbuild/machrc
 MACHRC_LINK=$(ls -l $MACHRC_GLOBAL | awk '{print $NF}')
 MACHRC_HERE=$(pwd)/mozilla/gecko/machrc
-if [ $MACHRC_LINK = $MACHRC_HERE ]; then
+if [ "$MACHRC_LINK" = "$MACHRC_HERE" ]; then
   echo "Unlink $MACHRC_GLOBAL"
   unlink $MACHRC_GLOBAL
 else
@@ -89,10 +89,10 @@ PrintWarning "Please remove ./git/config under [include] in $HOME/.gitconfig man
 # Unlink the $HOME/.bashrc
 BASHRC_GLOBAL=$HOME/.bashrc
 BASHRC_LINK=$(ls -l $BASHRC_GLOBAL | awk '{print $NF}')
-if [ $BASHRC_LINK = $BASHRC_HERE ]; then
+if [ "$BASHRC_LINK" = "$BASHRC_HERE" ]; then
   echo "Unlink $BASHRC_GLOBAL"
   unlink $BASHRC_GLOBAL
-else
+elif [ "$PLATFORM" = "linux" ]; then
   # TODO: Remove this automatically
   PrintWarning "Please remove $BASHRC_HERE in $BASHRC_GLOBAL manually"
 fi
