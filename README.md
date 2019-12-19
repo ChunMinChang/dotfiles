@@ -10,24 +10,28 @@ Run `$ python setup.py` to set up the common environment settings. For more spec
 
 Run `$ sh uninstall.sh`
 
-## Files
+## Common Settings
 
 - *setup.py*: A python program to install all my personal settings
-  - Link my *dot files* settings to *$HOME*
-  - Load my personal commands and alias
-  - Load settings that my work needs (personal *Mozilla* settings and commands)
+  - Link *~/.dotfiles* to the *path/to/repo*.
+  - Link *~/.bashrc* to *dot.bashrc* if there is no *~/.bashrc*,
+    or append a command to load *dot.bashrc* in *~/.bashrc*
+  - Link *~/.zshrc* to *dot.zshrc* on *MacOSX*
+  - Link *~/.settings_darwin* to *dot.settings_darwin*
+  - Link *~/.settings_linux* to *dot.settings_linux*
+  - Append *git/config* under `[include]` of *~/.gitconfig*
 - *dot.bashrc*: Cross-platform common settings
-  - Prompt users to install *git*
+  - Will be symbolically linked from $HOME/.bashrc, if users don't have $HOME/.bashrc.
+    Or be loaded from $HOME/.bashrc if users already have their own $HOME/.bashrc.
+    - $HOME/.bashrc is a shell script and the entry point to initialize the shell sessions on the Linux platforms
+  - Set *~/.dotfiles* to the *path/to/repo*.
   - Load *utils.sh* for common commands and alias
   - Load *git/utils.sh* for common git commands and alias
   - Load *dot.settings_${PLATFORM}*, where *${PLATFORM}* is *darwin* or *linux*, for platform-denpendent settings
-  - Will be symbolically linked from *$HOME/.bashrc*, if users don't have *$HOME/.bashrc*.
-    Or be loaded from *$HOME/.bashrc* if users already have their own *$HOME/.bashrc*.
-    - *$HOME/.bashrc* is a shell script and the entry point to initialize the shell sessions on the *Linux* platforms
-- *utils.sh*: common cross-platform commands
+- *utils.sh*: common cross-platform alias and utils functions
 - *git*
-  - *git/config*: common *git* alias
-  - *git/utils.sh*: common commands using `git *`
+  - *git/config*: Common *git* alias
+  - *git/utils.sh*: Common alias for git typo and utilility git functions
 - *OSX* files
   - *dot.zshrc*
     - Will be symbolically linked from *$HOME/.zshrc* on the *OSX* platforms
@@ -35,23 +39,13 @@ Run `$ sh uninstall.sh`
     - Load *$HOME/.bashrc*
   - *dot.settings_darwin*
     - Will be loaded by *dot.bashrc* if the platform is *MacOSX*
-    - Personal settings on *OSX*
+    - Custom settings on *OSX*
 - *Linux* files
   - *dot.settings_linux*
     - Will be loaded by *dot.bashrc* if the platform is *Linux*
-      - Personal settings on *Linux*
+    - Custom settings on *Linux*
 - *vscode*
-  - *settings.json*: Personal *vscode* settings
-
-### Links
-
-- Link *~/.dotfiles* to the *path/to/repo*.
-- Link *~/.bashrc* to *dot.bashrc* if there is no *~/.bashrc*, or load *dot.bashrc* in *~/.bashrc*
-- Link *~/.zshrc* to *dot.zshrc* on *OS X*
-- Link *~/.settings_darwin* to *dot.settings_darwin* and load it in *~/.bashrc* on *OS X*
-- Link *~/.settings_linux* to *dot.settings_linux* and load it in *~/.bashrc* on *Linux*
-- Append *git/config* under `[include]` of *~/.gitconfig*
-- Load *git/utils.sh* in *~/.bashrc*
+  - *settings.json*: Custom *vscode* settings
 
 ## Optional settings
 
@@ -60,11 +54,11 @@ Run `$ sh uninstall.sh`
   - hg: `$ python setup.py --mozilla hg`
     - add `%include mozilla/hg/config` into *~/.hgrc*
   - mach alias and machrc: ```$ python setup.py --mozilla gecko```
-    - Link *~/.mozbuild/.machrc* to the *mozilla/gecko/machrc*.
+    - Link *~/.mozbuild/machrc* to the *mozilla/gecko/machrc*.
     - Load *mozilla/gecko/alias.sh* into *~/.bashrc*
   - tools: `$ python setup.py --mozilla tools`
     - Load *mozilla/gecko/tools.sh* into *~/.bashrc*
-      - check if *git-cinnabar* is downloaded
+      - *mozilla/gecko/tools.sh* will check if *git-cinnabar* is downloaded
   - *Rust*: `$ python setup.py --mozilla rust`
     - Load *~/.cargo/env* in *~/.bashrc*
 
