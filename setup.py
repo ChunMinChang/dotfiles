@@ -104,11 +104,11 @@ def bash_link():
         'Darwin': [
             'dot.bashrc',
             'dot.zshrc',
-            'dot.bashrc_darwin'
+            'dot.settings_darwin'
         ],
         'Linux': [
             'dot.bashrc',
-            'dot.bashrc_linux'
+            'dot.settings_linux'
         ],
     }
 
@@ -243,6 +243,8 @@ def main(argv):
 
     # Install by --mozilla
     mozilla_init()
+
+    print_hint('Please run `$ source ~/.bashrc` to turn on the environment settings')
 
 if __name__ == '__main__':
     try:

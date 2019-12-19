@@ -13,8 +13,9 @@ export LSCOLORS="gxfxcxdxcxegedabagacad"
 # Platform-dependent settings
 # ====================================================================
 PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
-BASHRC_PLATFORM=~/.bashrc_${PLATFORM}
-[ -r $BASHRC_PLATFORM ] && . $BASHRC_PLATFORM
+SETTINGS_PREFIX=$HOME/.settings_
+SETTINGS_PLATFORM=$SETTINGS_PREFIX$PLATFORM
+[ -r $SETTINGS_PLATFORM ] && . $SETTINGS_PLATFORM
 
 # Optional settings
 # ====================================================================

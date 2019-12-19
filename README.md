@@ -16,7 +16,7 @@ Run `$ sh uninstall.sh`
   - Prompt users to install *git*
   - Load *utils.sh* for common commands and alias
   - Load *git/utils.sh* for common git commands and alias
-  - Load *dot.bashrc_${PLATFORM}*, where *${PLATFORM}* is *darwin*(OSX) or *linux*, for platform-denpendent settings
+  - Load *dot.settings_${PLATFORM}*, where *${PLATFORM}* is *darwin* or *linux*, for platform-denpendent settings
   - Will be symbolically linked from *$HOME/.bashrc*, if users don't have *$HOME/.bashrc*.
     Or be loaded from *$HOME/.bashrc* if users already have their own *$HOME/.bashrc*.
     - *$HOME/.bashrc* is a shell script and the entry point to initialize the shell sessions on the *Linux* platforms
@@ -29,11 +29,11 @@ Run `$ sh uninstall.sh`
     - Will be symbolically linked from *$HOME/.zshrc* on the *OSX* platforms
       - *$HOME/.zshrc* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms
     - Load *$HOME/.bashrc*
-  - *dot.bashrc_darwin*
-    - Will be loaded by *dot.bashrc* if the platform is *OSX*
+  - *dot.settings_darwin*
+    - Will be loaded by *dot.bashrc* if the platform is *MacOSX*
     - Personal settings on *OSX*
 - *Linux* files
-  - *dot.bashrc_linux*
+  - *dot.settings_linux*
     - Will be loaded by *dot.bashrc* if the platform is *Linux*
       - Personal settings on *Linux*
 - *vscode*
@@ -43,8 +43,8 @@ Run `$ sh uninstall.sh`
 - Link *~/.dotfiles* to the *path/to/repo*.
 - Link *~/.bashrc* to *dot.bashrc* if there is no *~/.bashrc*, or load *dot.bashrc* in *~/.bashrc*
 - Link *~/.zshrc* to *dot.zshrc* on *OS X*
-- Link *~/.bashrc_darwin* to *dot.bashrc_darwin* and load it in *~/.bashrc* on *OS X*
-- Link *~/.bashrc_linux* to *dot.bashrc_linux* and load it in *~/.bashrc* on *Linux*
+- Link *~/.settings_darwin* to *dot.settings_darwin* and load it in *~/.bashrc* on *OS X*
+- Link *~/.settings_linux* to *dot.settings_linux* and load it in *~/.bashrc* on *Linux*
 - Append *git/config* under `[include]` of *~/.gitconfig*
 - Load *git/utils.sh* in *~/.bashrc*
 

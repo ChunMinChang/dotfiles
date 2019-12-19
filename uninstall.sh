@@ -4,10 +4,10 @@
 # $PLATFORM is set in ~/.bashrc
 echo Uninstall personal environment settings on $PLATFORM
 
-# Unlink the platform settings ($BASHRC_PLATFORM is set in ~/.bashrc)
-if [ -r $BASHRC_PLATFORM ]; then
-  echo "$BASHRC_PLATFORM"
-  unlink $BASHRC_PLATFORM
+# Unlink the platform settings ($SETTINGS_PLATFORM is set in ~/.bashrc)
+if [ -r $SETTINGS_PLATFORM ]; then
+  echo "$SETTINGS_PLATFORM"
+  unlink $SETTINGS_PLATFORM
 fi
 
 # Unlink the entry point of environment settings on darwin (MacOSX)
