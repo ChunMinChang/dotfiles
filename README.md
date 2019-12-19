@@ -1,13 +1,17 @@
 # dotfiles
+
 My personal environment settings.
 
 ## Install
+
 Run `$ python setup.py` to set up the common environment settings. For more specific needs, see _Optional settings_ below.
 
 ## Uninstall
+
 Run `$ sh uninstall.sh`
 
 ## Files
+
 - *setup.py*: A python program to install all my personal settings
   - Link my *dot files* settings to *$HOME*
   - Load my personal commands and alias
@@ -40,6 +44,7 @@ Run `$ sh uninstall.sh`
   - *settings.json*: Personal *vscode* settings
 
 ### Links
+
 - Link *~/.dotfiles* to the *path/to/repo*.
 - Link *~/.bashrc* to *dot.bashrc* if there is no *~/.bashrc*, or load *dot.bashrc* in *~/.bashrc*
 - Link *~/.zshrc* to *dot.zshrc* on *OS X*
@@ -49,6 +54,7 @@ Run `$ sh uninstall.sh`
 - Load *git/utils.sh* in *~/.bashrc*
 
 ## Optional settings
+
 - mozilla
   - All toolkit: `$ python setup.py --mozilla`
   - hg: `$ python setup.py --mozilla hg`
@@ -65,7 +71,9 @@ Run `$ sh uninstall.sh`
 Run `$ python setup.py -h` to get the messages for optional settings.
 
 ## Utils Usage
+
 ### Git
+
 - Open all the files in the last commit
   - ex: `$ GitLastCommit vim` or `$ GitLastCommit code`
 - Open all the added/changed/modified files in the code editor
@@ -78,11 +86,15 @@ Run `$ python setup.py -h` to get the messages for optional settings.
 - Create a branch for a pull request on a remote tracked repositories
   - ex: Create a branch for pull request _123_ on upstream repo
     - `$ CreateGitBranchForPullRequest upstream 123`
+
 ### Gecko
+
 - Generate a W3C Spec page from a _bs_ file
   - ex: Generate a w3c spec page called _test.html_ from _index.bs_
     - `$ W3CSpec index.bs test.html`
+
 ### Common
+
 - Recursively find files under the current folder
   - ex: Recursively list all the _.sh_ files
     - `$ RecursivelyFind "*.sh"`
@@ -92,7 +104,9 @@ Run `$ python setup.py -h` to get the messages for optional settings.
 - Throw files to trash can
   - ex: Throw _hello.txt_ and _world.log_ to Trash
     - `$ Trash hello.txt world.log`
-# TODO
+
+## TODO
+
 - Use *zsh* configuration tool (e.g. *ohmyzsh*) on zsh
 - Make it work on Windows!
 - vim
