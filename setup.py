@@ -61,12 +61,13 @@ def append_nonexistent_lines_to_file(file, lines):
                 continue
             f.write(l + '\n')
             print('{} is appended into {}'.format(l, file))
-        f.close()
 
-    # Show the current file
-    with open(file, 'r') as f:
+        # Show the current file
+        f.seek(0)
+        content = f.read()
         print_hint('{}:'.format(file))
         print(content)
+        f.close()
 
 def print_installing_title(name, bold=False):
     print(colors.HEADER + ''.join(['\n', name,
@@ -146,6 +147,7 @@ def git_init():
         content = f.read()
         print_hint('{}:'.format(git_config))
         print(content)
+        f.close()
 
 # mozilla stuff
 # ---------------------------------------
@@ -182,7 +184,7 @@ def gecko_init():
         path = BASE_DIR + '/mozilla/gecko/machrc'
         link(path, machrc)
 
-    bashrc = HOME_DIR + '/.bashrc'
+    bashrc = BASE_DIR + '/dot.bashrc'
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return
@@ -211,7 +213,7 @@ def hg_init():
 def tools_init():
     print_installing_title('tools settings')
 
-    bashrc = HOME_DIR + '/.bashrc'
+    bashrc = BASE_DIR + '/dot.bashrc'
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return
@@ -223,7 +225,7 @@ def rust_init():
     print_installing_title('rust settings')
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.']
 
-    bashrc = HOME_DIR + '/.bashrc'
+    bashrc = BASE_DIR + '/dot.bashrc'
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return
