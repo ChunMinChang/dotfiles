@@ -8,7 +8,7 @@ Run `$ python setup.py` to set up the common environment settings. For more spec
 
 ## Uninstall
 
-Run `$ sh uninstall.sh`
+Run `$ bash uninstall.sh` or `$ sh uninstall.sh`
 
 ## Common Settings
 
