@@ -1,5 +1,21 @@
 #!/bin/bash
 
+PrintTitle()
+{
+  local msg=$1
+  local bold_red="\033[1;31m"
+  local normal="\033[0m"
+  echo -e ${bold_red}${msg}${normal}
+}
+
+PrintSubTitle()
+{
+  local msg=$1
+  local bold_red="\033[92m"
+  local normal="\033[0m"
+  echo -e ${bold_red}${msg}${normal}
+}
+
 PrintWarning() {
   local msg=$1
   local bold_yellow="\033[1;33m"
@@ -7,6 +23,28 @@ PrintWarning() {
   echo -e ${bold_yellow}WARNING:${normal} ${msg}
 }
 
+PrintTitle "\nUninstall personal environment settings\n"\
+"====================================================================\n"
+
+PrintSubTitle "\nUnlink Mozilla stuff\n"\
+"--------------------------------------------------------------------\n"
+# Unlink machrc
+MACHRC_GLOBAL=$HOME/.mozbuild/machrc
+MACHRC_LINK=$(ls -l $MACHRC_GLOBAL | awk '{print $NF}')
+MACHRC_HERE=$(pwd)/mozilla/gecko/machrc
+if [ $MACHRC_LINK = $MACHRC_HERE ]; then
+  echo "Unlink $MACHRC_GLOBAL"
+  unlink $MACHRC_GLOBAL
+else
+  echo "$MACHRC_GLOBAL stay unchanged"
+fi
+
+# Remove mozilla hg config
+# TODO: Remove this automatically
+PrintWarning "Please remove ./mozilla/hg/config with prefix %include in $HOME/.hgrc manually"
+
+PrintSubTitle "\nUninstall custom settings\n"\
+"--------------------------------------------------------------------\n"
 # Load environment variables to this script
 BASHRC_HERE=$(pwd)/dot.bashrc
 if [ -x $BASHRC_HERE ]; then
@@ -45,21 +83,6 @@ fi
 # Remove git config
 # TODO: Remove this automatically
 PrintWarning "Please remove ./git/config under [include] in $HOME/.gitconfig manually"
-
-# Unlink mozilla stuff
-MACHRC_GLOBAL=$HOME/.mozbuild/machrc
-MACHRC_LINK=$(ls -l $MACHRC_GLOBAL | awk '{print $NF}')
-MACHRC_HERE=$(pwd)/mozilla/gecko/machrc
-if [ $MACHRC_LINK = $MACHRC_HERE ]; then
-  echo "Unlink $MACHRC_GLOBAL"
-  unlink $MACHRC_GLOBAL
-else
-  echo "$MACHRC_GLOBAL stay unchanged"
-fi
-
-# Remove mozilla hg config
-# TODO: Remove this automatically
-PrintWarning "Please remove ./mozilla/hg/config with prefix %include in $HOME/.hgrc manually"
 
 # Unlink the $HOME/.bashrc
 BASHRC_GLOBAL=$HOME/.bashrc
