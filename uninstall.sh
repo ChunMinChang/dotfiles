@@ -47,9 +47,11 @@ PrintSubTitle "\nUninstall custom settings\n"\
 "--------------------------------------------------------------------\n"
 # Load environment variables to this script
 BASHRC_HERE=$(pwd)/dot.bashrc
-if [ -x $BASHRC_HERE ]; then
+source $BASHRC_HERE
+
+# TODO: Not sure why `source $BASHRC_HERE` succeeds but `$?` return 1 indicating failure.
+if [ $? -eq 0 ] || [ ! -z $PLATFORM ]; then
   echo "Load environment variables in $BASHRC_HERE"
-  source $BASHRC_HERE
 else
   PrintWarning "$BASHRC_HERE is not loadable"
   PrintWarning "Apply environment variables by parsing $BASHRC_HERE:"
