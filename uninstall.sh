@@ -22,12 +22,25 @@ if [ -r $DOTFILES ]; then
   unlink $DOTFILES
 fi
 
+# Remove git config
+# TODO: Remove this automatically
+PrintWarning "Please remove ./git/config under [include] in $HOME/.gitconfig manually"
+
+# Unlink mozilla stuff
+MACHRC=$HOME/.mozbuild/machrc
+MACHRC_LINK=$(ls -l $HOME/.mozbuild/machrc | awk '{print $NF}')
+MACHRC_HERE=$(pwd)/mozilla/gecko/machrc
+if [ $MACHRC_LINK = $MACHRC_HERE ]; then
+  echo "Unlink $MACHRC"
+  unlink $MACHRC
+fi
+
+# Remove mozilla hg config
+# TODO: Remove this automatically
+PrintWarning "Please remove ./mozilla/hg/config with prefix %include in $HOME/.hgrc manually"
+
 # Unlink the common settings
 if [ -r ~/.bashrc ]; then
   echo "Unlink ~/.bashrc"
   unlink ~/.bashrc
 fi
-
-# TODO: Remove the following settings automatically
-echo "Please remove ./mozilla/hg/config with prefix %include in $HOME/.hgrc manually"
-echo "Please remove ./git/config under [include] in $HOME/.gitconfig manually"
