@@ -82,13 +82,13 @@ def print_installing_title(name, bold=False):
 
 # TODO: Use Print{Error, Hint, Warning} instead
 def print_hint(message):
-    print(colors.HINT + message + colors.END)
+    print(colors.HINT + message + colors.END + '\n')
 
 def print_warning(message):
-    print(colors.WARNING + 'WARNING: ' + message + colors.END)
+    print(colors.WARNING + 'WARNING: ' + message + colors.END + '\n')
 
 def print_fail(message):
-    print(colors.FAIL + 'ERROR: ' + message + colors.END)
+    print(colors.FAIL + 'ERROR: ' + message + colors.END + '\n')
 
 # Setup functions
 # ------------------------------------------------------------------------------
@@ -125,6 +125,8 @@ def bash_link():
             if f is 'dot.bashrc':
                 print('Append a command to load {} in {}'.format(src, target))
                 append_nonexistent_lines_to_file(target, [bash_load_command(src)])
+            else:
+                print_warning('Do nothing.')
         else:
             link(src, target)
 
@@ -176,8 +178,8 @@ def gecko_init():
     print_installing_title('gecko alias and machrc')
     machrc = HOME_DIR + '/.mozbuild/machrc'
     if os.path.isfile(machrc):
-        print_fail(''.join(['{} exists! Abort!'.format(machrc),
-                            '\tApply default settings for now.\n']))
+        print_fail(''.join(['{} exists! Abort!\n'.format(machrc),
+                            'Apply default settings for now.']))
     else:
         path = BASE_DIR + '/mozilla/gecko/machrc'
         link(path, machrc)
@@ -192,16 +194,16 @@ def gecko_init():
 
 def hg_init():
     print_installing_title('hg settings')
-    error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']
+    error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.']
 
     if not is_tool('hg'):
-        error_messages.insert(0, 'Please install hg(mercurial) first!\n');
+        error_messages.insert(0, 'Please install hg(mercurial) first!');
         print_fail(''.join(error_messages))
         return
 
     hg_config = HOME_DIR + '/.hgrc'
     if not os.path.isfile(hg_config):
-        error_messages.insert(0, '{} does not exist! Abort!\n'.format(hg_config));
+        error_messages.insert(0, '{} does not exist! Abort!'.format(hg_config));
         print_fail(''.join(error_messages))
         return
 
@@ -221,7 +223,7 @@ def tools_init():
 
 def rust_init():
     print_installing_title('rust settings')
-    error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.\n']
+    error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.']
 
     bashrc = HOME_DIR + '/.bashrc'
     if not os.path.isfile(bashrc):
@@ -244,7 +246,7 @@ def main(argv):
     # Install by --mozilla
     mozilla_init()
 
-    print_hint('Please run `$ source ~/.bashrc` to turn on the environment settings')
+    print_hint('Please run `$ source ~/.bachrc` turn on the environment settings')
 
 if __name__ == '__main__':
     try:
