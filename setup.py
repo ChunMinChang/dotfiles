@@ -1,5 +1,4 @@
 import argparse
-import distutils.spawn
 import fileinput
 import os
 import platform
@@ -34,9 +33,15 @@ def link(source, target):
     print('link {} to {}'.format(source, target))
     os.symlink(source, target)
 
-# Check whether `name` is on PATH and marked as executable.
+# Check if `name` exists
 def is_tool(name):
-    return distutils.spawn.find_executable(name) is not None
+    cmd = "where" if platform.system() == "Windows" else "which"
+    try:
+        r = subprocess.check_output([cmd, name])
+        print('{} is found in {}'.format(name, r.decode("utf-8")))
+        return True
+    except:
+        return False
 
 def append_to_next_line_after(name, pattern, value = ''):
     file = fileinput.input(name, inplace = True)
