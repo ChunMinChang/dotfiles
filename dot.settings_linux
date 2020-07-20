@@ -13,6 +13,8 @@ else
   echo Please install git before loading its settings.
 fi
 
+export GIT_EDITOR=vim
+
 # platform-dependent paths
 # ====================================================================
 TRASH=$HOME/.local/share/Trash/files
