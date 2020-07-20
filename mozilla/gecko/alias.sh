@@ -3,6 +3,11 @@ alias mb='./mach build'
 alias mr='./mach run'
 alias mc='./mach clobber'
 
+# Format or analysis check
+alias mfmt='./mach clang-format'
+alias mfmtfor='./mach clang-format --path'
+alias manal='./mach static-analysis check'
+
 # Debug
 alias mmd10='./mach mochitest --disable-e10s'
 alias mrgd10='./mach run --disable-e10s --debug --debugger=gdb'
