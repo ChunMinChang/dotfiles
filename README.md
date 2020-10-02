@@ -68,9 +68,9 @@ Run `$ python setup.py -h` to get the messages for optional settings.
 
 ### Git
 
-- Open all the files in the last commit
+-  Run commands on all the files in the last commit
   - ex: `$ GitLastCommit vim` or `$ GitLastCommit code`
-- Open all the added/changed/modified files in the code editor
+-  Run commands on all the added/changed/modified files in the code editor
   - ex: `$ GitUncommit vim` or `$ GitUncommit code`
 - Add all/updated files except _f1, f2, f3, ..._
   - ex: Add all updated files, except _A_ and _B_

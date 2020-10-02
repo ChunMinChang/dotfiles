@@ -22,27 +22,27 @@ alias gkt='git'
 alias got='git'
 alias gut='git'
 
-# Open all files in the last commit
+# Run commands on all files in the last commit
 # ------------------------------------------------
 function GitLastCommit() {
-  local editor=$1
-  # Load edited files into tabs if editor is vim
-  if [ "$editor" == "vim" ]; then
-    editor="vim -p" # open files in tabs
+  local cmd=$1
+  # Load edited files into tabs if cmd is vim
+  if [ "$cmd" == "vim" ]; then
+    cmd="vim -p" # open files in tabs
   fi
-  git diff-tree --no-commit-id --name-only --diff-filter=d -r HEAD | xargs $editor
+  git diff-tree --no-commit-id --name-only --diff-filter=d -r HEAD | xargs $cmd
 }
 
-# Open all uncommit files
+# Run commands on all uncommit files
 # ------------------------------------------------
 function GitUncommit() {
-  local editor=$1
-  # Load edited files into tabs if editor is vim
-  if [ "$editor" == "vim" ]; then
-    editor="vim -p" # open files in tabs
+  local cmd=$1
+  # Load edited files into tabs if cmd is vim
+  if [ "$cmd" == "vim" ]; then
+    cmd="vim -p" # open files in tabs
   fi
-  $editor $(git status --porcelain | awk '{print $2}')
-  # git ls-files --modified --deleted --others -z | xargs -0 $editor
+  $cmd $(git status --porcelain | awk '{print $2}')
+  # git ls-files --modified --deleted --others -z | xargs -0 $cmd
 }
 
 # Add some files except some certian files
