@@ -6,6 +6,8 @@ alias mc='./mach clobber'
 # Format or analysis check
 alias mfmt='./mach clang-format'
 alias mfmtfor='./mach clang-format --path'
+## Format all uncommit files
+alias mfmtuc='GitUncommit "./mach clang-format --path"'
 alias manal='./mach static-analysis check'
 
 # Debug
