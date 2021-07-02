@@ -1,11 +1,17 @@
-GIT_CINNABAR=$HOME/.mozbuild/git-cinnabar
+DEFAULT_GIT_CINNABAR=$HOME/.mozbuild/git-cinnabar
+if [ -d $DEFAULT_GIT_CINNABAR ]; then
+  GIT_CINNABAR=$DEFAULT_GIT_CINNABAR
+else # fallback
+  GIT_CINNABAR=$HOME/Work/git-cinnabar
+fi
+
 if [ -d $GIT_CINNABAR ]; then
   export PATH=$GIT_CINNABAR:$PATH
   if [ $(CommandExists git-cinnabar) -eq 0 ]; then
-    PrintError 'No git-cinnabar command! Something weird happens ...'
+    git cinnabar download
   fi
 else
-  PrintError 'No git-cinnabar command!\nRun: "$ ./mach bootstrap" under gecko repo to fix it!'
+  PrintError "No git-cinnabar in $GIT_CINNABAR!"
 fi
 
 if [ $(CommandExists moz-phab) -eq 0 ]; then
