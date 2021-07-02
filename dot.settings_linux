@@ -13,7 +13,9 @@ else
   echo Please install git before loading its settings.
 fi
 
-export GIT_EDITOR=vim
+if [ $(CommandExists vim) -eq 1 ]; then
+  export GIT_EDITOR=vim
+fi
 
 # platform-dependent paths
 # ====================================================================
