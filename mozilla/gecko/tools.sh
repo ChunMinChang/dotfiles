@@ -14,6 +14,9 @@ else
   PrintError "No git-cinnabar in $GIT_CINNABAR!"
 fi
 
-if [ $(CommandExists moz-phab) -eq 0 ]; then
-  PrintError 'No moz-phab command!\nInstall moz-phab: https://moz-conduit.readthedocs.io/en/latest/phabricator-user.html!'
+if ! command -v moz-phab &> /dev/null; then
+  export PATH=$HOME/.local/bin:$PATH
+  if [ $(CommandExists moz-phab) -eq 0 ]; then
+    PrintError 'No moz-phab command!\nInstall moz-phab: https://moz-conduit.readthedocs.io/en/latest/phabricator-user.html!'
+  fi
 fi
