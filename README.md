@@ -86,6 +86,11 @@ Run `$ python setup.py -h` to get the messages for optional settings.
 - Generate a W3C Spec page from a _bs_ file
   - ex: Generate a w3c spec page called _test.html_ from _index.bs_
     - `$ W3CSpec index.bs test.html`
+- Check diff/patch before submitting review
+  - ex: Check the uncommited/changed files
+    - `$ MozCheckDiff`
+  - ex: Check the uncommited/changed files between commit-A and commit-B
+    - `$ MozCheckDiff <commit-A>..<commit-B>`
 
 ### Common
 

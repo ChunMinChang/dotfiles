@@ -3,12 +3,11 @@ alias mb='./mach build'
 alias mr='./mach run'
 alias mc='./mach clobber'
 
-# Format or analysis check
+# Format check
 alias mfmt='./mach clang-format'
 alias mfmtfor='./mach clang-format --path'
-## Format all uncommit files
-alias mfmtuc='GitUncommit "./mach clang-format --path"'
-alias manal='./mach static-analysis check'
+alias mfmtuc='GitUncommit "./mach clang-format --path"' # Format all uncommit files
+alias manal='./mach static-analysis check' # usage: `manal <FILE_PATH>`
 
 # Debug
 alias mmd10='./mach mochitest --disable-e10s'
@@ -36,4 +35,14 @@ function W3CSpec() {
   local file=$1
   local page=$2
   curl https://api.csswg.org/bikeshed/ -F file=@$file -F force=1 > $page
+}
+
+function MozCheckDiff() {
+  local files=`git diff --name-only $1`
+  for file in $files; do
+    printf "Check $file\n"
+    ./mach clang-format --path $file
+    ./mach static-analysis check $file
+    printf "\n"
+  done
 }
