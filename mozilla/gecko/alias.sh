@@ -40,6 +40,12 @@ function MozCheckDiff() {
   done
 }
 
+# Update a crate under <path-to>/<gecko>/toolkit/library/rust/shared/Cargo.toml
+function UpdateCrate() {
+  local crate=$1
+  cargo update -p $crate && ./mach vendor rust --ignore-modified
+}
+
 # Generate a w3c spec page from a .bs file
 function W3CSpec() {
   local file=$1
