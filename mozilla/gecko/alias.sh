@@ -29,13 +29,7 @@ alias mt='./mach try'
 alias mt-all='./mach try -b do -p all -u all -t none'
 alias mt-debug-all='./mach try -b d -p all -u all -t none'
 
-# Generate a w3c spec page from a .bs file
-function W3CSpec() {
-  local file=$1
-  local page=$2
-  curl https://api.csswg.org/bikeshed/ -F file=@$file -F force=1 > $page
-}
-
+# Check if the diff meets lints
 function MozCheckDiff() {
   local files=`git diff --name-only $1`
   for file in $files; do
@@ -44,4 +38,11 @@ function MozCheckDiff() {
     ./mach static-analysis check $file
     printf "\n"
   done
+}
+
+# Generate a w3c spec page from a .bs file
+function W3CSpec() {
+  local file=$1
+  local page=$2
+  curl https://api.csswg.org/bikeshed/ -F file=@$file -F force=1 > $page
 }
