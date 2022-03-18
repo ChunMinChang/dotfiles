@@ -30,7 +30,6 @@ alias mt-all='./mach try -b do -p all -u all -t none'
 alias mt-debug-all='./mach try -b d -p all -u all -t none'
 
 # Generate a w3c spec page from a .bs file
-# ------------------------------------------------
 function W3CSpec() {
   local file=$1
   local page=$2
