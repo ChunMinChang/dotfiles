@@ -111,6 +111,12 @@ def bash_link():
         ],
     }
 
+    if any(platform.mac_ver()):
+        v, _, _ = platform.mac_ver()
+        v = float('.'.join(v.split('.')[:2]))
+        platform_files[platform.system()].append(
+            'dot.zshrc' if v >= 10.15 else 'dot.bash_profile')
+
     #files = filter(lambda f: f.startswith('dot.'), os.listdir(BASE_DIR))
     files = platform_files[platform.system()];
     for f in files:

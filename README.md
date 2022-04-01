@@ -33,9 +33,13 @@ Run `$ bash uninstall.sh` or `$ sh uninstall.sh`
   - *git/config*: Common *git* alias
   - *git/utils.sh*: Common alias for git typo and utilility git functions
 - *OSX* files
-  - *dot.zshrc*
+  - *dot.zshrc*, for mac OS >= 10.15
     - Will be symbolically linked from *$HOME/.zshrc* on the *OSX* platforms
-      - *$HOME/.zshrc* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms
+      - *$HOME/.zshrc* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms for mac OS >= 10.15
+    - Load *$HOME/.bashrc*
+  - *dot.bash_profile*, for mac OS <= 10.14
+    - Will be symbolically linked from *$HOME/.bash_profile* on the *OSX* platforms
+      - *$HOME/.bash_profile* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms for mac OS <= 10.14
     - Load *$HOME/.bashrc*
   - *dot.settings_darwin*
     - Will be loaded by *dot.bashrc* if the platform is *MacOSX*
