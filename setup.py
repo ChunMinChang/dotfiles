@@ -137,7 +137,7 @@ def bash_link():
                 print_warning('{} is already linked!'.format(target))
                 continue
             print_warning('{} already exists!'.format(target))
-            if f == 'dot.bashrc':
+            if f == 'dot.bashrc' or f == 'dot.zshrc':
                 print('Append a command to load {} in {}'.format(src, target))
                 append_nonexistent_lines_to_file(
                     target, [bash_load_command(src)])
