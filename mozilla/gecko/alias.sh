@@ -2,6 +2,7 @@
 alias mb='./mach build'
 alias mr='./mach run'
 alias mc='./mach clobber'
+alias mfb='mfmt && mb'
 
 # Format check
 alias mfmt='./mach clang-format'
