@@ -30,6 +30,9 @@ alias mt='./mach try'
 alias mt-all='./mach try -b do -p all -u all -t none'
 alias mt-debug-all='./mach try -b d -p all -u all -t none'
 
+# wpt
+alias mw='./mach wpt'
+
 # Check if the diff meets lints
 function MozCheckDiff() {
   local files=`git diff --name-only $1`
