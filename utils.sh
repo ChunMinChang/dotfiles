@@ -1,6 +1,8 @@
 # Alias
 # ====================================================================
-alias RSSTimestamp='TZ=GMT date +"%a, %d %b %Y %T %Z"'
+alias RSSTimestamp='TZ=GMT date +"%a, %d %b %Y %T %Z %z"'
+alias RSSTimestampNoTZ='date +"%a, %d %b %Y %T %Z %z"'
+alias RSSTimestampPDX='TZ=GMT+7 date +"%a, %d %b %Y %T %Z %z"'
 
 # Utils functions
 # ====================================================================
