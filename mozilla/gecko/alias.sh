@@ -30,6 +30,7 @@ alias wc21='./mach wpt testing/web-platform/tests/webcodecs/video-encoder.https.
 alias wc22='./mach wpt testing/web-platform/tests/webcodecs/full-cycle-test.https.any.js'
 alias wc23='./mach wpt testing/web-platform/tests/webcodecs/temporal-svc-encoding.https.any.js'
 alias wc24='./mach wpt testing/web-platform/tests/webcodecs/per-frame-qp-encoding.https.any.js'
+alias wc25='./mach wpt testing/web-platform/tests/webcodecs/videoFrame-createImageBitmap.https.any.js'
 
 # Format check
 alias mfmt='./mach clang-format'
