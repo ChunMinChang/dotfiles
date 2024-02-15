@@ -68,6 +68,7 @@ Run `$ bash uninstall.sh` or `$ sh uninstall.sh`
   - Pernosco: It requires to put an executable `pernosco-submit` script under *$HOME/Work/bin*
     - The script template is *pernosco-submit_template* file
     - AMD Zen-based CPUs require extra settings: https://github.com/rr-debugger/rr/wiki/Zen
+    - The *pernosco-submit* requires `aws-cli` installed (`sudo apt install awscli` should work)
 
 Run `$ python setup.py -h` to get the messages for optional settings.
 
