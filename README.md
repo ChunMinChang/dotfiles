@@ -65,6 +65,9 @@ Run `$ bash uninstall.sh` or `$ sh uninstall.sh`
       - *mozilla/gecko/tools.sh* will check if *git-cinnabar* is downloaded
   - *Rust*: `$ python setup.py --mozilla rust`
     - Load *~/.cargo/env* in *~/.bashrc*
+  - Pernosco: It requires to put an executable `pernosco-submit` script under *$HOME/Work/bin*
+    - The script template is *pernosco-submit_template* file
+    - AMD Zen-based CPUs require extra settings: https://github.com/rr-debugger/rr/wiki/Zen
 
 Run `$ python setup.py -h` to get the messages for optional settings.
 

@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# edit this
+PERNOSCO_BIN=/path/to/pernosco-submit/pernosco-submit
+
+# edit this
+export PERNOSCO_USER=<user>@mozilla.com
+
+export PERNOSCO_GROUP=mozilla
+
+# edit this
+export PERNOSCO_USER_SECRET_KEY=
+
+exec $PERNOSCO_BIN "$@"
+
+# Remember to make it executable!!

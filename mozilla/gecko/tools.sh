@@ -20,3 +20,11 @@ if ! command -v moz-phab &> /dev/null; then
     PrintError 'No moz-phab command!\nInstall moz-phab: https://moz-conduit.readthedocs.io/en/latest/phabricator-user.html!'
   fi
 fi
+
+if ! command -v pernosco-submit &> /dev/null; then
+  if [ -r $HOME/Work/bin/pernosco-submit ]; then
+    export PATH=$HOME/Work/bin:$PATH
+  else
+    PrintError "Please put a pernosco-submit script under $HOME/Work/bin. See Mozilla Pernosco Info Page, Docs and pernosco-submit_template"
+  fi
+fi
