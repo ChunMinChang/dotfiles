@@ -19,7 +19,7 @@
   # git commit --amend --date="$(date -R)"
   updateTime = "!f() { git commit --amend --date=now; }; f"
 
-  searchlog = "!f() { git log --all --grep=$1; }; f"
+  searchlog = "!f() { git log --all --grep=\"$1\"; }; f"
 
   undochanged = !git checkout -f && git clean -df
   uncitill = "!f() { git reset HEAD~$1; }; f"
