@@ -21,10 +21,12 @@ if ! command -v moz-phab &> /dev/null; then
   fi
 fi
 
-if ! command -v pernosco-submit &> /dev/null; then
-  if [ -r $HOME/Work/bin/pernosco-submit ]; then
-    export PATH=$HOME/Work/bin:$PATH
-  else
-    PrintError "Please put a pernosco-submit script under $HOME/Work/bin. See Mozilla Pernosco Info Page, Docs and pernosco-submit_template"
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+  if ! command -v pernosco-submit &> /dev/null; then
+    if [ -r $HOME/Work/bin/pernosco-submit ]; then
+      export PATH=$HOME/Work/bin:$PATH
+    else
+      PrintError "Please put a pernosco-submit script under $HOME/Work/bin. See Mozilla Pernosco Info Page, Docs and pernosco-submit_template"
+    fi
   fi
 fi
