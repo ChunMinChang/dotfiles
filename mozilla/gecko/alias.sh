@@ -13,6 +13,7 @@ alias vf6='./mach wpt testing/web-platform/tests/webcodecs/videoFrame-serializat
 alias vf7='./mach wpt testing/web-platform/tests/webcodecs/videoFrame-createImageBitmap.https.any.js'
 alias vf8='./mach wpt testing/web-platform/tests/webcodecs/videoFrame-copyTo.any.js'
 alias vf9='./mach wpt testing/web-platform/tests/webcodecs/videoFrame-copyTo.crossOriginIsolated.https.any.js'
+alias vf10='./mach wpt testing/web-platform/tests/webcodecs/videoFrame-copyTo-rgb.any.js'
 # WebCodecs VideoDecoder
 alias vd1='./mach wpt testing/web-platform/tests/webcodecs/encoded-video-chunk.any.js'
 alias vd2='./mach wpt testing/web-platform/tests/webcodecs/encoded-video-chunk.crossOriginIsolated.https.any.js'
