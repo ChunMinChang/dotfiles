@@ -32,6 +32,8 @@ alias ve5='./mach wpt testing/web-platform/tests/webcodecs/video-encoder-h264.ht
 alias ve6='./mach wpt testing/web-platform/tests/webcodecs/video-encoder.https.any.js'
 alias ve7='./mach wpt testing/web-platform/tests/webcodecs/temporal-svc-encoding.https.any.js'
 alias ve8='./mach wpt testing/web-platform/tests/webcodecs/per-frame-qp-encoding.https.any.js'
+alias ve9='./mach wpt testing/web-platform/tests/webcodecs/video-encoder-rescaling.https.any.js'
+alias ve10='./mach wpt testing/web-platform/tests/webcodecs/video-encoder-h26x-annexb.https.any.js'
 # WebCodecs full-cycle
 alias wcf='./mach wpt testing/web-platform/tests/webcodecs/full-cycle-test.https.any.js'
 
