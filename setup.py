@@ -121,7 +121,7 @@ def bash_link():
         ],
     }
 
-    if any(platform.mac_ver()):
+    if platform.system() == 'Darwin':
         v, _, _ = platform.mac_ver()
         v = float('.'.join(v.split('.')[:2]))
         platform_files[platform.system()].append(
