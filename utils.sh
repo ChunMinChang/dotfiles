@@ -4,33 +4,6 @@ alias RSSTimestamp='TZ=GMT date +"%a, %d %b %Y %T %Z %z"'
 alias RSSTimestampNoTZ='date +"%a, %d %b %Y %T %Z %z"'
 alias RSSTimestampPDX='TZ=GMT+7 date +"%a, %d %b %Y %T %Z %z"'
 
-# Utils functions
-# ====================================================================
-function RecursivelyFind()
-{
-  find . -name "$1"
-}
-
-function RecursivelyRemove()
-{
-  find . -name "$1" -type f -delete
-}
-
-function Trash()
-{
-  local items=$@
-  if [ -d "$TRASH" ]; then
-    if [ ! -z "$items" ]; then
-      echo "Move $items to $TRASH"
-      mv $items $TRASH
-    else
-      echo "Throw nothing to trash."
-    fi
-  else
-    echo "TRASH path not found! Please set TRASH in dot.bashrc_$PLATFORM"
-  fi
-}
-
 # The following commands are used internally in this repo
 function CommandExists()
 {
@@ -65,4 +38,31 @@ function PrintWarning()
   local bold_yellow="\033[1;33m"
   local normal="\033[0m"
   echo -e ${bold_yellow}WARNING:${normal} $msg
+}
+
+# Utils functions
+# ====================================================================
+function RecursivelyFind()
+{
+  find . -name "$1"
+}
+
+function RecursivelyRemove()
+{
+  find . -name "$1" -type f -delete
+}
+
+function Trash()
+{
+  local items=$@
+  if [ -d "$TRASH" ]; then
+    if [ ! -z "$items" ]; then
+      echo "Move $items to $TRASH"
+      mv $items $TRASH
+    else
+      echo "Throw nothing to trash."
+    fi
+  else
+    echo "TRASH path not found! Please set TRASH in dot.bashrc_$PLATFORM"
+  fi
 }
