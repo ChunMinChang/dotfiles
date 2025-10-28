@@ -66,3 +66,18 @@ function Trash()
     echo "TRASH path not found! Please set TRASH in dot.bashrc_$PLATFORM"
   fi
 }
+
+function HostHTTP()
+{
+  local params=$@
+  if [ $(CommandExists npx) -eq 1 ]; then
+    # npx live-server --port=$port --no-browser --quiet
+    npx live-server $params
+  elif [ $(CommandExists python3) -eq 1 ]; then
+    python3 -m http.server $params
+  elif [ $(CommandExists python) -eq 1 ]; then
+    python -m SimpleHTTPServer $params
+  else
+    PrintError "No HTTP server found! Please install 'npx' or 'python3' or 'python'."
+  fi
+}
