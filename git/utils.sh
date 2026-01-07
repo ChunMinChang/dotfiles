@@ -25,12 +25,12 @@ alias gut='git'
 # Run commands on all files in the last commit
 # ------------------------------------------------
 function GitLastCommit() {
-  local cmd=$1
+  local cmd="$1"
   # Load edited files into tabs if cmd is vim
   if [ "$cmd" == "vim" ]; then
     cmd="vim -p" # open files in tabs
   fi
-  git diff-tree --no-commit-id --name-only --diff-filter=d -r HEAD | xargs $cmd
+  git diff-tree --no-commit-id --name-only --diff-filter=d -r HEAD | xargs "$cmd"
 }
 
 # Run commands on all uncommit files
@@ -56,11 +56,11 @@ function GitAddExcept {
 
   case $arg in
       -A|--all)
-      option=$arg
+      option="$arg"
       shift # past argument
       ;;
       -u|--update)
-      option=$arg
+      option="$arg"
       shift # past argument
       ;;
       *)    # unknown option
@@ -69,16 +69,16 @@ function GitAddExcept {
       ;;
   esac
   done
-  git add $option
+  git add "$option"
   git reset "${files[@]}"
 }
 
 # Create a branch for pull #
 # ------------------------------------------------
 function CreateGitBranchForPullRequest {
-  local remote=$1
-  local number=$2
-  git fetch $remote pull/$number/head:pr-$number
+  local remote="$1"
+  local number="$2"
+  git fetch "$remote" pull/"$number"/head:pr-"$number"
   printf "\nCurrent git branches:\n"
   git branch -v
 }

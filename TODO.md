@@ -103,14 +103,23 @@ Generated: 2026-01-07
 
 ## Priority 3: Shell Script Robustness
 
-### [ ] 3.1 Quote all variable expansions
-- **Files**: Multiple shell scripts
+### [x] 3.1 Quote all variable expansions ✅
+- **Files**: 5 shell script files
 - **Issue**: Unquoted variables break with spaces in paths
-- **Locations**:
-  - `utils.sh:57` - `local items=$@` should be `"$@"`
-  - `mozilla/gecko/tools.sh:2` - `if [ -d $DEFAULT_GIT_CINNABAR ]` should be quoted
-  - Many other instances throughout shell scripts
-- **Action**: Audit all shell scripts and quote variable expansions
+- **Status**: COMPLETED (2026-01-07)
+- **Changes made**:
+  - Fixed 40+ unquoted variable expansions across all shell scripts
+  - utils.sh: 10 fixes (CommandExists, Print functions, Trash, HostHTTP)
+  - git/utils.sh: 7 fixes (GitLastCommit, GitAddExcept, CreateGitBranchForPullRequest)
+  - mozilla/gecko/tools.sh: 8 fixes (all PATH exports and directory checks)
+  - mozilla/gecko/alias.sh: 10 fixes (MozCheckDiff, UpdateCrate, W3CSpec)
+  - dot.settings_linux: 4 fixes (gitconfig check, OpenWithWayland)
+- **Key improvements**:
+  - Changed `local items=$@` to use `"$@"` directly in function calls
+  - Fixed MozCheckDiff to use `while read` loop instead of unsafe `for` loop
+  - All PATH exports now properly quoted
+  - All test conditionals now properly quoted
+- **Impact**: HIGH - Prevents bugs with paths/arguments containing spaces
 
 ### [ ] 3.2 Fix fragile alias quoting
 - **File**: `mozilla/gecko/alias.sh:43`
@@ -311,14 +320,17 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 3
+- **Completed**: 4
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 2.2: Standardized path construction in setup.py
+  - Item 3.1: Quote all variable expansions in shell scripts
   - Item 6.1: Fixed typo in error message
 - **In progress**: 0
 - **Last updated**: 2026-01-07
 
-**Key Achievement**: Item 2.2 completion unblocks 8+ other improvements (4.1, 5.1-5.2, 7.1, 8.1, etc.)
+**Key Achievements**:
+- Item 2.2 unblocks 8+ Python-related improvements (4.1, 5.1-5.2, 7.1, 8.1)
+- Item 3.1 unblocks 4 shell-related improvements (3.2, 3.3, 7.3, 8.2)
 
 ---
 
