@@ -1,0 +1,326 @@
+# Dotfiles Repository - Improvement TODO List
+
+Generated: 2026-01-07
+
+## Priority 1: Critical Security & Reliability Issues 🚨
+
+### [ ] 1.1 Fix dangerous `eval` usage in uninstall.sh
+- **File**: `uninstall.sh:61`
+- **Issue**: Using `eval $(grep ...)` is a security vulnerability
+- **Current code**:
+  ```bash
+  eval $(grep "^[^#;^export;].*=" $BASHRC_HERE)
+  ```
+- **Action**: Debug why `source` is failing and fix the root cause instead of using eval workaround
+- **Note**: Line 52 has TODO comment admitting uncertainty about this
+
+### [x] 1.2 Replace fragile `ls` parsing with `readlink` ✅
+- **File**: `uninstall.sh:33-34, 91`
+- **Issue**: Parsing `ls -l` output breaks with filenames containing spaces
+- **Status**: COMPLETED (2026-01-07)
+- **Changes made**:
+  - Replaced `ls -l | awk` with `readlink -f` for symlink resolution
+  - Fixed script directory detection: replaced `$(pwd)` with `$(cd "$(dirname "$0")" && pwd)`
+  - Added proper symlink checking with `[ -L "$path" ]` before using readlink
+  - Quoted all variable expansions to handle paths with spaces
+  - Added better error messages for different file states (not a symlink, doesn't exist, etc.)
+- **Impact**: HIGH - Fixed notoriously fragile file handling
+
+### [ ] 1.3 Fix git status parsing to handle spaces in filenames
+- **File**: `git/utils.sh:44`
+- **Issue**: `awk '{print $2}'` breaks with filenames containing spaces and renamed files
+- **Current code**:
+  ```bash
+  $cmd $(git status --porcelain | awk '{print $2}')
+  ```
+- **Action**: Use the commented solution on line 45:
+  ```bash
+  git ls-files --modified --deleted --others -z | xargs -0 $cmd
+  ```
+- **Impact**: HIGH - Affects GitUncommit and related functions
+
+### [ ] 1.4 Fix bare exception catching in setup.py
+- **File**: `setup.py:45`
+- **Issue**: Bare `except:` catches ALL exceptions including KeyboardInterrupt
+- **Current code**:
+  ```python
+  try:
+      r = subprocess.check_output([cmd, name])
+      return True
+  except:
+      return False
+  ```
+- **Action**:
+  - Catch `subprocess.CalledProcessError` specifically
+  - Log error messages for debugging
+  - Don't suppress KeyboardInterrupt
+- **Impact**: HIGH - Hides real errors from users
+
+### [ ] 1.5 Fix macOS version parsing bug
+- **File**: `setup.py:125-128`
+- **Issue**: `float()` conversion breaks with modern macOS versions (11, 14, 15)
+- **Current code**:
+  ```python
+  v = float('.'.join(v.split('.')[:2]))
+  ```
+- **Action**: Use tuple comparison or `packaging.version.parse()`
+- **Impact**: HIGH - Breaks on macOS 11+ (Big Sur and newer)
+
+## Priority 2: Code Duplication & Inconsistency
+
+### [ ] 2.1 Consolidate duplicate print/color functions
+- **Files**:
+  - `utils.sh:19-41` (PrintError, PrintWarning, PrintHint)
+  - `uninstall.sh:3-24` (PrintTitle, PrintSubTitle)
+  - `setup.py:16-24` (colors class)
+- **Issue**: Same functionality implemented 3+ times
+- **Action**:
+  - Keep utils.sh as single source of truth
+  - Source utils.sh in uninstall.sh
+  - Import or source colors from utils.sh in setup.py (or keep Python separate but document why)
+
+### [ ] 2.2 Standardize path construction in setup.py
+- **File**: `setup.py` (lines 107, 133, 134, 156, 206, 232, 238, 250, 263)
+- **Issue**: Mixing `+` concatenation and `os.path.join()`
+- **Current patterns**:
+  ```python
+  BASE_DIR + '/.dotfiles'              # String concat
+  os.path.join(HOME_DIR, f[3:])        # os.path.join()
+  BASE_DIR + '/git/config'             # String concat
+  ```
+- **Action**: Use `os.path.join()` consistently throughout
+
+### [ ] 2.3 Fix inverted logic in CommandExists function
+- **File**: `mozilla/gecko/tools.sh:10, 19`
+- **Issue**: Returns 0 if NOT found (opposite of Unix convention)
+- **Current usage**:
+  ```bash
+  if [ $(CommandExists git-cinnabar) -eq 0 ]; then  # 0 = NOT found!
+  ```
+- **Action**:
+  - Either return standard exit codes (0=success/found)
+  - Or rename to `CommandMissing` to clarify intent
+
+## Priority 3: Shell Script Robustness
+
+### [ ] 3.1 Quote all variable expansions
+- **Files**: Multiple shell scripts
+- **Issue**: Unquoted variables break with spaces in paths
+- **Locations**:
+  - `utils.sh:57` - `local items=$@` should be `"$@"`
+  - `mozilla/gecko/tools.sh:2` - `if [ -d $DEFAULT_GIT_CINNABAR ]` should be quoted
+  - Many other instances throughout shell scripts
+- **Action**: Audit all shell scripts and quote variable expansions
+
+### [ ] 3.2 Fix fragile alias quoting
+- **File**: `mozilla/gecko/alias.sh:43`
+- **Issue**: Quotes inside alias definition can cause issues
+- **Current code**:
+  ```bash
+  alias mfmtuc='GitUncommit "./mach clang-format --path"'
+  ```
+- **Action**: Review and test this alias pattern, consider using functions instead
+
+### [ ] 3.3 Improve RecursivelyRemove safety
+- **File**: `utils.sh:61-70`
+- **Issue**: Uses `find` with `-delete` which has no confirmation
+- **Action**: Consider adding confirmation prompt or using Trash function instead
+
+## Priority 4: Configuration & Hardcoded Paths
+
+### [ ] 4.1 Extract hardcoded paths to configuration
+- **Issue**: 8+ critical paths are hardcoded and not configurable
+- **Locations**:
+  - `setup.py:206` - `$HOME/.mozbuild/machrc`
+  - `mozilla/gecko/tools.sh:5` - `$HOME/Work/git-cinnabar`
+  - `mozilla/gecko/tools.sh:18` - `$HOME/.local/bin`
+  - `mozilla/gecko/tools.sh:26` - `$HOME/Work/bin/pernosco-submit`
+  - `dot.settings_linux:22` - `$HOME/.local/share/Trash/files`
+  - `dot.settings_darwin:20` - `$HOME/.Trash`
+  - `setup.py:263` - `$HOME/.cargo/env`
+- **Action**:
+  - Create `config.sh` or `config.py` with configurable paths
+  - Provide sensible defaults
+  - Document how to override in CLAUDE.md
+
+### [ ] 4.2 Make script location detection robust
+- **File**: `uninstall.sh:49`
+- **Issue**: Uses `$(pwd)` assuming script runs from repo root
+- **Current code**:
+  ```bash
+  BASHRC_HERE=$(pwd)/dot.bashrc
+  ```
+- **Action**: Use `$(dirname "$0")` or `$(cd "$(dirname "$0")" && pwd)`
+
+## Priority 5: Error Handling & Validation
+
+### [ ] 5.1 Add file existence checks before operations
+- **File**: `setup.py`
+- **Issue**: No validation that files exist before creating symlinks
+- **Locations**:
+  - Line 136: `os.path.samefile()` doesn't catch OSError if file missing
+  - Line 214: Doesn't verify `dot.bashrc` exists before reading
+- **Action**: Add `os.path.exists()` checks before operations
+
+### [ ] 5.2 Improve append_nonexistent_lines_to_file validation
+- **File**: `setup.py:66-81`
+- **Issues**:
+  - Substring matching is dangerous (matches partial strings)
+  - No validation of file writability
+  - No newline handling at EOF
+- **Action**:
+  - Use line-by-line comparison instead of substring matching
+  - Check file permissions before attempting write
+  - Ensure file ends with newline before appending
+
+### [ ] 5.3 Add error exit codes for silent failures
+- **File**: `setup.py:140-145`
+- **Issue**: Prints warning but continues with incomplete setup
+- **Current code**:
+  ```python
+  else:
+      print_warning('Do nothing.')  # Silently skips!
+  ```
+- **Action**: Exit with error code or provide recovery options
+
+### [ ] 5.4 Add installation verification step
+- **File**: `setup.py` (end of script)
+- **Issue**: No check that symlinks work or files load correctly after setup
+- **Action**: Add post-installation validation that sources files and checks for errors
+
+### [ ] 5.5 Add rollback mechanism for failed setups
+- **Issue**: If setup partially fails, no way to revert
+- **Action**:
+  - Track changes made during setup
+  - Provide rollback function on error
+  - Or make setup idempotent so re-running fixes issues
+
+## Priority 6: Documentation & Maintenance
+
+### [ ] 6.1 Fix typo in error message
+- **File**: `setup.py:280`
+- **Issue**: `~/.bachrc` should be `~/.bashrc`
+- **Current code**:
+  ```python
+  print_hint('Please run `$ source ~/.bachrc` turn on the environment settings')
+  ```
+- **Action**: Fix typo and add missing "to" before "turn"
+
+### [ ] 6.2 Resolve or remove TODO comments
+- **File**: `setup.py:15, 89`
+- **TODO**: "Use Print{Error, Hint, Warning} instead"
+- **Action**: Either implement or remove comment
+
+- **File**: `uninstall.sh:43, 86, 96`
+- **TODO**: "Remove this automatically"
+- **Action**: Implement automatic removal or document why it's manual
+
+- **File**: `uninstall.sh:52`
+- **TODO**: "Not sure why `source` succeeds but `$?` return 1"
+- **Action**: Debug and resolve this uncertainty (related to 1.1)
+
+### [ ] 6.3 Fix README documentation mismatches
+- **README line 122**: Says "Link `setting.json`" but should be `settings.json`
+- **README line 125**: Says append to machrc but setup.py symlinks it
+- **Action**: Update README to match actual implementation
+
+## Priority 7: Code Quality & Simplification
+
+### [ ] 7.1 Simplify Mozilla argument parsing
+- **File**: `setup.py:191-201`
+- **Issue**: Over-engineered set intersections
+- **Current code**:
+  ```python
+  options = (set(funcs.keys()).intersection(set(args.mozilla)) if args.mozilla
+             else funcs.keys())
+  ```
+- **Action**: Use simple list comprehension or direct iteration
+
+### [ ] 7.2 Standardize function naming conventions
+- **Issue**: Inconsistent naming across languages
+- **Current state**:
+  - Python: `print_hint()`, `print_warning()` (snake_case)
+  - Bash: `PrintError()`, `PrintWarning()` (PascalCase)
+- **Action**: Document convention in CLAUDE.md (accept language differences or standardize)
+
+### [ ] 7.3 Review and optimize git/utils.sh functions
+- **File**: `git/utils.sh`
+- **Issue**: Several functions could be simplified
+- **Action**:
+  - Review CreateGitBranchForPullRequest for edge cases
+  - Simplify GitAddExcept logic if possible
+  - Ensure all git commands handle errors properly
+
+## Priority 8: Testing & Verification
+
+### [ ] 8.1 Create test suite for setup.py
+- **Issue**: No automated tests
+- **Action**: Add unit tests for:
+  - Path handling functions
+  - File operations
+  - Symlink creation/checking
+  - Append operations
+
+### [ ] 8.2 Create test suite for shell utilities
+- **Issue**: No automated tests for shell functions
+- **Action**: Use bats (Bash Automated Testing System) or similar to test:
+  - RecursivelyFind
+  - RecursivelyRemove
+  - Git utility functions
+  - Platform detection
+
+### [ ] 8.3 Test cross-platform compatibility
+- **Issue**: Limited testing on different platforms
+- **Action**:
+  - Test on macOS 11+ (Big Sur, Monterey, Ventura)
+  - Test on various Linux distros
+  - Document any platform-specific quirks
+
+## Optional Enhancements
+
+### [ ] 9.1 Add dry-run mode to setup.py
+- **Action**: Add `--dry-run` flag to show what would be done without doing it
+
+### [ ] 9.2 Add verbose mode for debugging
+- **Action**: Add `-v/--verbose` flag to show detailed operations
+
+### [ ] 9.3 Improve uninstall automation
+- **Action**: Make uninstall.sh fully automatic (address all TODO comments)
+
+### [ ] 9.4 Add pre-commit hooks
+- **Action**: Add hooks to check:
+  - Shell script syntax (shellcheck)
+  - Python code quality (ruff/pylint)
+  - Markdown formatting
+
+### [ ] 9.5 Consider configuration file
+- **Action**: Add optional `~/.dotfiles.conf` for user customization
+
+---
+
+## Quick Wins (Can be done immediately)
+
+1. [ ] Fix typo in setup.py:280 (`bachrc` → `bashrc`)
+2. [x] Add quotes around variable expansions in shell scripts (DONE in uninstall.sh)
+3. [x] Replace `ls` parsing with `readlink` in uninstall.sh (DONE - see 1.2)
+4. [ ] Use git ls-files with -z in git/utils.sh
+5. [ ] Fix bare except in setup.py
+
+---
+
+## Progress Tracking
+
+- **Total items**: 40+
+- **Completed**: 1 (Item 1.2: Fixed fragile file path handling in uninstall.sh)
+- **In progress**: 0
+- **Last updated**: 2026-01-07
+
+---
+
+## Notes
+
+- Items are ordered by priority within each section
+- Some items may be interdependent
+- Test after each change to ensure nothing breaks
+- Consider creating feature branches for major refactoring
+- Update CLAUDE.md after significant changes

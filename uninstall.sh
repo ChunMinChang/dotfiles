@@ -29,14 +29,21 @@ PrintTitle "\nUninstall personal environment settings\n"\
 PrintSubTitle "\nUnlink Mozilla stuff\n"\
 "--------------------------------------------------------------------\n"
 # Unlink machrc
-MACHRC_GLOBAL=$HOME/.mozbuild/machrc
-MACHRC_LINK=$(ls -l $MACHRC_GLOBAL | awk '{print $NF}')
-MACHRC_HERE=$(pwd)/mozilla/gecko/machrc
-if [ "$MACHRC_LINK" = "$MACHRC_HERE" ]; then
-  echo "Unlink $MACHRC_GLOBAL"
-  unlink $MACHRC_GLOBAL
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MACHRC_GLOBAL="$HOME/.mozbuild/machrc"
+MACHRC_HERE="$SCRIPT_DIR/mozilla/gecko/machrc"
+if [ -L "$MACHRC_GLOBAL" ]; then
+  MACHRC_LINK="$(readlink -f "$MACHRC_GLOBAL")"
+  if [ "$MACHRC_LINK" = "$MACHRC_HERE" ]; then
+    echo "Unlink $MACHRC_GLOBAL"
+    unlink "$MACHRC_GLOBAL"
+  else
+    echo "$MACHRC_GLOBAL stay unchanged"
+  fi
+elif [ -e "$MACHRC_GLOBAL" ]; then
+  echo "$MACHRC_GLOBAL is not a symlink, stay unchanged"
 else
-  echo "$MACHRC_GLOBAL stay unchanged"
+  echo "$MACHRC_GLOBAL does not exist"
 fi
 
 # Remove mozilla hg config
@@ -46,28 +53,28 @@ PrintWarning "Please remove ./mozilla/hg/config with prefix %include in $HOME/.h
 PrintSubTitle "\nUninstall custom settings\n"\
 "--------------------------------------------------------------------\n"
 # Load environment variables to this script
-BASHRC_HERE=$(pwd)/dot.bashrc
-source $BASHRC_HERE
+BASHRC_HERE="$SCRIPT_DIR/dot.bashrc"
+source "$BASHRC_HERE"
 
 # TODO: Not sure why `source $BASHRC_HERE` succeeds but `$?` return 1 indicating failure.
-if [ $? -eq 0 ] || [ ! -z $PLATFORM ]; then
+if [ $? -eq 0 ] || [ ! -z "$PLATFORM" ]; then
   echo "Load environment variables in $BASHRC_HERE"
 else
   PrintWarning "$BASHRC_HERE is not loadable"
   PrintWarning "Apply environment variables by parsing $BASHRC_HERE:"
   # Show the parsed environment variables in $BASHRC_HERE
-  grep "^[^#;^export;].*=" $BASHRC_HERE
+  grep "^[^#;^export;].*=" "$BASHRC_HERE"
   # Force loading environment variables in $BASHRC_HERE
-  eval $(grep "^[^#;^export;].*=" $BASHRC_HERE)
+  eval $(grep "^[^#;^export;].*=" "$BASHRC_HERE")
 fi
 
 # $PLATFORM is set in $BASHRC_HERE
 echo Uninstall personal environment settings on $PLATFORM
 
 # Unlink the platform settings ($SETTINGS_PLATFORM is set in $BASHRC_HERE)
-if [ -r $SETTINGS_PLATFORM ]; then
+if [ -r "$SETTINGS_PLATFORM" ]; then
   echo "Unlink $SETTINGS_PLATFORM"
-  unlink $SETTINGS_PLATFORM
+  unlink "$SETTINGS_PLATFORM"
 fi
 
 # Unlink the entry point of environment settings on darwin (MacOSX)
@@ -77,9 +84,9 @@ if [ "$PLATFORM" == "darwin" ] && [ -r ~/.zshrc ]; then
 fi
 
 # Unlink the $DOTFILES ($DOTFILES is set in $BASHRC_HERE)
-if [ -r $DOTFILES ]; then
+if [ -r "$DOTFILES" ]; then
   echo "Unlink $DOTFILES"
-  unlink $DOTFILES
+  unlink "$DOTFILES"
 fi
 
 # Remove git config
@@ -87,12 +94,18 @@ fi
 PrintWarning "Please remove ./git/config under [include] in $HOME/.gitconfig manually"
 
 # Unlink the $HOME/.bashrc
-BASHRC_GLOBAL=$HOME/.bashrc
-BASHRC_LINK=$(ls -l $BASHRC_GLOBAL | awk '{print $NF}')
-if [ "$BASHRC_LINK" = "$BASHRC_HERE" ]; then
-  echo "Unlink $BASHRC_GLOBAL"
-  unlink $BASHRC_GLOBAL
-elif [ "$PLATFORM" = "linux" ]; then
+BASHRC_GLOBAL="$HOME/.bashrc"
+if [ -L "$BASHRC_GLOBAL" ]; then
+  BASHRC_LINK="$(readlink -f "$BASHRC_GLOBAL")"
+  if [ "$BASHRC_LINK" = "$BASHRC_HERE" ]; then
+    echo "Unlink $BASHRC_GLOBAL"
+    unlink "$BASHRC_GLOBAL"
+  else
+    echo "$BASHRC_GLOBAL is a symlink to $BASHRC_LINK, stay unchanged"
+  fi
+elif [ -e "$BASHRC_GLOBAL" ] && [ "$PLATFORM" = "linux" ]; then
   # TODO: Remove this automatically
   PrintWarning "Please remove $BASHRC_HERE in $BASHRC_GLOBAL manually"
+elif [ ! -e "$BASHRC_GLOBAL" ]; then
+  echo "$BASHRC_GLOBAL does not exist"
 fi
