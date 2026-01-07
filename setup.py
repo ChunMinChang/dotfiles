@@ -104,7 +104,7 @@ def print_fail(message):
 # Link this dotfiles path to $HOME/.dotfiles
 def dotfiles_link():
     print_installing_title('dotfile path')
-    link(BASE_DIR, HOME_DIR + '/.dotfiles')
+    link(BASE_DIR, os.path.join(HOME_DIR, '.dotfiles'))
 
 # Link dot.* to ~/.*
 def bash_link():
@@ -153,7 +153,7 @@ def git_init():
         print_fail('Please install git first!')
         return
 
-    git_config = HOME_DIR + '/.gitconfig'
+    git_config = os.path.join(HOME_DIR, '.gitconfig')
     if not os.path.isfile(git_config):
         print_warning(
             '{} does not exist! Create a new one with default settings!'.format(git_config))
@@ -164,7 +164,7 @@ def git_init():
                         'user.email', 'chun.m.chang@gmail.com'])
 
     # Include git config here in global gitconfig file
-    path = BASE_DIR + '/git/config'
+    path = os.path.join(BASE_DIR, 'git', 'config')
     subprocess.call(['git', 'config', '--global', 'include.path', path])
 
     # Show the current file:
@@ -203,20 +203,20 @@ def mozilla_init():
 
 def gecko_init():
     print_installing_title('gecko alias and machrc')
-    machrc = HOME_DIR + '/.mozbuild/machrc'
+    machrc = os.path.join(HOME_DIR, '.mozbuild', 'machrc')
     if os.path.isfile(machrc):
         print_fail(''.join(['{} exists! Abort!\n'.format(machrc),
                             'Apply default settings for now.']))
     else:
-        path = BASE_DIR + '/mozilla/gecko/machrc'
+        path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'machrc')
         link(path, machrc)
 
-    bashrc = BASE_DIR + '/dot.bashrc'
+    bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return
 
-    path = BASE_DIR + '/mozilla/gecko/alias.sh'
+    path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'alias.sh')
     append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
 
 
@@ -229,25 +229,25 @@ def hg_init():
         print_fail(''.join(error_messages))
         return
 
-    hg_config = HOME_DIR + '/.hgrc'
+    hg_config = os.path.join(HOME_DIR, '.hgrc')
     if not os.path.isfile(hg_config):
         error_messages.insert(0, '{} does not exist! Abort!'.format(hg_config))
         print_fail(''.join(error_messages))
         return
 
-    path = BASE_DIR + '/mozilla/hg/config'
+    path = os.path.join(BASE_DIR, 'mozilla', 'hg', 'config')
     append_nonexistent_lines_to_file(hg_config, ['%include ' + path])
 
 
 def tools_init():
     print_installing_title('tools settings')
 
-    bashrc = BASE_DIR + '/dot.bashrc'
+    bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return
 
-    path = BASE_DIR + '/mozilla/gecko/tools.sh'
+    path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'tools.sh')
     append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
 
 
@@ -255,12 +255,12 @@ def rust_init():
     print_installing_title('rust settings')
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.']
 
-    bashrc = BASE_DIR + '/dot.bashrc'
+    bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return
 
-    cargo_env = HOME_DIR + '/.cargo/env'
+    cargo_env = os.path.join(HOME_DIR, '.cargo', 'env')
     if not os.path.isfile(cargo_env):
         error_messages.insert(0, '{} does not exist! Abort!'.format(cargo_env))
         print_fail(''.join(error_messages))
@@ -277,7 +277,7 @@ def main(argv):
     # Install by --mozilla
     mozilla_init()
 
-    print_hint('Please run `$ source ~/.bachrc` turn on the environment settings')
+    print_hint('Please run `$ source ~/.bashrc` to turn on the environment settings')
 
 
 if __name__ == '__main__':

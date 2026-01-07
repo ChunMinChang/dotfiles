@@ -79,16 +79,16 @@ Generated: 2026-01-07
   - Source utils.sh in uninstall.sh
   - Import or source colors from utils.sh in setup.py (or keep Python separate but document why)
 
-### [ ] 2.2 Standardize path construction in setup.py
-- **File**: `setup.py` (lines 107, 133, 134, 156, 206, 232, 238, 250, 263)
+### [x] 2.2 Standardize path construction in setup.py ✅
+- **File**: `setup.py` (lines 107, 156, 167, 206, 211, 214, 219, 232, 238, 245, 250, 258, 263)
 - **Issue**: Mixing `+` concatenation and `os.path.join()`
-- **Current patterns**:
-  ```python
-  BASE_DIR + '/.dotfiles'              # String concat
-  os.path.join(HOME_DIR, f[3:])        # os.path.join()
-  BASE_DIR + '/git/config'             # String concat
-  ```
-- **Action**: Use `os.path.join()` consistently throughout
+- **Status**: COMPLETED (2026-01-07)
+- **Changes made**:
+  - Replaced all string concatenation with `os.path.join()`
+  - Fixed 13 locations across 7 functions
+  - Now all paths are constructed consistently
+  - Benefits: Cross-platform compatibility, easier to refactor, cleaner code
+- **Impact**: HIGH - Unblocks items 4.1, 5.1, 5.2, 7.1, 8.1
 
 ### [ ] 2.3 Fix inverted logic in CommandExists function
 - **File**: `mozilla/gecko/tools.sh:10, 19`
@@ -197,14 +197,14 @@ Generated: 2026-01-07
 
 ## Priority 6: Documentation & Maintenance
 
-### [ ] 6.1 Fix typo in error message
+### [x] 6.1 Fix typo in error message ✅
 - **File**: `setup.py:280`
 - **Issue**: `~/.bachrc` should be `~/.bashrc`
-- **Current code**:
-  ```python
-  print_hint('Please run `$ source ~/.bachrc` turn on the environment settings')
-  ```
-- **Action**: Fix typo and add missing "to" before "turn"
+- **Status**: COMPLETED (2026-01-07)
+- **Changes made**:
+  - Fixed typo: `bachrc` → `bashrc`
+  - Added missing "to": "turn on" → "to turn on"
+  - Final: `'Please run $ source ~/.bashrc to turn on the environment settings'`
 
 ### [ ] 6.2 Resolve or remove TODO comments
 - **File**: `setup.py:15, 89`
@@ -300,7 +300,7 @@ Generated: 2026-01-07
 
 ## Quick Wins (Can be done immediately)
 
-1. [ ] Fix typo in setup.py:280 (`bachrc` → `bashrc`)
+1. [x] Fix typo in setup.py:280 (`bachrc` → `bashrc`) (DONE - see 6.1)
 2. [x] Add quotes around variable expansions in shell scripts (DONE in uninstall.sh)
 3. [x] Replace `ls` parsing with `readlink` in uninstall.sh (DONE - see 1.2)
 4. [ ] Use git ls-files with -z in git/utils.sh
@@ -311,9 +311,14 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 1 (Item 1.2: Fixed fragile file path handling in uninstall.sh)
+- **Completed**: 3
+  - Item 1.2: Fixed fragile file path handling in uninstall.sh
+  - Item 2.2: Standardized path construction in setup.py
+  - Item 6.1: Fixed typo in error message
 - **In progress**: 0
 - **Last updated**: 2026-01-07
+
+**Key Achievement**: Item 2.2 completion unblocks 8+ other improvements (4.1, 5.1-5.2, 7.1, 8.1, etc.)
 
 ---
 
