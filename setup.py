@@ -394,6 +394,221 @@ def rust_init():
     return result
 
 
+# Installation Verification
+# ------------------------------------------------------------------------------
+
+def verify_symlinks():
+    """Verify all symlinks created during setup are valid."""
+    symlinks_to_check = [
+        (os.path.join(HOME_DIR, '.dotfiles'), BASE_DIR, True),  # Must exist
+    ]
+
+    # Add platform-specific symlinks
+    if platform.system() == 'Linux':
+        symlinks_to_check.append(
+            (os.path.join(HOME_DIR, '.settings_linux'),
+             os.path.join(BASE_DIR, 'dot.settings_linux'), False)  # Optional
+        )
+    elif platform.system() == 'Darwin':
+        symlinks_to_check.append(
+            (os.path.join(HOME_DIR, '.settings_darwin'),
+             os.path.join(BASE_DIR, 'dot.settings_darwin'), False)  # Optional
+        )
+
+    issues = []
+    for target_path, expected_source, required in symlinks_to_check:
+        # Check if exists
+        if not os.path.lexists(target_path):
+            if required:
+                issues.append('{} does not exist'.format(target_path))
+            continue
+
+        # Check if it's a symlink
+        if os.path.islink(target_path):
+            # Check if broken (symlink exists but target doesn't)
+            if not os.path.exists(target_path):
+                actual_source = os.readlink(target_path)
+                issues.append('{} is a broken symlink (points to {})'.format(
+                    target_path, actual_source))
+            # Check if readable
+            elif not os.access(target_path, os.R_OK):
+                issues.append('{} exists but is not readable'.format(target_path))
+
+    return issues
+
+
+def verify_file_readability():
+    """Verify critical files are readable."""
+    files_to_check = [
+        (os.path.join(BASE_DIR, 'dot.bashrc'), True),  # Required
+        (os.path.join(BASE_DIR, 'utils.sh'), True),  # Required
+        (os.path.join(BASE_DIR, 'git', 'utils.sh'), True),  # Required
+        (os.path.join(BASE_DIR, 'git', 'config'), True),  # Required
+    ]
+
+    # Add platform-specific files
+    if platform.system() == 'Linux':
+        files_to_check.append(
+            (os.path.join(BASE_DIR, 'dot.settings_linux'), False)  # Optional
+        )
+    elif platform.system() == 'Darwin':
+        files_to_check.append(
+            (os.path.join(BASE_DIR, 'dot.settings_darwin'), False)  # Optional
+        )
+
+    issues = []
+    for filepath, required in files_to_check:
+        if not os.path.exists(filepath):
+            if required:
+                issues.append('{} is missing'.format(filepath))
+        elif not os.access(filepath, os.R_OK):
+            issues.append('{} is not readable'.format(filepath))
+
+    return issues
+
+
+def verify_bash_syntax():
+    """Verify bash files have valid syntax using bash -n."""
+    if not is_tool('bash'):
+        return []  # Can't check without bash
+
+    bash_files = [
+        os.path.join(BASE_DIR, 'dot.bashrc'),
+        os.path.join(BASE_DIR, 'utils.sh'),
+        os.path.join(BASE_DIR, 'git', 'utils.sh'),
+    ]
+
+    # Add platform-specific files
+    if platform.system() == 'Linux':
+        bash_files.append(os.path.join(BASE_DIR, 'dot.settings_linux'))
+    elif platform.system() == 'Darwin':
+        bash_files.append(os.path.join(BASE_DIR, 'dot.settings_darwin'))
+
+    issues = []
+    for filepath in bash_files:
+        if not os.path.exists(filepath):
+            continue  # Already reported in readability check
+
+        try:
+            # Use bash -n to check syntax without executing
+            result = subprocess.run(
+                ['bash', '-n', filepath],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            if result.returncode != 0:
+                # Clean up error message (remove "bash: " prefix if present)
+                error_msg = result.stderr.strip()
+                if error_msg.startswith('bash: '):
+                    error_msg = error_msg[6:]
+                issues.append('{} has syntax errors: {}'.format(
+                    os.path.basename(filepath), error_msg))
+        except subprocess.TimeoutExpired:
+            issues.append('{} syntax check timed out'.format(filepath))
+        except Exception as e:
+            issues.append('{} syntax check failed: {}'.format(filepath, str(e)))
+
+    return issues
+
+
+def verify_git_config():
+    """Verify git configuration is valid."""
+    if not is_tool('git'):
+        return []  # Can't check without git
+
+    issues = []
+
+    # Check git config file exists
+    git_config_path = os.path.join(BASE_DIR, 'git', 'config')
+    if not os.path.exists(git_config_path):
+        issues.append('git/config file missing')
+        return issues
+
+    # Check if included in global config
+    try:
+        result = subprocess.run(
+            ['git', 'config', '--global', '--get', 'include.path'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        if result.returncode != 0:
+            issues.append('git include.path not configured')
+        elif git_config_path not in result.stdout:
+            issues.append('git include.path not pointing to {}'.format(git_config_path))
+    except subprocess.TimeoutExpired:
+        issues.append('git config check timed out')
+    except Exception as e:
+        issues.append('git config check failed: {}'.format(str(e)))
+
+    return issues
+
+
+def verify_installation():
+    """
+    Verify installation completed successfully.
+
+    Returns:
+        (bool, list): (success, list of issues)
+    """
+    print_installing_title('Verifying Installation')
+
+    all_issues = []
+
+    # Phase 1: Symlinks
+    print('Checking symlinks...')
+    issues = verify_symlinks()
+    if issues:
+        all_issues.extend(issues)
+        for issue in issues:
+            print_warning(issue)
+    else:
+        print(colors.OK + '✓ All symlinks valid' + colors.END)
+
+    # Phase 2: File readability
+    print('Checking file readability...')
+    issues = verify_file_readability()
+    if issues:
+        all_issues.extend(issues)
+        for issue in issues:
+            print_error(issue)
+    else:
+        print(colors.OK + '✓ All files readable' + colors.END)
+
+    # Phase 3: Bash syntax
+    print('Checking bash syntax...')
+    issues = verify_bash_syntax()
+    if issues:
+        all_issues.extend(issues)
+        for issue in issues:
+            print_error(issue)
+    else:
+        print(colors.OK + '✓ Bash files syntax valid' + colors.END)
+
+    # Phase 4: Git config
+    print('Checking git configuration...')
+    issues = verify_git_config()
+    if issues:
+        all_issues.extend(issues)
+        for issue in issues:
+            print_warning(issue)
+    else:
+        print(colors.OK + '✓ Git configuration valid' + colors.END)
+
+    # Summary
+    if all_issues:
+        print('\n' + colors.FAIL + 'Verification found {} issue(s):'.format(len(all_issues)) + colors.END)
+        for issue in all_issues:
+            print('  - ' + issue)
+        return False, all_issues
+    else:
+        print('\n' + colors.OK + '✓ Installation verification passed!' + colors.END)
+        return True, []
+
+
 def show_setup_summary(results):
     """Display a summary of setup results and provide guidance."""
     print('\n' + '=' * 50)
@@ -433,13 +648,22 @@ def main(argv):
 
     show_setup_summary(results)
 
-    # Return proper exit code
+    # Only verify if setup succeeded
     if all(r is not False for r in results.values()):
-        # Success if all True or None (skipped)
-        print_hint('Please run `$ source ~/.bashrc` to turn on the environment settings')
-        return 0
+        # Setup succeeded, run verification
+        verification_passed, issues = verify_installation()
+
+        if verification_passed:
+            # Both setup and verification successful
+            print_hint('Please run `$ source ~/.bashrc` to turn on the environment settings')
+            return 0
+        else:
+            # Setup succeeded but verification failed
+            print_error('Installation verification failed!')
+            print_error('Fix the issues above and re-run setup.py')
+            return 1
     else:
-        # Failure if any False
+        # Setup failed, skip verification
         return 1
 
 
