@@ -75,21 +75,71 @@ def bash_load_command(path):
 
 
 def append_nonexistent_lines_to_file(file, lines):
-    with open(file, 'r+') as f:
-        content = f.read()
-        for l in lines:
-            if l in content:
-                print_warning('{} is already in {}'.format(l, file))
-                continue
-            f.write(l + '\n')
-            print('{} is appended into {}'.format(l, file))
+    """
+    Append lines to a file if they don't already exist.
 
-        # Show the current file
-        f.seek(0)
-        content = f.read()
-        print_hint('{}:'.format(file))
-        print(content)
-        f.close()
+    Uses line-by-line comparison (not substring matching) to avoid false positives.
+    Ensures file ends with newline before appending.
+    Validates file is writable before attempting operations.
+
+    Args:
+        file: Path to the file to modify
+        lines: List of lines to append (without trailing newlines)
+
+    Returns:
+        True if all operations successful, False otherwise
+    """
+    # Validate file exists
+    if not os.path.exists(file):
+        print_error('File does not exist: {}'.format(file))
+        return False
+
+    # Validate file is writable
+    if not os.access(file, os.W_OK):
+        print_error('File is not writable: {}'.format(file))
+        return False
+
+    try:
+        # Read existing lines
+        with open(file, 'r') as f:
+            existing_lines = [line.rstrip('\n') for line in f]
+
+        # Check if file ends with newline
+        needs_newline = False
+        if existing_lines and len(existing_lines) > 0:
+            with open(file, 'rb') as f:
+                f.seek(-1, os.SEEK_END)
+                last_char = f.read(1)
+                needs_newline = (last_char != b'\n')
+
+        # Determine which lines to append
+        lines_to_append = []
+        for line in lines:
+            if line in existing_lines:
+                print_warning('{} is already in {}'.format(line, file))
+            else:
+                lines_to_append.append(line)
+
+        # Append new lines
+        if lines_to_append:
+            with open(file, 'a') as f:
+                # Add newline to last line if needed
+                if needs_newline:
+                    f.write('\n')
+
+                for line in lines_to_append:
+                    f.write(line + '\n')
+                    print('{} is appended into {}'.format(line, file))
+
+        return True
+
+    except IOError as e:
+        print_error('Failed to modify {}: {}'.format(file, str(e)))
+        return False
+    except Exception as e:
+        print_error('Unexpected error modifying {}: {}'.format(file, str(e)))
+        return False
+
 
 
 def print_installing_title(name, bold=False):
@@ -108,6 +158,11 @@ def print_warning(message):
 
 def print_fail(message):
     print(colors.FAIL + 'ERROR: ' + message + colors.END + '\n')
+
+
+# Alias for consistency
+def print_error(message):
+    print_fail(message)
 
 # Setup functions
 # ------------------------------------------------------------------------------
