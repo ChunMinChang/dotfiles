@@ -332,18 +332,30 @@ Generated: 2026-01-07
   - Added missing "to": "turn on" → "to turn on"
   - Final: `'Please run $ source ~/.bashrc to turn on the environment settings'`
 
-### [ ] 6.2 Resolve or remove TODO comments
-- **File**: `setup.py:15, 89`
-- **TODO**: "Use Print{Error, Hint, Warning} instead"
-- **Action**: Either implement or remove comment
-
-- **File**: `uninstall.sh:43, 86, 96`
-- **TODO**: "Remove this automatically"
-- **Action**: Implement automatic removal or document why it's manual
-
-- **File**: `uninstall.sh:52`
-- **TODO**: "Not sure why `source` succeeds but `$?` return 1"
-- **Action**: Debug and resolve this uncertainty (related to 1.1)
+### [x] 6.2 Resolve or remove TODO comments ✅
+- **File**: `uninstall.sh:30, 84, 98`
+- **Issue**: Three TODO comments suggested automation was needed for manual removal steps
+- **Status**: COMPLETED (2026-01-08)
+- **Changes made**:
+  - **Resolved 3 TODOs** by documenting design decisions (not implementing automation)
+  - Replaced "TODO: Remove this automatically" with clear explanatory notes
+  - New comment: "Note: Manual removal required - user file may contain customizations"
+  - Locations: mozilla hg config, git config, bashrc loader lines
+- **Design Decision**: Manual removal is the CORRECT approach
+  - Automatic removal would be dangerous (user files may have customizations)
+  - Manual removal provides user control and safety
+  - Symlinks removed automatically (safe), appended text removed manually (safer)
+- **Testing**: 5/5 tests passed (see TESTING_RESULTS_TODO_CLEANUP.md)
+  - Syntax validation ✅
+  - No TODOs remain ✅
+  - setup.py still clean (0 TODOs) ✅
+  - Comments are clear ✅
+  - Functionality unchanged ✅
+- **Milestone**: 🎉 ENTIRE CODEBASE NOW TODO-FREE! 🎉
+  - uninstall.sh: 3 TODOs → 0 TODOs
+  - setup.py: already 0 TODOs
+- **Impact**: LOW - Documentation cleanup, professional appearance
+- **Time**: 5 minutes (perfect quick win)
 
 ### [ ] 6.3 Fix README documentation mismatches
 - **README line 122**: Says "Link `setting.json`" but should be `settings.json`
@@ -437,7 +449,7 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 13 (32.5%)
+- **Completed**: 14 (35%)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -451,6 +463,7 @@ Generated: 2026-01-07
   - Item 3.3: Improve RecursivelyRemove safety
   - Item 5.2: Fix append_nonexistent_lines_to_file (critical bug)
   - Item 6.1: Fixed typo in error message
+  - Item 6.2: Resolved outdated TODO comments (codebase now TODO-free)
 - **In progress**: 0
 - **Last updated**: 2026-01-08
 
@@ -469,6 +482,12 @@ Generated: 2026-01-07
 - ✅ Fragile alias quoting fixed (converted to function)
 - ✅ RecursivelyRemove now safe with preview & confirmation
 
+**🎉 MILESTONE: ENTIRE CODEBASE NOW TODO-FREE! 🎉**
+- ✅ All outdated TODOs resolved (Item 6.2)
+- ✅ uninstall.sh: 0 TODOs (was 3)
+- ✅ setup.py: 0 TODOs (already clean)
+- ✅ Design decisions documented, no confusion about incomplete work
+
 **Key Achievements**:
 - Item 1.1: Eliminated CRITICAL code injection vulnerability (CVSS 9.8)
 - Item 2.1: Established single source of truth for print functions (22 lines removed)
@@ -477,6 +496,7 @@ Generated: 2026-01-07
 - Item 3.1 unblocks 4 shell-related improvements (3.2, 3.3, 7.3, 8.2)
 - Item 1.4 improves security (Ctrl+C works) and debugging (error messages)
 - Item 5.2: Fixed CRITICAL false positive bug in append function (foundational fix, unblocks 5.4 & 8.1)
+- Item 6.2: Entire codebase now TODO-free (professional appearance, clear design documentation)
 
 ---
 
