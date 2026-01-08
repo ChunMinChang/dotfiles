@@ -60,15 +60,23 @@ Generated: 2026-01-07
   - Edge cases (empty string, spaces) ✅
 - **Impact**: HIGH - Users can now interrupt (Ctrl+C), better error messages, follows PEP 8
 
-### [ ] 1.5 Fix macOS version parsing bug
-- **File**: `setup.py:125-128`
-- **Issue**: `float()` conversion breaks with modern macOS versions (11, 14, 15)
-- **Current code**:
-  ```python
-  v = float('.'.join(v.split('.')[:2]))
-  ```
-- **Action**: Use tuple comparison or `packaging.version.parse()`
-- **Impact**: HIGH - Breaks on macOS 11+ (Big Sur and newer)
+### [x] 1.5 Fix macOS version parsing bug ✅
+- **File**: `setup.py:133-144`
+- **Issue**: `float()` conversion has critical bug and is semantically wrong
+- **Status**: COMPLETED (2026-01-07)
+- **Changes made**:
+  - Replaced `float('.'.join(v.split('.')[:2]))` with tuple comparison `(major, minor)`
+  - Critical bug fixed: `float("10.10")` = `10.1` (loses trailing zero, makes 10.9 > 10.10!)
+  - Added proper error handling with try/except
+  - Safe fallback to (11, 0) on parse errors (assumes modern macOS)
+  - Semantically correct tuple comparison for versions
+- **Testing**: 24+ tests passed (see TESTING_RESULTS_MACOS_VERSION.md)
+  - Version comparisons (9 tests) ✅
+  - Edge cases (5 tests) ✅
+  - Float bug demonstration ✅
+  - Backward compatibility (6 macOS versions) ✅
+  - Linux integration ✅
+- **Impact**: HIGH - Version comparison now semantically correct and robust
 
 ## Priority 2: Code Duplication & Inconsistency
 
@@ -324,10 +332,11 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 6 (15%)
+- **Completed**: 7 (17.5%)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
   - Item 1.4: Fixed bare exception catching in setup.py
+  - Item 1.5: Fixed macOS version parsing bug
   - Item 2.2: Standardized path construction in setup.py
   - Item 3.1: Quote all variable expansions in shell scripts
   - Item 6.1: Fixed typo in error message

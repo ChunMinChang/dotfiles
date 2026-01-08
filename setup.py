@@ -132,9 +132,16 @@ def bash_link():
 
     if platform.system() == 'Darwin':
         v, _, _ = platform.mac_ver()
-        v = float('.'.join(v.split('.')[:2]))
+        version_parts = v.split('.')[:2]
+        try:
+            major = int(version_parts[0]) if version_parts else 0
+            minor = int(version_parts[1]) if len(version_parts) > 1 else 0
+        except (ValueError, IndexError):
+            # If version parsing fails, assume modern macOS (use zshrc)
+            major, minor = 11, 0
+
         platform_files[platform.system()].append(
-            'dot.zshrc' if v >= 10.15 else 'dot.bash_profile')
+            'dot.zshrc' if (major, minor) >= (10, 15) else 'dot.bash_profile')
 
     #files = filter(lambda f: f.startswith('dot.'), os.listdir(BASE_DIR))
     files = platform_files[platform.system()]
