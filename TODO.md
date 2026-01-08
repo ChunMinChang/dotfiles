@@ -250,13 +250,43 @@ Generated: 2026-01-07
 
 ## Priority 5: Error Handling & Validation
 
-### [ ] 5.1 Add file existence checks before operations
-- **File**: `setup.py`
-- **Issue**: No validation that files exist before creating symlinks
-- **Locations**:
-  - Line 136: `os.path.samefile()` doesn't catch OSError if file missing
-  - Line 214: Doesn't verify `dot.bashrc` exists before reading
-- **Action**: Add `os.path.exists()` checks before operations
+### [x] 5.1 Add file existence checks before operations ✅
+- **File**: `setup.py:32-45, 215-220, 253-270`
+- **Issue**: Four crash points where missing files cause cryptic OSError/FileNotFoundError
+- **Status**: COMPLETED (2026-01-08)
+- **Changes made**:
+  - **link() function**: Added source validation before creating symlinks
+    - Returns False if source doesn't exist (enables error detection)
+    - Clear error messages ("Cannot create symlink: source does not exist")
+    - No broken symlinks created
+  - **bash_link()**: Added source check before os.path.samefile()
+    - Prevents OSError crash if source missing from repository
+    - Clear repository integrity messages
+    - Continues with other files (graceful degradation)
+  - **git_init() - path validation**: Checks git/config exists before configuring
+    - Prevents broken git configuration
+    - Returns early if file missing
+  - **git_init() - read validation**: Checks git_config exists before opening
+    - Prevents FileNotFoundError crash
+    - Graceful warning if file missing
+- **Implementation**: Added 4 existence checks at critical points (+27 lines)
+  - `if not os.path.exists(source): return False` (link function)
+  - `if not os.path.exists(src): continue` (bash_link samefile check)
+  - `if not os.path.exists(path): return` (git/config validation)
+  - `if os.path.exists(git_config):` (before reading file)
+- **Testing**: 10/10 tests passed (see TESTING_RESULTS_FILE_CHECKS.md)
+  - Syntax validation ✅
+  - link() with non-existent source ✅
+  - link() with existing source ✅
+  - link() replaces existing symlink ✅
+  - link() works with directory source ✅
+  - link() works with relative paths ✅
+  - link() return value optional (backward compat) ✅
+  - Source check before samefile ✅
+  - git/config path validation ✅
+  - git config read validation ✅
+- **Impact**: MEDIUM-HIGH - Prevents crashes, enables graceful degradation, validates repository
+- **Facilitates**: Items 5.4 (installation verification), 8.1 (test suite for setup.py)
 
 ### [x] 5.2 Improve append_nonexistent_lines_to_file validation ✅
 - **File**: `setup.py:77-141`
@@ -449,7 +479,7 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 14 (35%)
+- **Completed**: 15 (37.5%)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -461,6 +491,7 @@ Generated: 2026-01-07
   - Item 3.1: Quote all variable expansions in shell scripts
   - Item 3.2: Fix fragile alias quoting
   - Item 3.3: Improve RecursivelyRemove safety
+  - Item 5.1: Add file existence checks (prevents crashes)
   - Item 5.2: Fix append_nonexistent_lines_to_file (critical bug)
   - Item 6.1: Fixed typo in error message
   - Item 6.2: Resolved outdated TODO comments (codebase now TODO-free)
@@ -495,6 +526,7 @@ Generated: 2026-01-07
 - Item 2.3: Fixed confusing inverted logic, improved code clarity
 - Item 3.1 unblocks 4 shell-related improvements (3.2, 3.3, 7.3, 8.2)
 - Item 1.4 improves security (Ctrl+C works) and debugging (error messages)
+- Item 5.1: Added file existence checks at 4 crash points (prevents OSError/FileNotFoundError, validates repository)
 - Item 5.2: Fixed CRITICAL false positive bug in append function (foundational fix, unblocks 5.4 & 8.1)
 - Item 6.2: Entire codebase now TODO-free (professional appearance, clear design documentation)
 
