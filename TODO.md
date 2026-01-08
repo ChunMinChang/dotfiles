@@ -162,14 +162,34 @@ Generated: 2026-01-07
   - All test conditionals now properly quoted
 - **Impact**: HIGH - Prevents bugs with paths/arguments containing spaces
 
-### [ ] 3.2 Fix fragile alias quoting
-- **File**: `mozilla/gecko/alias.sh:43`
-- **Issue**: Quotes inside alias definition can cause issues
-- **Current code**:
+### [x] 3.2 Fix fragile alias quoting ✅
+- **File**: `mozilla/gecko/alias.sh:40-49`
+- **Issue**: Nested quotes in alias definition (fragile, confusing)
+- **Status**: COMPLETED (2026-01-08)
+- **Changes made**:
+  - **Converted alias to function**: More robust and maintainable
+  - Created MozFormatUncommit() function with clear quoting
+  - Kept alias mfmtuc pointing to function (backward compatible)
+  - Added documentation comment
+  - Follows patterns in file (other complex ops use functions)
+- **Implementation**:
   ```bash
-  alias mfmtuc='GitUncommit "./mach clang-format --path"'
+  # Format all uncommit files
+  function MozFormatUncommit() {
+    GitUncommit './mach clang-format --path'
+  }
+  alias mfmtuc='MozFormatUncommit'
   ```
-- **Action**: Review and test this alias pattern, consider using functions instead
+- **Testing**: 8/8 tests passed (see TESTING_RESULTS_ALIAS_QUOTING.md)
+  - Syntax validation ✅
+  - Alias exists ✅
+  - Function exists ✅
+  - Alias → function mapping ✅
+  - Function implementation ✅
+  - Quoting improved ✅
+  - Backward compatibility ✅
+  - Pattern consistency ✅
+- **Impact**: MEDIUM - Improved code quality, maintainability, follows best practices
 
 ### [ ] 3.3 Improve RecursivelyRemove safety
 - **File**: `utils.sh:61-70`
@@ -361,7 +381,7 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 10 (25%)
+- **Completed**: 11 (27.5%)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -371,9 +391,10 @@ Generated: 2026-01-07
   - Item 2.2: Standardized path construction in setup.py
   - Item 2.3: Fix inverted logic in CommandExists
   - Item 3.1: Quote all variable expansions in shell scripts
+  - Item 3.2: Fix fragile alias quoting
   - Item 6.1: Fixed typo in error message
 - **In progress**: 0
-- **Last updated**: 2026-01-07
+- **Last updated**: 2026-01-08
 
 **🎉 MILESTONE: ALL PRIORITY 1 (CRITICAL) ITEMS COMPLETE! 🎉**
 - ✅ All critical security vulnerabilities eliminated

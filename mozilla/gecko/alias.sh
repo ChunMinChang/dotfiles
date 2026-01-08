@@ -40,8 +40,13 @@ alias wcf='./mach wpt testing/web-platform/tests/webcodecs/full-cycle-test.https
 # Format check
 alias mfmt='./mach clang-format'
 alias mfmtfor='./mach clang-format --path'
-alias mfmtuc='GitUncommit "./mach clang-format --path"' # Format all uncommit files
 alias manal='./mach static-analysis check' # usage: `manal <FILE_PATH>`
+
+# Format all uncommit files
+function MozFormatUncommit() {
+  GitUncommit './mach clang-format --path'
+}
+alias mfmtuc='MozFormatUncommit'
 
 # Debug
 alias mmd10='./mach mochitest --disable-e10s'
