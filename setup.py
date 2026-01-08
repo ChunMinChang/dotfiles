@@ -30,12 +30,19 @@ class colors:
 
 # Symbolically link source to target
 def link(source, target):
+    # Validate source exists before creating symlink
+    if not os.path.exists(source):
+        print_error('Cannot create symlink: source does not exist')
+        print_error('Source: {}'.format(source))
+        return False
+
     if os.path.islink(target):
         print('unlink {}'.format(target))
         os.unlink(target)
 
     print('link {} to {}'.format(source, target))
     os.symlink(source, target)
+    return True
 
 # Check if `name` exists
 def is_tool(name):
@@ -206,6 +213,12 @@ def bash_link():
         target = os.path.join(HOME_DIR, f[3:])  # Get name after dot
         src = os.path.join(BASE_DIR, f)
         if os.path.isfile(target):
+            # Check if source exists before comparing
+            if not os.path.exists(src):
+                print_error('Source file does not exist: {}'.format(src))
+                print_error('Repository may be incomplete or corrupted')
+                continue
+
             if os.path.samefile(src, target):
                 print_warning('{} is already linked!'.format(target))
                 continue
@@ -238,14 +251,23 @@ def git_init():
 
     # Include git config here in global gitconfig file
     path = os.path.join(BASE_DIR, 'git', 'config')
+    if not os.path.exists(path):
+        print_error('Git config file not found: {}'.format(path))
+        print_error('Cannot configure git include.path')
+        return
+
     subprocess.call(['git', 'config', '--global', 'include.path', path])
 
-    # Show the current file:
-    with open(git_config, 'r') as f:
-        content = f.read()
-        print_hint('{}:'.format(git_config))
-        print(content)
-        f.close()
+    # Show the current file if it exists:
+    if os.path.exists(git_config):
+        with open(git_config, 'r') as f:
+            content = f.read()
+            print_hint('{}:'.format(git_config))
+            print(content)
+            f.close()
+    else:
+        print_warning('Git config file not found: {}'.format(git_config))
+        print_warning('Git configuration may not be complete')
 
 # mozilla stuff
 # ---------------------------------------
