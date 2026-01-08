@@ -621,7 +621,7 @@ Generated: 2026-01-07
 - Item 1.1: Eliminated CRITICAL code injection vulnerability (CVSS 9.8)
 - Item 2.1: Established single source of truth for print functions (22 lines removed)
 - Item 2.2 unblocks 8+ Python-related improvements (4.1, 5.1-5.2, 7.1, 8.1)
-- Item 2.3: Fixed confusing inverted logic, improved code clarity
+- Item 2.3: Fixed confusing inverted logic, improved code clarity (5 files updated initially, 3 more fixed after power outage)
 - Item 3.1 unblocks 4 shell-related improvements (3.2, 3.3, 7.3, 8.2)
 - Item 1.4 improves security (Ctrl+C works) and debugging (error messages)
 - Item 5.1: Added file existence checks at 4 crash points (prevents OSError/FileNotFoundError, validates repository)
@@ -631,12 +631,181 @@ Generated: 2026-01-07
 - Item 6.2: Entire codebase now TODO-free (professional appearance, clear design documentation)
 - Item 6.3: All Priority 6 complete - documentation now accurate and matches implementation
 
+**Recent Fix (2026-01-08)**:
+- Completed Item 2.3 fully: Fixed 3 missed call sites (dot.settings_linux, dot.settings_darwin, dot.bash_profile)
+- Root cause: Power outage interrupted previous session, left 3 files with old CommandExists logic
+- Impact: Eliminated "bash: [: -eq: unary operator expected" errors on terminal startup
+- All 8 CommandExists call sites now use correct Unix convention (return codes, not echo)
+
+---
+
+## Dependency Analysis & Recommended Order
+
+This section helps prioritize work by showing dependencies between pending items.
+
+### Dependency Legend
+- **→** Blocks/Facilitates (completing this helps with the target)
+- **←** Depends on (needs this to be done first)
+- **↔** Related/Overlapping (could be done together)
+
+### Item Dependencies Map
+
+#### Priority 4: Configuration & Hardcoded Paths
+- **4.1** Extract hardcoded paths
+  - Dependencies: None (can be done independently)
+  - Facilitates: 8.1 (tests), 9.5 (config file)
+  - Complexity: Medium (7 files affected)
+  - Impact: Makes codebase more maintainable and testable
+
+- **4.2** Make script location detection robust
+  - Dependencies: None (can be done independently)
+  - Facilitates: Nothing (isolated fix)
+  - Complexity: Low (simple one-line fix)
+  - Impact: Prevents bugs when running from different directories
+  - **QUICK WIN** ⚡
+
+#### Priority 5: Error Handling
+- **5.5** Add rollback mechanism
+  - Dependencies: ✅ 5.1-5.4 complete (foundation exists)
+  - Would benefit from: 8.1 (tests to validate rollback)
+  - Facilitates: Setup reliability, user confidence
+  - Complexity: Medium-High
+  - Impact: Allows safe recovery from failed setups
+
+#### Priority 7: Code Quality & Simplification
+- **7.1** Simplify Mozilla argument parsing
+  - Dependencies: None (can be done independently)
+  - Facilitates: Code maintainability
+  - Complexity: Low (straightforward refactor)
+  - Impact: Cleaner, more readable code
+  - **QUICK WIN** ⚡
+
+- **7.2** Standardize function naming conventions
+  - Dependencies: None
+  - Affects: 8.1, 8.2 (if renaming functions)
+  - Complexity: Low (just documentation) OR Medium-High (if renaming)
+  - Impact: Better code consistency
+  - Note: Recommend documenting convention rather than renaming
+
+- **7.3** Review and optimize git/utils.sh
+  - Dependencies: None (can be done independently)
+  - Would benefit from: 8.2 (tests to validate changes)
+  - Facilitates: Git workflow reliability
+  - Complexity: Medium
+  - Impact: More robust git utilities
+
+#### Priority 8: Testing & Verification
+- **8.1** Create test suite for setup.py
+  - Dependencies: None (can start immediately)
+  - **Facilitates many items**: 4.1, 5.5, 9.1, 9.2, 9.4
+  - Complexity: High (comprehensive suite needed)
+  - Impact: **VERY HIGH** - Prevents regressions, enables confident refactoring
+  - **HIGH PRIORITY** 🔥
+
+- **8.2** Create test suite for shell utilities
+  - Dependencies: None (can start immediately)
+  - **Facilitates**: 7.3, 9.3, 9.4
+  - Complexity: High (bats framework setup + comprehensive tests)
+  - Impact: **VERY HIGH** - Prevents regressions, validates shell code
+  - **HIGH PRIORITY** 🔥
+
+- **8.3** Test cross-platform compatibility
+  - Dependencies: None (can be done anytime)
+  - Would benefit from: 8.1, 8.2 (automated tests)
+  - Complexity: Medium (requires multiple platforms)
+  - Impact: Ensures reliability across Linux/macOS
+
+#### Priority 9: Optional Enhancements
+- **9.1** Add dry-run mode
+  - Dependencies: None
+  - Would benefit from: 8.1 (tests)
+  - Complexity: Medium
+  - Impact: Safer setup testing
+
+- **9.2** Add verbose mode
+  - Dependencies: None
+  - Complexity: Low-Medium
+  - Impact: Better debugging
+  - **QUICK WIN** ⚡
+
+- **9.3** Improve uninstall automation
+  - Dependencies: None
+  - Would benefit from: 8.2 (tests)
+  - Complexity: Medium
+  - Impact: Better user experience
+
+- **9.4** Add pre-commit hooks
+  - Dependencies: None
+  - Would benefit from: 8.1, 8.2 (tests can run in hooks)
+  - Complexity: Low-Medium
+  - Impact: Prevents committing broken code
+
+- **9.5** Consider configuration file
+  - ↔ Related to 4.1 (overlapping - could be combined)
+  - Dependencies: None
+  - Complexity: Medium
+  - Impact: User customization
+
+### Recommended Work Order
+
+#### Phase 1: Quick Wins (Low effort, immediate value)
+Do these first for quick progress:
+1. **4.2** - Script location detection (5 minutes)
+2. **7.1** - Simplify Mozilla argument parsing (15 minutes)
+3. **9.2** - Add verbose mode (30 minutes)
+
+#### Phase 2: Foundation for Quality (Enables future work)
+Critical for long-term maintainability:
+4. **8.1** - Test suite for setup.py (HIGH PRIORITY - facilitates 5 other items)
+5. **8.2** - Test suite for shell utilities (HIGH PRIORITY - facilitates 3 other items)
+
+#### Phase 3: Configuration & Refactoring (With tests in place)
+Now safer to refactor with test coverage:
+6. **4.1** - Extract hardcoded paths (easier to test with 8.1 complete)
+7. **7.3** - Review git/utils.sh (safer with 8.2 complete)
+
+#### Phase 4: Advanced Features (Building on foundation)
+8. **5.5** - Rollback mechanism (depends on 5.1-5.4 ✅, benefits from 8.1)
+9. **8.3** - Cross-platform testing (easier with 8.1, 8.2)
+
+#### Phase 5: Polish & Enhancements (Optional)
+10. **7.2** - Standardize naming (documentation)
+11. **9.1** - Dry-run mode
+12. **9.3** - Uninstall automation
+13. **9.4** - Pre-commit hooks
+14. **9.5** - Configuration file (or combine with 4.1)
+
+### Complexity vs Impact Matrix
+
+```
+High Impact │ 8.1 ████  8.2 ████  │ 4.1 ██    5.5 ██
+            │ (Test setup.py)    │ (Config)  (Rollback)
+            │                    │
+Medium      │ 7.3 ██    4.2 █    │ 9.1 █     9.3 █
+Impact      │ (Git utils)        │ (Dry-run) (Uninstall)
+            │                    │
+Low Impact  │ 7.1 █     9.2 █    │ 7.2 █     9.4 █  9.5 █
+            │ (Simplify) (Verbose)│ (Naming)  (Hooks)(Config)
+            └────────────────────┴─────────────────────
+              Low-Medium Complexity   Medium-High Complexity
+```
+
+### Critical Path Items
+
+Items that **unblock or facilitate the most other items**:
+1. **8.1** (Test suite for setup.py) → facilitates 5 items: 4.1, 5.5, 9.1, 9.2, 9.4
+2. **8.2** (Test suite for shell) → facilitates 3 items: 7.3, 9.3, 9.4
+3. **4.1** (Extract hardcoded paths) → overlaps with 9.5, makes 8.1 easier
+
+**Recommendation**: Start with Phase 1 quick wins, then prioritize 8.1 and 8.2 to enable confident refactoring.
+
 ---
 
 ## Notes
 
 - Items are ordered by priority within each section
-- Some items may be interdependent
+- Some items may be interdependent (see Dependency Analysis above)
 - Test after each change to ensure nothing breaks
 - Consider creating feature branches for major refactoring
 - Update CLAUDE.md after significant changes
+- **Use the Recommended Work Order** above to maximize efficiency

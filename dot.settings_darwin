@@ -1,13 +1,13 @@
 # Check homebrew
 # ====================================================================
-if [ $(CommandExists brew) -eq 0 ]; then
+if ! CommandExists brew; then
   echo Please install brew!
   return
 fi
 
 # mac vim
 # ====================================================================
-if [ $(CommandExists mvim) -eq 0 ]; then
+if ! CommandExists mvim; then
   echo Installing mac vim ...
   brew update
   brew install macvim

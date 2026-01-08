@@ -2,7 +2,7 @@ alias open='xdg-open'
 
 # Git
 # ====================================================================
-if [ $(CommandExists git) -eq 1 ]; then
+if CommandExists git; then
   if [ -r "$HOME/.gitconfig" ]; then
     # Show git branch in prompt
     BranchInPrompt
@@ -13,7 +13,7 @@ else
   echo Please install git before loading its settings.
 fi
 
-if [ $(CommandExists vim) -eq 1 ]; then
+if CommandExists vim; then
   export GIT_EDITOR=vim
 fi
 
