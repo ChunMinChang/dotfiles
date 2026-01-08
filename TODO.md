@@ -457,10 +457,22 @@ Generated: 2026-01-07
 - **Impact**: LOW - Documentation cleanup, professional appearance
 - **Time**: 5 minutes (perfect quick win)
 
-### [ ] 6.3 Fix README documentation mismatches
-- **README line 122**: Says "Link `setting.json`" but should be `settings.json`
-- **README line 125**: Says append to machrc but setup.py symlinks it
-- **Action**: Update README to match actual implementation
+### [x] 6.3 Fix README documentation mismatches ✅
+- **File**: `README.md` (lines 110, 122, 125)
+- **Issue**: Documentation doesn't match actual implementation
+- **Status**: COMPLETED (2026-01-08)
+- **Changes made**:
+  - **Line 110**: Fixed command name in example
+    - Was: `RecursivelyFind "*.DS_Store"` (wrong command)
+    - Now: `RecursivelyRemove "*.DS_Store"` (correct command for deletion)
+  - **Line 122**: Fixed filename typo
+    - Was: `setting.json` (missing 's')
+    - Now: `settings.json` (correct filename)
+  - **Line 125**: Fixed machrc operation and path
+    - Was: "Append `~/dotfiles/mozilla/machrc` into `~/.mozbuild/machrc`"
+    - Now: "Link `~/dotfiles/mozilla/gecko/machrc` to `~/.mozbuild/machrc`"
+    - Reason: setup.py:332 uses link() to create symlink, not append
+- **Impact**: LOW - Documentation cleanup, now matches implementation
 
 ## Priority 7: Code Quality & Simplification
 
@@ -549,7 +561,7 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 17 (42.5%)
+- **Completed**: 18 (45%)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -567,6 +579,7 @@ Generated: 2026-01-07
   - Item 5.4: Add installation verification step
   - Item 6.1: Fixed typo in error message
   - Item 6.2: Resolved outdated TODO comments (codebase now TODO-free)
+  - Item 6.3: Fixed README documentation mismatches
 - **In progress**: 0
 - **Last updated**: 2026-01-08
 
@@ -592,6 +605,12 @@ Generated: 2026-01-07
 - ✅ Item 5.4: Installation verification (verifies setup actually worked)
 - ⬜ Item 5.5: Rollback mechanism (remaining)
 
+**🎉 MILESTONE: ALL PRIORITY 6 (DOCUMENTATION) ITEMS COMPLETE! 🎉**
+- ✅ Item 6.1: Fixed typo in setup.py error message
+- ✅ Item 6.2: Resolved all TODO comments (codebase now TODO-free)
+- ✅ Item 6.3: Fixed README documentation mismatches
+- ✅ Documentation now accurate and matches implementation
+
 **🎉 MILESTONE: ENTIRE CODEBASE NOW TODO-FREE! 🎉**
 - ✅ All outdated TODOs resolved (Item 6.2)
 - ✅ uninstall.sh: 0 TODOs (was 3)
@@ -610,6 +629,7 @@ Generated: 2026-01-07
 - Item 5.3: Added error exit codes (8 functions modified, proper exit codes enable automation, clear summary feedback)
 - Item 5.4: Added installation verification (5 functions, 229 lines, verifies symlinks/files/bash/git, ~300ms overhead)
 - Item 6.2: Entire codebase now TODO-free (professional appearance, clear design documentation)
+- Item 6.3: All Priority 6 complete - documentation now accurate and matches implementation
 
 ---
 
