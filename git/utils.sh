@@ -36,13 +36,12 @@ function GitLastCommit() {
 # Run commands on all uncommit files
 # ------------------------------------------------
 function GitUncommit() {
-  local cmd=$1
+  local cmd="$1"
   # Load edited files into tabs if cmd is vim
   if [ "$cmd" == "vim" ]; then
     cmd="vim -p" # open files in tabs
   fi
-  $cmd $(git status --porcelain | awk '{print $2}')
-  # git ls-files --modified --deleted --others -z | xargs -0 $cmd
+  git ls-files --modified --deleted --others -z | xargs -0 $cmd
 }
 
 # Add some files except some certian files

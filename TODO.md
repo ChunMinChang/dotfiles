@@ -26,18 +26,19 @@ Generated: 2026-01-07
   - Added better error messages for different file states (not a symlink, doesn't exist, etc.)
 - **Impact**: HIGH - Fixed notoriously fragile file handling
 
-### [ ] 1.3 Fix git status parsing to handle spaces in filenames
+### [x] 1.3 Fix git status parsing to handle spaces in filenames ✅
 - **File**: `git/utils.sh:44`
 - **Issue**: `awk '{print $2}'` breaks with filenames containing spaces and renamed files
-- **Current code**:
-  ```bash
-  $cmd $(git status --porcelain | awk '{print $2}')
-  ```
-- **Action**: Use the commented solution on line 45:
-  ```bash
-  git ls-files --modified --deleted --others -z | xargs -0 $cmd
-  ```
-- **Impact**: HIGH - Affects GitUncommit and related functions
+- **Status**: COMPLETED (2026-01-07)
+- **Changes made**:
+  - Replaced `git status --porcelain | awk '{print $2}'` with `git ls-files --modified --deleted --others -z | xargs -0 $cmd`
+  - Uses null-terminated output (-z) with xargs -0 for proper handling
+  - Fixed quoting: `local cmd="$1"` instead of `local cmd=$1`
+  - Works correctly with spaces, tabs, newlines, and special characters
+- **Testing**: 12/12 tests passed (see TESTING_RESULTS_GIT_PARSING.md)
+  - Syntax validation, files with spaces, edge cases, deleted files
+  - Direct comparison showing old approach broken, new approach works
+- **Impact**: HIGH - GitUncommit now works correctly with real-world filenames
 
 ### [x] 1.4 Fix bare exception catching in setup.py ✅
 - **File**: `setup.py:39-55`
@@ -315,7 +316,7 @@ Generated: 2026-01-07
 1. [x] Fix typo in setup.py:280 (`bachrc` → `bashrc`) (DONE - see 6.1)
 2. [x] Add quotes around variable expansions in shell scripts (DONE - see 3.1)
 3. [x] Replace `ls` parsing with `readlink` in uninstall.sh (DONE - see 1.2)
-4. [ ] Use git ls-files with -z in git/utils.sh
+4. [x] Use git ls-files with -z in git/utils.sh (DONE - see 1.3)
 5. [x] Fix bare except in setup.py (DONE - see 1.4)
 
 ---
@@ -323,8 +324,9 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 5 (12.5%)
+- **Completed**: 6 (15%)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
+  - Item 1.3: Fixed git status parsing to handle spaces in filenames
   - Item 1.4: Fixed bare exception catching in setup.py
   - Item 2.2: Standardized path construction in setup.py
   - Item 3.1: Quote all variable expansions in shell scripts
