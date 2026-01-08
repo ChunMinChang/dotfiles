@@ -65,7 +65,45 @@ function RecursivelyFind()
 
 function RecursivelyRemove()
 {
-  find . -name "$1" -type f -delete
+  local pattern="$1"
+
+  if [ -z "$pattern" ]; then
+    echo "Usage: RecursivelyRemove <pattern>"
+    return 1
+  fi
+
+  # Find matching files
+  local files
+  files=$(find . -name "$pattern" -type f)
+
+  if [ -z "$files" ]; then
+    echo "No files matching '$pattern' found."
+    return 0
+  fi
+
+  # Show preview
+  local count
+  count=$(echo "$files" | wc -l)
+  echo "Found $count file(s) matching '$pattern':"
+  echo "$files"
+  echo
+
+  # Ask for confirmation
+  read -p "Delete these files? [y/N] " -n 1 -r
+  echo
+
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "$files" | while IFS= read -r file; do
+      if rm -f "$file" 2>/dev/null; then
+        echo "Deleted: $file"
+      else
+        echo "Failed to delete: $file" >&2
+      fi
+    done
+    echo "Done. Deleted $count file(s)."
+  else
+    echo "Cancelled. No files deleted."
+  fi
 }
 
 function Trash()
