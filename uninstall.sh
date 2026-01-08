@@ -27,7 +27,7 @@ else
 fi
 
 # Remove mozilla hg config
-# TODO: Remove this automatically
+# Note: Manual removal required - user file may contain customizations
 PrintWarning "Please remove ./mozilla/hg/config with prefix %include in $HOME/.hgrc manually"
 
 PrintSubTitle "\nUninstall custom settings\n"\
@@ -81,7 +81,7 @@ if [ -r "$DOTFILES" ]; then
 fi
 
 # Remove git config
-# TODO: Remove this automatically
+# Note: Manual removal required - user file may contain customizations
 PrintWarning "Please remove ./git/config under [include] in $HOME/.gitconfig manually"
 
 # Unlink the $HOME/.bashrc
@@ -95,7 +95,7 @@ if [ -L "$BASHRC_GLOBAL" ]; then
     echo "$BASHRC_GLOBAL is a symlink to $BASHRC_LINK, stay unchanged"
   fi
 elif [ -e "$BASHRC_GLOBAL" ] && [ "$PLATFORM" = "linux" ]; then
-  # TODO: Remove this automatically
+  # Note: Manual removal required - user file may contain customizations
   PrintWarning "Please remove $BASHRC_HERE in $BASHRC_GLOBAL manually"
 elif [ ! -e "$BASHRC_GLOBAL" ]; then
   echo "$BASHRC_GLOBAL does not exist"
