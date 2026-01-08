@@ -121,16 +121,26 @@ Generated: 2026-01-07
   - Benefits: Cross-platform compatibility, easier to refactor, cleaner code
 - **Impact**: HIGH - Unblocks items 4.1, 5.1, 5.2, 7.1, 8.1
 
-### [ ] 2.3 Fix inverted logic in CommandExists function
-- **File**: `mozilla/gecko/tools.sh:10, 19`
-- **Issue**: Returns 0 if NOT found (opposite of Unix convention)
-- **Current usage**:
-  ```bash
-  if [ $(CommandExists git-cinnabar) -eq 0 ]; then  # 0 = NOT found!
-  ```
-- **Action**:
-  - Either return standard exit codes (0=success/found)
-  - Or rename to `CommandMissing` to clarify intent
+### [x] 2.3 Fix inverted logic in CommandExists function ✅
+- **Files**: `utils.sh:8-17`, callers in `utils.sh:87,90,92` and `mozilla/gecko/tools.sh:10,19`
+- **Issue**: Returns 1 if found, 0 if not found (opposite of Unix convention)
+- **Status**: COMPLETED (2026-01-07)
+- **Changes made**:
+  - **Fixed function**: Changed from `echo 1/0` to `return 0/1`
+  - **Standard convention**: Now returns 0 (success) if found, 1 (failure) if not found
+  - **Updated all callers**: 5 call sites updated to use standard pattern
+  - **Cleaner syntax**: From `if [ $(CommandExists cmd) -eq 1 ]` to `if CommandExists cmd`
+- **Callers updated**:
+  - utils.sh HostHTTP: `if CommandExists npx` (3 locations)
+  - mozilla/gecko/tools.sh: `if ! CommandExists git-cinnabar` (2 locations)
+- **Testing**: 7/7 tests passed (see TESTING_RESULTS_COMMANDEXISTS_FIX.md)
+  - Existing command detection ✅
+  - Missing command detection ✅
+  - Negated checks ✅
+  - Return codes correct (0=exists, 1=missing) ✅
+  - HostHTTP integration ✅
+  - mozilla tools integration ✅
+- **Impact**: HIGH - Standard convention, code clarity significantly improved
 
 ## Priority 3: Shell Script Robustness
 
@@ -351,7 +361,7 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 9 (22.5%)
+- **Completed**: 10 (25%)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -359,6 +369,7 @@ Generated: 2026-01-07
   - Item 1.5: Fixed macOS version parsing bug
   - Item 2.1: Consolidate duplicate print/color functions
   - Item 2.2: Standardized path construction in setup.py
+  - Item 2.3: Fix inverted logic in CommandExists
   - Item 3.1: Quote all variable expansions in shell scripts
   - Item 6.1: Fixed typo in error message
 - **In progress**: 0
@@ -369,10 +380,16 @@ Generated: 2026-01-07
 - ✅ All reliability issues fixed
 - ✅ Codebase significantly more robust and secure
 
+**🎉 MILESTONE: ALL PRIORITY 2 (CODE DUPLICATION) ITEMS COMPLETE! 🎉**
+- ✅ Print functions consolidated (single source of truth)
+- ✅ Path construction standardized (cross-platform)
+- ✅ CommandExists fixed (follows Unix convention)
+
 **Key Achievements**:
 - Item 1.1: Eliminated CRITICAL code injection vulnerability (CVSS 9.8)
 - Item 2.1: Established single source of truth for print functions (22 lines removed)
 - Item 2.2 unblocks 8+ Python-related improvements (4.1, 5.1-5.2, 7.1, 8.1)
+- Item 2.3: Fixed confusing inverted logic, improved code clarity
 - Item 3.1 unblocks 4 shell-related improvements (3.2, 3.3, 7.3, 8.2)
 - Item 1.4 improves security (Ctrl+C works) and debugging (error messages)
 

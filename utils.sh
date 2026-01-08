@@ -9,10 +9,10 @@ function CommandExists()
 {
   local cmd="$1"
   if command -v "$cmd" >/dev/null 2>&1; then
-    echo 1
+    return 0  # Success: command exists
   else
-    echo >&2 "$cmd is not installed.";
-    echo 0
+    echo >&2 "$cmd is not installed."
+    return 1  # Failure: command not found
   fi
 }
 
@@ -84,12 +84,12 @@ function Trash()
 
 function HostHTTP()
 {
-  if [ $(CommandExists npx) -eq 1 ]; then
+  if CommandExists npx; then
     # npx live-server --port=$port --no-browser --quiet
     npx live-server "$@"
-  elif [ $(CommandExists python3) -eq 1 ]; then
+  elif CommandExists python3; then
     python3 -m http.server "$@"
-  elif [ $(CommandExists python) -eq 1 ]; then
+  elif CommandExists python; then
     python -m SimpleHTTPServer "$@"
   else
     PrintError "No HTTP server found! Please install 'npx' or 'python3' or 'python'."

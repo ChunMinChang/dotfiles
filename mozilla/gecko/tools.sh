@@ -7,7 +7,7 @@ fi
 
 if [ -d "$GIT_CINNABAR" ]; then
   export PATH="$GIT_CINNABAR:$PATH"
-  if [ $(CommandExists git-cinnabar) -eq 0 ]; then
+  if ! CommandExists git-cinnabar; then
     git cinnabar download
   fi
 else
@@ -16,7 +16,7 @@ fi
 
 if ! command -v moz-phab &> /dev/null; then
   export PATH="$HOME/.local/bin:$PATH"
-  if [ $(CommandExists moz-phab) -eq 0 ]; then
+  if ! CommandExists moz-phab; then
     PrintError 'No moz-phab command!\nInstall moz-phab: https://moz-conduit.readthedocs.io/en/latest/phabricator-user.html!'
   fi
 fi
