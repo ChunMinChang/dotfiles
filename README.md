@@ -107,7 +107,7 @@ Run `$ python setup.py -h` to get the messages for optional settings.
     - `$ RecursivelyFind "*.sh"`
 - Recursively remove files under the current folder
   - ex: Recursively delete all the *.DS_Store* files
-    - `$ RecursivelyFind "*.DS_Store"`
+    - `$ RecursivelyRemove "*.DS_Store"`
 - Throw files to trash can
   - ex: Throw _hello.txt_ and _world.log_ to Trash
     - `$ Trash hello.txt world.log`
@@ -119,7 +119,7 @@ Run `$ python setup.py -h` to get the messages for optional settings.
 - vim
   - add some basic environment settings for vim
 - vscode
-  - Link `setting.json` to the *vscode* application from `~/dotfiles/vscode/settings.json`
+  - Link `settings.json` to the *vscode* application from `~/dotfiles/vscode/settings.json`
   - Sync the extensions
 - mozilla stuff
-  - Append `~/dotfiles/mozilla/machrc` into `~/.mozbuild/machrc`
+  - Link `~/dotfiles/mozilla/gecko/machrc` to `~/.mozbuild/machrc`
