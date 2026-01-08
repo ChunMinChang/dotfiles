@@ -177,7 +177,8 @@ def print_error(message):
 # Link this dotfiles path to $HOME/.dotfiles
 def dotfiles_link():
     print_installing_title('dotfile path')
-    link(BASE_DIR, os.path.join(HOME_DIR, '.dotfiles'))
+    result = link(BASE_DIR, os.path.join(HOME_DIR, '.dotfiles'))
+    return result
 
 # Link dot.* to ~/.*
 def bash_link():
@@ -209,6 +210,9 @@ def bash_link():
 
     #files = filter(lambda f: f.startswith('dot.'), os.listdir(BASE_DIR))
     files = platform_files[platform.system()]
+    errors = []
+    skipped = []
+
     for f in files:
         target = os.path.join(HOME_DIR, f[3:])  # Get name after dot
         src = os.path.join(BASE_DIR, f)
@@ -217,6 +221,7 @@ def bash_link():
             if not os.path.exists(src):
                 print_error('Source file does not exist: {}'.format(src))
                 print_error('Repository may be incomplete or corrupted')
+                errors.append('Source file missing: {}'.format(f))
                 continue
 
             if os.path.samefile(src, target):
@@ -225,19 +230,31 @@ def bash_link():
             print_warning('{} already exists!'.format(target))
             if f == 'dot.bashrc' or f == 'dot.zshrc':
                 print('Append a command to load {} in {}'.format(src, target))
-                append_nonexistent_lines_to_file(
+                result = append_nonexistent_lines_to_file(
                     target, [bash_load_command(src)])
+                if not result:
+                    errors.append('Failed to append to {}'.format(target))
             else:
-                print_warning('Do nothing.')
+                # File exists but isn't bashrc/zshrc - provide guidance
+                print('Options:')
+                print('  1. Remove {} and re-run setup'.format(target))
+                print('  2. Manually replace with symlink: ln -sf {} {}'.format(src, target))
+                print('  3. Keep existing file (skip)')
+                skipped.append(f)
         else:
-            link(src, target)
+            result = link(src, target)
+            if not result:
+                errors.append('Failed to link {}'.format(f))
+
+    # Return True only if no errors (skipped files are user choice, not errors)
+    return len(errors) == 0
 
 # Include git/config from ~/.giconfig
 def git_init():
     print_installing_title('git settings')
     if not is_tool('git'):
         print_fail('Please install git first!')
-        return
+        return False
 
     git_config = os.path.join(HOME_DIR, '.gitconfig')
     if not os.path.isfile(git_config):
@@ -254,7 +271,7 @@ def git_init():
     if not os.path.exists(path):
         print_error('Git config file not found: {}'.format(path))
         print_error('Cannot configure git include.path')
-        return
+        return False
 
     subprocess.call(['git', 'config', '--global', 'include.path', path])
 
@@ -269,6 +286,8 @@ def git_init():
         print_warning('Git config file not found: {}'.format(git_config))
         print_warning('Git configuration may not be complete')
 
+    return True
+
 # mozilla stuff
 # ---------------------------------------
 
@@ -281,7 +300,7 @@ def mozilla_init():
 
     if args.mozilla is None:
         print_warning('Skip installing mozilla toolkit')
-        return
+        return None  # None = skipped, not failure
 
     funcs = {
         'gecko': gecko_init,
@@ -292,8 +311,14 @@ def mozilla_init():
 
     options = (set(funcs.keys()).intersection(set(args.mozilla)) if args.mozilla
                else funcs.keys())
+
+    all_succeeded = True
     for k in options:
-        funcs[k]()
+        result = funcs[k]()
+        if not result:
+            all_succeeded = False
+
+    return all_succeeded
 
 
 def gecko_init():
@@ -304,15 +329,17 @@ def gecko_init():
                             'Apply default settings for now.']))
     else:
         path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'machrc')
-        link(path, machrc)
+        if not link(path, machrc):
+            return False
 
     bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
-        return
+        return False
 
     path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'alias.sh')
-    append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
+    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
+    return result
 
 
 def hg_init():
@@ -322,16 +349,17 @@ def hg_init():
     if not is_tool('hg'):
         error_messages.insert(0, 'Please install hg(mercurial) first!')
         print_fail(''.join(error_messages))
-        return
+        return False
 
     hg_config = os.path.join(HOME_DIR, '.hgrc')
     if not os.path.isfile(hg_config):
         error_messages.insert(0, '{} does not exist! Abort!'.format(hg_config))
         print_fail(''.join(error_messages))
-        return
+        return False
 
     path = os.path.join(BASE_DIR, 'mozilla', 'hg', 'config')
-    append_nonexistent_lines_to_file(hg_config, ['%include ' + path])
+    result = append_nonexistent_lines_to_file(hg_config, ['%include ' + path])
+    return result
 
 
 def tools_init():
@@ -340,10 +368,11 @@ def tools_init():
     bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
-        return
+        return False
 
     path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'tools.sh')
-    append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
+    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
+    return result
 
 
 def rust_init():
@@ -353,30 +382,71 @@ def rust_init():
     bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
-        return
+        return False
 
     cargo_env = os.path.join(HOME_DIR, '.cargo', 'env')
     if not os.path.isfile(cargo_env):
         error_messages.insert(0, '{} does not exist! Abort!'.format(cargo_env))
         print_fail(''.join(error_messages))
-        return
+        return False
 
-    append_nonexistent_lines_to_file(bashrc, [bash_load_command(cargo_env)])
+    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(cargo_env)])
+    return result
+
+
+def show_setup_summary(results):
+    """Display a summary of setup results and provide guidance."""
+    print('\n' + '=' * 50)
+    print('Setup Summary')
+    print('=' * 50)
+
+    status_symbols = {True: '✓', False: '✗', None: '⊘'}
+    status_labels = {True: 'SUCCESS', False: 'FAILED', None: 'SKIPPED'}
+
+    for name, result in results.items():
+        symbol = status_symbols.get(result, '?')
+        label = status_labels.get(result, 'UNKNOWN')
+        print('{} {}: {}'.format(symbol, name.capitalize(), label))
+
+    failures = [name for name, result in results.items() if result is False]
+    if failures:
+        print('\n' + colors.FAIL + 'Action Required:' + colors.END)
+        for name in failures:
+            if name == 'git':
+                print('  - Install git and re-run setup.py')
+            elif name == 'mozilla':
+                print('  - Check mozilla tools (hg, cargo, etc.) and re-run setup.py --mozilla')
+            else:
+                print('  - Fix {} issues above and re-run setup.py'.format(name))
+        print('\n' + colors.FAIL + 'Setup completed with errors. Fix the issues above and re-run.' + colors.END)
+    else:
+        print('\n' + colors.OK + 'All steps completed successfully!' + colors.END)
 
 
 def main(argv):
-    dotfiles_link()
-    bash_link()
-    git_init()
+    results = {
+        'dotfiles': dotfiles_link(),
+        'bash': bash_link(),
+        'git': git_init(),
+        'mozilla': mozilla_init()
+    }
 
-    # Install by --mozilla
-    mozilla_init()
+    show_setup_summary(results)
 
-    print_hint('Please run `$ source ~/.bashrc` to turn on the environment settings')
+    # Return proper exit code
+    if all(r is not False for r in results.values()):
+        # Success if all True or None (skipped)
+        print_hint('Please run `$ source ~/.bashrc` to turn on the environment settings')
+        return 0
+    else:
+        # Failure if any False
+        return 1
 
 
 if __name__ == '__main__':
     try:
-        main(sys.argv)
+        exit_code = main(sys.argv)
+        sys.exit(exit_code)
     except KeyboardInterrupt:
         print('abort')
+        sys.exit(130)  # Standard exit code for SIGINT
