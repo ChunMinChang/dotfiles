@@ -52,20 +52,31 @@ PrintWarning "Please remove ./mozilla/hg/config with prefix %include in $HOME/.h
 
 PrintSubTitle "\nUninstall custom settings\n"\
 "--------------------------------------------------------------------\n"
-# Load environment variables to this script
+# Load environment variables from dot.bashrc
 BASHRC_HERE="$SCRIPT_DIR/dot.bashrc"
-source "$BASHRC_HERE"
 
-# TODO: Not sure why `source $BASHRC_HERE` succeeds but `$?` return 1 indicating failure.
-if [ $? -eq 0 ] || [ ! -z "$PLATFORM" ]; then
-  echo "Load environment variables in $BASHRC_HERE"
-else
-  PrintWarning "$BASHRC_HERE is not loadable"
-  PrintWarning "Apply environment variables by parsing $BASHRC_HERE:"
-  # Show the parsed environment variables in $BASHRC_HERE
-  grep "^[^#;^export;].*=" "$BASHRC_HERE"
-  # Force loading environment variables in $BASHRC_HERE
-  eval $(grep "^[^#;^export;].*=" "$BASHRC_HERE")
+# Source the file (don't check exit code - it's unreliable due to conditional sourcing inside)
+if [ -f "$BASHRC_HERE" ]; then
+  source "$BASHRC_HERE" 2>/dev/null || true
+  echo "Loaded environment variables from $BASHRC_HERE"
+fi
+
+# Verify required variables are set, compute them if not
+# (This handles case where sourcing fails or doesn't set variables)
+if [ -z "$PLATFORM" ]; then
+  PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
+  echo "Computed PLATFORM=$PLATFORM"
+fi
+
+if [ -z "$SETTINGS_PLATFORM" ]; then
+  SETTINGS_PREFIX="$HOME/.settings_"
+  SETTINGS_PLATFORM="${SETTINGS_PREFIX}${PLATFORM}"
+  echo "Computed SETTINGS_PLATFORM=$SETTINGS_PLATFORM"
+fi
+
+if [ -z "$DOTFILES" ]; then
+  DOTFILES="$HOME/.dotfiles"
+  echo "Computed DOTFILES=$DOTFILES"
 fi
 
 # $PLATFORM is set in $BASHRC_HERE
