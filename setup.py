@@ -39,10 +39,19 @@ def link(source, target):
 def is_tool(name):
     cmd = "where" if platform.system() == "Windows" else "which"
     try:
-        r = subprocess.check_output([cmd, name])
+        r = subprocess.check_output([cmd, name], stderr=subprocess.DEVNULL)
         print('{} is found in {}'.format(name, r.decode("utf-8")))
         return True
-    except:
+    except subprocess.CalledProcessError:
+        # Command not found (expected when tool is not installed)
+        return False
+    except FileNotFoundError:
+        # which/where command itself not found
+        print_warning('Command finder "{}" is not available on this system'.format(cmd))
+        return False
+    except Exception as e:
+        # Unexpected error - log it for debugging
+        print_warning('Error checking for {}: {}'.format(name, str(e)))
         return False
 
 

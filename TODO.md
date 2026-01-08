@@ -39,22 +39,25 @@ Generated: 2026-01-07
   ```
 - **Impact**: HIGH - Affects GitUncommit and related functions
 
-### [ ] 1.4 Fix bare exception catching in setup.py
-- **File**: `setup.py:45`
+### [x] 1.4 Fix bare exception catching in setup.py ✅
+- **File**: `setup.py:39-55`
 - **Issue**: Bare `except:` catches ALL exceptions including KeyboardInterrupt
-- **Current code**:
-  ```python
-  try:
-      r = subprocess.check_output([cmd, name])
-      return True
-  except:
-      return False
-  ```
-- **Action**:
-  - Catch `subprocess.CalledProcessError` specifically
-  - Log error messages for debugging
-  - Don't suppress KeyboardInterrupt
-- **Impact**: HIGH - Hides real errors from users
+- **Status**: COMPLETED (2026-01-07)
+- **Changes made**:
+  - Replaced bare `except:` with specific exception handling
+  - `subprocess.CalledProcessError` - returns False (tool not found)
+  - `FileNotFoundError` - shows warning, returns False (which/where not available)
+  - `Exception` - shows warning with details, returns False (unexpected errors)
+  - KeyboardInterrupt and SystemExit now propagate correctly
+  - Added stderr=DEVNULL to suppress noise from which command
+- **Testing**: 11/11 tests passed
+  - Syntax validation ✅
+  - Tool exists (git, python3) ✅
+  - Tool doesn't exist ✅
+  - KeyboardInterrupt not suppressed ✅
+  - Integration with git_init/hg_init ✅
+  - Edge cases (empty string, spaces) ✅
+- **Impact**: HIGH - Users can now interrupt (Ctrl+C), better error messages, follows PEP 8
 
 ### [ ] 1.5 Fix macOS version parsing bug
 - **File**: `setup.py:125-128`
@@ -310,18 +313,19 @@ Generated: 2026-01-07
 ## Quick Wins (Can be done immediately)
 
 1. [x] Fix typo in setup.py:280 (`bachrc` → `bashrc`) (DONE - see 6.1)
-2. [x] Add quotes around variable expansions in shell scripts (DONE in uninstall.sh)
+2. [x] Add quotes around variable expansions in shell scripts (DONE - see 3.1)
 3. [x] Replace `ls` parsing with `readlink` in uninstall.sh (DONE - see 1.2)
 4. [ ] Use git ls-files with -z in git/utils.sh
-5. [ ] Fix bare except in setup.py
+5. [x] Fix bare except in setup.py (DONE - see 1.4)
 
 ---
 
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 4
+- **Completed**: 5 (12.5%)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
+  - Item 1.4: Fixed bare exception catching in setup.py
   - Item 2.2: Standardized path construction in setup.py
   - Item 3.1: Quote all variable expansions in shell scripts
   - Item 6.1: Fixed typo in error message
@@ -331,6 +335,7 @@ Generated: 2026-01-07
 **Key Achievements**:
 - Item 2.2 unblocks 8+ Python-related improvements (4.1, 5.1-5.2, 7.1, 8.1)
 - Item 3.1 unblocks 4 shell-related improvements (3.2, 3.3, 7.3, 8.2)
+- Item 1.4 improves security (Ctrl+C works) and debugging (error messages)
 
 ---
 
