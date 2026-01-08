@@ -1,27 +1,8 @@
 #!/bin/bash
 
-PrintTitle()
-{
-  local msg=$1
-  local bold_red="\033[1;31m"
-  local normal="\033[0m"
-  echo -e ${bold_red}${msg}${normal}
-}
-
-PrintSubTitle()
-{
-  local msg=$1
-  local bold_red="\033[92m"
-  local normal="\033[0m"
-  echo -e ${bold_red}${msg}${normal}
-}
-
-PrintWarning() {
-  local msg=$1
-  local bold_yellow="\033[1;33m"
-  local normal="\033[0m"
-  echo -e ${bold_yellow}WARNING:${normal} ${msg}
-}
+# Load common utilities (Print functions)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/utils.sh"
 
 PrintTitle "\nUninstall personal environment settings\n"\
 "====================================================================\n"
@@ -29,7 +10,6 @@ PrintTitle "\nUninstall personal environment settings\n"\
 PrintSubTitle "\nUnlink Mozilla stuff\n"\
 "--------------------------------------------------------------------\n"
 # Unlink machrc
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MACHRC_GLOBAL="$HOME/.mozbuild/machrc"
 MACHRC_HERE="$SCRIPT_DIR/mozilla/gecko/machrc"
 if [ -L "$MACHRC_GLOBAL" ]; then

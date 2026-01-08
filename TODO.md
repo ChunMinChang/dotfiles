@@ -92,16 +92,23 @@ Generated: 2026-01-07
 
 ## Priority 2: Code Duplication & Inconsistency
 
-### [ ] 2.1 Consolidate duplicate print/color functions
-- **Files**:
-  - `utils.sh:19-41` (PrintError, PrintWarning, PrintHint)
-  - `uninstall.sh:3-24` (PrintTitle, PrintSubTitle)
-  - `setup.py:16-24` (colors class)
-- **Issue**: Same functionality implemented 3+ times
-- **Action**:
-  - Keep utils.sh as single source of truth
-  - Source utils.sh in uninstall.sh
-  - Import or source colors from utils.sh in setup.py (or keep Python separate but document why)
+### [x] 2.1 Consolidate duplicate print/color functions ✅
+- **Files**: `utils.sh`, `uninstall.sh`, `setup.py`
+- **Issue**: Same functionality implemented 3+ times, ~22 lines duplicated
+- **Status**: COMPLETED (2026-01-07)
+- **Changes made**:
+  - **Added** PrintTitle and PrintSubTitle to utils.sh (moved from uninstall.sh)
+  - **Updated** uninstall.sh to source utils.sh (removed 22 lines of duplicates)
+  - **Documented** why Python kept separate (different language ecosystem)
+  - utils.sh now has 5 print functions (single source of truth)
+  - Removed duplicate SCRIPT_DIR definition in uninstall.sh
+- **Testing**: 6/6 tests passed (see TESTING_RESULTS_PRINT_CONSOLIDATION.md)
+  - All 5 functions work in utils.sh ✅
+  - uninstall.sh sources utils.sh correctly ✅
+  - All functions work in uninstall.sh ✅
+  - Code duplication eliminated ✅
+  - setup.py unchanged ✅
+- **Impact**: HIGH - Single source of truth, 22 lines removed, easier maintenance
 
 ### [x] 2.2 Standardize path construction in setup.py ✅
 - **File**: `setup.py` (lines 107, 156, 167, 206, 211, 214, 219, 232, 238, 245, 250, 258, 263)
@@ -344,12 +351,13 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 8 (20%)
+- **Completed**: 9 (22.5%)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
   - Item 1.4: Fixed bare exception catching in setup.py
   - Item 1.5: Fixed macOS version parsing bug
+  - Item 2.1: Consolidate duplicate print/color functions
   - Item 2.2: Standardized path construction in setup.py
   - Item 3.1: Quote all variable expansions in shell scripts
   - Item 6.1: Fixed typo in error message
@@ -363,6 +371,7 @@ Generated: 2026-01-07
 
 **Key Achievements**:
 - Item 1.1: Eliminated CRITICAL code injection vulnerability (CVSS 9.8)
+- Item 2.1: Established single source of truth for print functions (22 lines removed)
 - Item 2.2 unblocks 8+ Python-related improvements (4.1, 5.1-5.2, 7.1, 8.1)
 - Item 3.1 unblocks 4 shell-related improvements (3.2, 3.3, 7.3, 8.2)
 - Item 1.4 improves security (Ctrl+C works) and debugging (error messages)

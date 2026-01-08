@@ -40,6 +40,22 @@ function PrintWarning()
   echo -e "${bold_yellow}WARNING:${normal} $msg"
 }
 
+function PrintTitle()
+{
+  local msg="$1"
+  local bold_red="\033[1;31m"
+  local normal="\033[0m"
+  echo -e "${bold_red}${msg}${normal}"
+}
+
+function PrintSubTitle()
+{
+  local msg="$1"
+  local green="\033[92m"
+  local normal="\033[0m"
+  echo -e "${green}${msg}${normal}"
+}
+
 # Utils functions
 # ====================================================================
 function RecursivelyFind()

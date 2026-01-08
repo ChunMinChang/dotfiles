@@ -12,7 +12,9 @@ import sys
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 HOME_DIR = os.environ['HOME']
 
-# TODO: Use Print{Error, Hint, Warning} instead
+# Note: Python print functions kept separate from shell utils.sh
+# (Python can't source bash scripts - different language ecosystems)
+# Shell scripts use Print* functions from utils.sh
 class colors:
     HEADER = '\033[94m'   # Blue
     HINT = '\033[46m'     # Background Cyan
@@ -95,7 +97,7 @@ def print_installing_title(name, bold=False):
                                    ('\n==============================' if bold
                                     else '\n--------------------')]) + colors.END)
 
-# TODO: Use Print{Error, Hint, Warning} instead
+# Python print functions (see note at line 15 for why separate from shell)
 def print_hint(message):
     print(colors.HINT + message + colors.END + '\n')
 
