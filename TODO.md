@@ -829,11 +829,50 @@ Generated: 2026-01-07
 ### [ ] 9.3 Improve uninstall automation
 - **Action**: Make uninstall.sh fully automatic (address all TODO comments)
 
-### [ ] 9.4 Add pre-commit hooks
-- **Action**: Add hooks to check:
-  - Shell script syntax (shellcheck)
-  - Python code quality (ruff/pylint)
-  - Markdown formatting
+### [x] 9.4 Add pre-commit hooks ✅
+- **Issue**: No automated checks before commits to catch common errors
+- **Status**: COMPLETED (2026-01-09)
+- **Changes made**:
+  - **Added --dev-tools flag to setup.py**: Install development tools (shellcheck, ruff, black, markdownlint)
+  - **Individual tool installation functions** (4 functions):
+    - install_shellcheck(): Validates bash scripts (apt-get/brew based on platform)
+    - install_ruff(): Python linting (pip3 install)
+    - install_black(): Python formatting (pip3 install)
+    - install_markdownlint(): Markdown validation (npm install)
+  - **dev_tools_init() orchestration**: Prompts user for each tool individually
+  - **Project-local pre-commit hook**: Created in .git/hooks/pre-commit (this repo only)
+  - **Graceful fallbacks**: Hooks skip tools that aren't installed
+  - **Non-blocking behavior**: Warns about issues but allows commits (exit 0)
+- **Implementation Details**:
+  - Each tool has dedicated installation function with benefits/consequences explanation
+  - User must explicitly confirm each tool installation
+  - Shellcheck optional if no sudo (Linux requires sudo for apt-get)
+  - Pre-commit hook checks staged files only (git diff --cached)
+  - Hook detects which tools are available and runs them
+  - Clear feedback: Shows what's being checked, what's skipped, what failed
+  - Project-local: Hook only affects this dotfiles repo, won't interfere with other projects
+- **Pre-commit Hook Features**:
+  - Validates only staged files (not entire repo)
+  - shellcheck: Checks bash scripts (*.sh, *.bash, dot.* files)
+  - ruff: Lints Python files (*.py)
+  - black: Checks Python formatting (*.py)
+  - markdownlint: Validates markdown files (*.md)
+  - Shows clear status: → Running, ✓ Passed, ⚠ Warning, ⊘ Skipped
+  - Always exits 0 (non-blocking) with warning message if issues found
+- **Usage Examples**:
+  ```bash
+  python3 setup.py --dev-tools                    # Install all tools, ask for each
+  python3 setup.py --dev-tools ruff black        # Install only ruff and black
+  python3 setup.py                               # Prompts if user wants dev tools
+  ```
+- **Testing**: All existing tests pass
+  - Python tests: 22/22 passed ✅
+  - Shell tests: 19/19 passed ✅
+  - Updated tests to mock dev_tools_init
+  - Help output verified with --dev-tools flag
+- **Files modified**: 2 files (setup.py updated, test_setup.py updated)
+- **Lines added**: ~500 lines (4 install functions + hook script + integration)
+- **Impact**: HIGH - Catches common errors before commits, maintains code quality, project-local (no interference with other repos)
 
 ### [ ] 9.5 Consider configuration file
 - **Action**: Add optional `~/.dotfiles.conf` for user customization
@@ -854,12 +893,12 @@ Generated: 2026-01-07
 
 ### Phase Overview
 - **Total items**: 40+
-- **Complete**: 27 items (67.5%)
+- **Complete**: 28 items (70%)
 - **Processing**: 0 items (0%)
-- **Pending**: 13 items (32.5%)
+- **Pending**: 12 items (30%)
 - **Last updated**: 2026-01-09
 
-### Phase: Complete ✅ (27 items)
+### Phase: Complete ✅ (28 items)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -887,15 +926,15 @@ Generated: 2026-01-07
   - Item 8.1: Create test suite for setup.py
   - Item 8.2: Create test suite for shell utilities
   - Item 9.2: Add verbose mode for debugging
+  - Item 9.4: Add pre-commit hooks (dev-tools system with individual confirmations)
 
 ### Phase: Processing 🔄 (0 items)
   - (None currently in progress)
 
-### Phase: Pending ⏳ (13 items)
+### Phase: Pending ⏳ (12 items)
   - Item 8.3: Test cross-platform compatibility
   - Item 9.1: Add dry-run mode to setup.py
   - Item 9.3: Improve uninstall automation
-  - Item 9.4: Add pre-commit hooks
   - Item 9.5: Consider configuration file
 
 **🎉 MILESTONE: ALL PRIORITY 1 (CRITICAL) ITEMS COMPLETE! 🎉**
@@ -958,6 +997,7 @@ Generated: 2026-01-07
 - Item 6.2: Entire codebase now TODO-free (professional appearance, clear design documentation)
 - Item 6.3: All Priority 6 complete - documentation now accurate and matches implementation
 - Item 7.3: Optimized git/utils.sh (added validation, error handling, fixed unquoted variable, removed 40+ unused variables)
+- Item 9.4: Dev-tools system with pre-commit hooks (4 tools, individual confirmations, project-local, non-blocking, 500+ lines)
 
 **Recent Fixes (2026-01-08)**:
 1. **Completed Item 2.3 fully**: Fixed 3 missed call sites (dot.settings_linux, dot.settings_darwin, dot.bash_profile)
@@ -1014,6 +1054,26 @@ Generated: 2026-01-07
    - Files modified: 1 (git/utils.sh)
    - Net result: ~65 line changes (reduced code while adding features)
    - Impact: Git workflow functions significantly more robust and user-friendly
+
+4. **Completed Item 9.4**: Add pre-commit hooks
+   - Implemented comprehensive dev-tools installation system with individual user confirmations
+   - **Added --dev-tools flag**: `python3 setup.py --dev-tools [tool1 tool2 ...]`
+   - **4 tool installation functions**: shellcheck, ruff, black, markdownlint
+   - Each tool shows benefits and consequences, requires explicit user consent
+   - **Project-local pre-commit hook**: Installed in .git/hooks/pre-commit (this repo only)
+   - **Graceful fallbacks**: Hook skips tools that aren't installed
+   - **Non-blocking**: Warns about issues but allows commits (exit 0)
+   - **User-friendly prompts**: Asks during normal setup if user wants dev tools
+   - shellcheck: Optional if no sudo (Linux apt-get requires sudo)
+   - ruff/black: Installed via pip3 (checks Python linting and formatting)
+   - markdownlint: Installed via npm (validates markdown files)
+   - Pre-commit hook validates only staged files (fast, efficient)
+   - Clear status indicators: → Running, ✓ Passed, ⚠ Warning, ⊘ Skipped
+   - All tests pass: Python (22/22), Shell (19/19)
+   - Updated test suite to mock dev_tools_init
+   - Files modified: 2 (setup.py, test_setup.py)
+   - Lines added: ~500 lines
+   - Impact: Catches common errors before commits, maintains code quality across all file types
 
 ---
 

@@ -305,49 +305,55 @@ class TestMainFunction(unittest.TestCase):
     """Test the main() function"""
 
     @patch('setup.verify_installation')
+    @patch('setup.dev_tools_init')
     @patch('setup.mozilla_init')
     @patch('setup.git_init')
     @patch('setup.bash_link')
     @patch('setup.dotfiles_link')
-    def test_main_success_flow(self, mock_dotfiles, mock_bash, mock_git, mock_mozilla, mock_verify):
+    def test_main_success_flow(self, mock_dotfiles, mock_bash, mock_git, mock_mozilla, mock_devtools, mock_verify):
         """Test main() with successful setup"""
         # Mock all functions to return success
         mock_dotfiles.return_value = True
         mock_bash.return_value = True
         mock_git.return_value = True
         mock_mozilla.return_value = None  # Skipped
+        mock_devtools.return_value = None  # Skipped
         mock_verify.return_value = (True, [])
 
         exit_code = setup.main(['setup.py'])
 
         self.assertEqual(exit_code, 0)
 
+    @patch('setup.dev_tools_init')
     @patch('setup.mozilla_init')
     @patch('setup.git_init')
     @patch('setup.bash_link')
     @patch('setup.dotfiles_link')
-    def test_main_failure_flow(self, mock_dotfiles, mock_bash, mock_git, mock_mozilla):
+    def test_main_failure_flow(self, mock_dotfiles, mock_bash, mock_git, mock_mozilla, mock_devtools):
         """Test main() with failed setup"""
         # Mock a function to return failure
         mock_dotfiles.return_value = False
         mock_bash.return_value = True
         mock_git.return_value = True
         mock_mozilla.return_value = None
+        mock_devtools.return_value = None
 
         exit_code = setup.main(['setup.py'])
 
         self.assertEqual(exit_code, 1)
 
+    @patch('setup.dev_tools_init')
     @patch('setup.mozilla_init')
     @patch('setup.git_init')
     @patch('setup.bash_link')
     @patch('setup.dotfiles_link')
-    def test_main_with_verbose_flag(self, mock_dotfiles, mock_bash, mock_git, mock_mozilla):
+    def test_main_with_verbose_flag(self, mock_dotfiles, mock_bash, mock_git, mock_mozilla, mock_devtools):
         """Test main() with verbose flag"""
         mock_dotfiles.return_value = True
         mock_bash.return_value = True
         mock_git.return_value = True
         mock_mozilla.return_value = None
+        mock_devtools.return_value = None
 
         # Capture verbose output
         exit_code = setup.main(['setup.py', '-v'])
@@ -358,16 +364,18 @@ class TestMainFunction(unittest.TestCase):
         # Reset for other tests
         setup.VERBOSE = False
 
+    @patch('setup.dev_tools_init')
     @patch('setup.mozilla_init')
     @patch('setup.git_init')
     @patch('setup.bash_link')
     @patch('setup.dotfiles_link')
-    def test_main_with_mozilla_flag(self, mock_dotfiles, mock_bash, mock_git, mock_mozilla):
+    def test_main_with_mozilla_flag(self, mock_dotfiles, mock_bash, mock_git, mock_mozilla, mock_devtools):
         """Test main() with mozilla flag"""
         mock_dotfiles.return_value = True
         mock_bash.return_value = True
         mock_git.return_value = True
         mock_mozilla.return_value = True
+        mock_devtools.return_value = None
 
         exit_code = setup.main(['setup.py', '--mozilla', 'gecko'])
 

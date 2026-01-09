@@ -682,6 +682,506 @@ def rust_init(tracker=None):
     return result
 
 
+# Development Tools (Pre-commit Hooks)
+# ---------------------------------------
+
+def print_tool_prompt(tool_name, benefits, consequences):
+    """Display information about a dev tool and prompt user for installation."""
+    print('\n' + colors.BOLD + tool_name + colors.END)
+    print(colors.OK + 'Benefits:' + colors.END)
+    for benefit in benefits:
+        print('  • {}'.format(benefit))
+    print(colors.WARNING + 'If you skip:' + colors.END)
+    for consequence in consequences:
+        print('  • {}'.format(consequence))
+
+
+def get_user_confirmation(prompt='Install this tool? [y/N]: '):
+    """Get yes/no confirmation from user."""
+    response = input(prompt).strip().lower()
+    return response in ['y', 'yes']
+
+
+def install_shellcheck(tracker=None):
+    """Install shellcheck for bash script validation."""
+    print_installing_title('shellcheck (bash script linter)')
+
+    # Check if already installed
+    if is_tool('shellcheck'):
+        print('shellcheck is already installed')
+        return True
+
+    # Display info and prompt user
+    print_tool_prompt(
+        'ShellCheck',
+        [
+            'Catches common bash scripting errors before they cause issues',
+            'Enforces best practices for portability and safety',
+            'Detects syntax errors, unquoted variables, and unsafe patterns'
+        ],
+        [
+            'Pre-commit hook will skip bash script validation',
+            'Bash errors may only be caught at runtime',
+            'You can manually install later with: sudo apt-get install shellcheck (Linux) or brew install shellcheck (macOS)'
+        ]
+    )
+
+    if not get_user_confirmation():
+        print('Skipping shellcheck installation')
+        return None  # Skipped
+
+    # Check if sudo is available
+    has_sudo = False
+    if platform.system() == 'Linux':
+        try:
+            result = subprocess.run(['sudo', '-n', 'true'],
+                                    capture_output=True, timeout=5)
+            has_sudo = (result.returncode == 0)
+        except:
+            has_sudo = False
+
+    # Install based on platform
+    try:
+        if platform.system() == 'Linux':
+            if not has_sudo:
+                print_warning('Sudo access required for shellcheck on Linux')
+                print('Please install manually: sudo apt-get install shellcheck')
+                print('Or configure passwordless sudo for this session')
+                return None  # Skipped
+
+            print('Installing shellcheck via apt-get...')
+            result = subprocess.run(['sudo', 'apt-get', 'install', '-y', 'shellcheck'],
+                                    capture_output=True, text=True, timeout=300)
+            if result.returncode == 0:
+                print(colors.OK + '✓ shellcheck installed successfully' + colors.END)
+                return True
+            else:
+                print_error('Failed to install shellcheck: {}'.format(result.stderr))
+                return False
+
+        elif platform.system() == 'Darwin':
+            if not is_tool('brew'):
+                print_error('Homebrew not found. Please install from https://brew.sh')
+                print('Then install shellcheck: brew install shellcheck')
+                return False
+
+            print('Installing shellcheck via homebrew...')
+            result = subprocess.run(['brew', 'install', 'shellcheck'],
+                                    capture_output=True, text=True, timeout=300)
+            if result.returncode == 0:
+                print(colors.OK + '✓ shellcheck installed successfully' + colors.END)
+                return True
+            else:
+                print_error('Failed to install shellcheck: {}'.format(result.stderr))
+                return False
+        else:
+            print_warning('Unsupported platform for automatic shellcheck installation')
+            print('Please install manually: https://github.com/koalaman/shellcheck#installing')
+            return None  # Skipped
+
+    except subprocess.TimeoutExpired:
+        print_error('Installation timed out')
+        return False
+    except Exception as e:
+        print_error('Installation failed: {}'.format(str(e)))
+        return False
+
+
+def install_ruff(tracker=None):
+    """Install ruff for Python linting and formatting."""
+    print_installing_title('ruff (Python linter/formatter)')
+
+    # Check if already installed
+    if is_tool('ruff'):
+        print('ruff is already installed')
+        return True
+
+    # Display info and prompt user
+    print_tool_prompt(
+        'Ruff',
+        [
+            'Fast Python linter (10-100x faster than pylint/flake8)',
+            'Catches Python errors, style issues, and code smells',
+            'Enforces PEP 8 and other Python best practices'
+        ],
+        [
+            'Pre-commit hook will skip Python validation',
+            'Python code issues may only be caught during execution or review',
+            'You can manually install later with: pip3 install --user ruff'
+        ]
+    )
+
+    if not get_user_confirmation():
+        print('Skipping ruff installation')
+        return None  # Skipped
+
+    # Install via pip
+    try:
+        if not is_tool('pip3'):
+            print_error('pip3 not found. Please install Python 3 and pip first.')
+            return False
+
+        print('Installing ruff via pip...')
+        result = subprocess.run(['pip3', 'install', '--user', 'ruff'],
+                                capture_output=True, text=True, timeout=180)
+        if result.returncode == 0:
+            print(colors.OK + '✓ ruff installed successfully' + colors.END)
+            print_hint('You may need to add ~/.local/bin to your PATH')
+            return True
+        else:
+            print_error('Failed to install ruff: {}'.format(result.stderr))
+            return False
+
+    except subprocess.TimeoutExpired:
+        print_error('Installation timed out')
+        return False
+    except Exception as e:
+        print_error('Installation failed: {}'.format(str(e)))
+        return False
+
+
+def install_black(tracker=None):
+    """Install black for Python code formatting."""
+    print_installing_title('black (Python code formatter)')
+
+    # Check if already installed
+    if is_tool('black'):
+        print('black is already installed')
+        return True
+
+    # Display info and prompt user
+    print_tool_prompt(
+        'Black',
+        [
+            'Automatically formats Python code to a consistent style',
+            'Saves time on code style discussions and manual formatting',
+            'Widely adopted by the Python community (e.g., Django, pytest)'
+        ],
+        [
+            'Pre-commit hook will skip Python auto-formatting checks',
+            'Code style may be inconsistent across commits',
+            'You can manually install later with: pip3 install --user black'
+        ]
+    )
+
+    if not get_user_confirmation():
+        print('Skipping black installation')
+        return None  # Skipped
+
+    # Install via pip
+    try:
+        if not is_tool('pip3'):
+            print_error('pip3 not found. Please install Python 3 and pip first.')
+            return False
+
+        print('Installing black via pip...')
+        result = subprocess.run(['pip3', 'install', '--user', 'black'],
+                                capture_output=True, text=True, timeout=180)
+        if result.returncode == 0:
+            print(colors.OK + '✓ black installed successfully' + colors.END)
+            print_hint('You may need to add ~/.local/bin to your PATH')
+            return True
+        else:
+            print_error('Failed to install black: {}'.format(result.stderr))
+            return False
+
+    except subprocess.TimeoutExpired:
+        print_error('Installation timed out')
+        return False
+    except Exception as e:
+        print_error('Installation failed: {}'.format(str(e)))
+        return False
+
+
+def install_markdownlint(tracker=None):
+    """Install markdownlint-cli for markdown validation."""
+    print_installing_title('markdownlint (markdown linter)')
+
+    # Check if already installed
+    if is_tool('markdownlint'):
+        print('markdownlint is already installed')
+        return True
+
+    # Display info and prompt user
+    print_tool_prompt(
+        'Markdownlint',
+        [
+            'Validates markdown files for syntax and style consistency',
+            'Catches broken links, malformed tables, and formatting issues',
+            'Ensures documentation is properly formatted'
+        ],
+        [
+            'Pre-commit hook will skip markdown validation',
+            'Documentation formatting issues may go unnoticed',
+            'You can manually install later with: npm install -g markdownlint-cli',
+            'Note: Requires Node.js and npm (heavier dependency)'
+        ]
+    )
+
+    if not get_user_confirmation():
+        print('Skipping markdownlint installation')
+        return None  # Skipped
+
+    # Install via npm
+    try:
+        if not is_tool('npm'):
+            print_warning('npm not found. markdownlint requires Node.js and npm.')
+            print('Install Node.js from: https://nodejs.org/')
+            print('Then install markdownlint: npm install -g markdownlint-cli')
+            return None  # Skipped
+
+        print('Installing markdownlint-cli via npm (may take a while)...')
+        result = subprocess.run(['npm', 'install', '-g', 'markdownlint-cli'],
+                                capture_output=True, text=True, timeout=300)
+        if result.returncode == 0:
+            print(colors.OK + '✓ markdownlint installed successfully' + colors.END)
+            return True
+        else:
+            print_error('Failed to install markdownlint: {}'.format(result.stderr))
+            return False
+
+    except subprocess.TimeoutExpired:
+        print_error('Installation timed out')
+        return False
+    except Exception as e:
+        print_error('Installation failed: {}'.format(str(e)))
+        return False
+
+
+def setup_precommit_hooks(tracker=None):
+    """Create project-local pre-commit hook with validation checks."""
+    print_installing_title('pre-commit hooks')
+
+    # Check if we're in a git repository
+    git_dir = os.path.join(BASE_DIR, '.git')
+    if not os.path.isdir(git_dir):
+        print_error('Not in a git repository. Cannot install hooks.')
+        return False
+
+    hooks_dir = os.path.join(git_dir, 'hooks')
+    precommit_hook = os.path.join(hooks_dir, 'pre-commit')
+
+    # Create hooks directory if it doesn't exist
+    if not os.path.exists(hooks_dir):
+        print('Creating hooks directory: {}'.format(hooks_dir))
+        os.makedirs(hooks_dir, exist_ok=True)
+
+    # Create pre-commit hook script
+    hook_content = '''#!/bin/bash
+# Pre-commit hook for dotfiles repository
+# This hook runs validation checks on staged files before allowing commit.
+# It warns about issues but allows commits to proceed (non-blocking).
+
+# NOTE: This hook is project-local (only for this dotfiles repo)
+# and will not affect hooks in other git repositories.
+
+echo "Running pre-commit validation checks..."
+
+# Track if any checks found issues
+has_warnings=false
+
+# Get list of staged files
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+
+# Check if we have any staged files
+if [ -z "$staged_files" ]; then
+    echo "No files staged for commit."
+    exit 0
+fi
+
+# === ShellCheck: Bash script validation ===
+if command -v shellcheck >/dev/null 2>&1; then
+    echo "→ Running shellcheck on bash scripts..."
+    bash_files=$(echo "$staged_files" | grep -E '\\.(sh|bash)$|^dot\\.')
+    if [ -n "$bash_files" ]; then
+        for file in $bash_files; do
+            if [ -f "$file" ]; then
+                if ! shellcheck -x "$file"; then
+                    echo "  ⚠ Warning: shellcheck found issues in $file"
+                    has_warnings=true
+                fi
+            fi
+        done
+    else
+        echo "  ✓ No bash files to check"
+    fi
+else
+    echo "  ⊘ Skipping shellcheck (not installed)"
+fi
+
+# === Ruff: Python linting ===
+if command -v ruff >/dev/null 2>&1; then
+    echo "→ Running ruff on Python files..."
+    python_files=$(echo "$staged_files" | grep '\\.py$')
+    if [ -n "$python_files" ]; then
+        if ! ruff check $python_files; then
+            echo "  ⚠ Warning: ruff found issues in Python files"
+            has_warnings=true
+        fi
+    else
+        echo "  ✓ No Python files to check"
+    fi
+else
+    echo "  ⊘ Skipping ruff (not installed)"
+fi
+
+# === Black: Python formatting ===
+if command -v black >/dev/null 2>&1; then
+    echo "→ Checking Python code formatting with black..."
+    python_files=$(echo "$staged_files" | grep '\\.py$')
+    if [ -n "$python_files" ]; then
+        if ! black --check $python_files 2>/dev/null; then
+            echo "  ⚠ Warning: black found formatting issues"
+            echo "    Run 'black <file>' to auto-format"
+            has_warnings=true
+        fi
+    else
+        echo "  ✓ No Python files to check"
+    fi
+else
+    echo "  ⊘ Skipping black (not installed)"
+fi
+
+# === Markdownlint: Markdown validation ===
+if command -v markdownlint >/dev/null 2>&1; then
+    echo "→ Running markdownlint on markdown files..."
+    md_files=$(echo "$staged_files" | grep '\\.md$')
+    if [ -n "$md_files" ]; then
+        if ! markdownlint $md_files 2>/dev/null; then
+            echo "  ⚠ Warning: markdownlint found issues in markdown files"
+            has_warnings=true
+        fi
+    else
+        echo "  ✓ No markdown files to check"
+    fi
+else
+    echo "  ⊘ Skipping markdownlint (not installed)"
+fi
+
+# === Final verdict ===
+echo ""
+if [ "$has_warnings" = true ]; then
+    echo "⚠ Pre-commit validation found issues (see above)"
+    echo "  Allowing commit anyway (hooks are non-blocking)"
+    echo "  Please review and fix issues in a follow-up commit"
+else
+    echo "✓ All validation checks passed"
+fi
+
+# Always allow commit (non-blocking)
+exit 0
+'''
+
+    try:
+        # Check if hook already exists
+        if os.path.exists(precommit_hook):
+            print_warning('Pre-commit hook already exists: {}'.format(precommit_hook))
+            response = input('Replace existing hook? [y/N]: ').strip().lower()
+            if response not in ['y', 'yes']:
+                print('Keeping existing hook')
+                return True  # Not an error
+
+        # Write hook script
+        print('Creating pre-commit hook: {}'.format(precommit_hook))
+        with open(precommit_hook, 'w') as f:
+            f.write(hook_content)
+
+        # Make executable
+        os.chmod(precommit_hook, 0o755)
+
+        print(colors.OK + '✓ Pre-commit hook installed successfully' + colors.END)
+        print_hint('Hook is project-local (only for this dotfiles repo)')
+        print_hint('It will warn about issues but allow commits to proceed')
+
+        return True
+
+    except IOError as e:
+        print_error('Failed to create pre-commit hook: {}'.format(str(e)))
+        return False
+    except Exception as e:
+        print_error('Unexpected error: {}'.format(str(e)))
+        return False
+
+
+def dev_tools_init(dev_tools_arg, tracker=None):
+    """
+    Initialize development tools (linters, formatters, pre-commit hooks).
+
+    Args:
+        dev_tools_arg: Value from --dev-tools argument (None, [], or list of tools)
+        tracker: Optional ChangeTracker to record changes
+
+    Returns:
+        None if skipped, True if all succeeded, False if any failed
+    """
+    print_installing_title('development tools', True)
+
+    # If dev_tools_arg is None and not explicitly invoked, ask user
+    if dev_tools_arg is None:
+        print('\nDevelopment tools include linters and formatters for bash, Python, and markdown.')
+        print('These tools help catch errors early via pre-commit hooks.')
+        print('')
+        print(colors.OK + 'Benefits:' + colors.END)
+        print('  • Catch syntax errors before they reach the repository')
+        print('  • Enforce consistent code style across all files')
+        print('  • Reduce code review time by automating basic checks')
+        print('  • Find bugs early (e.g., unquoted variables, unused imports)')
+        print('')
+
+        response = input('Would you like to set up development tools? [y/N]: ').strip().lower()
+        if response not in ['y', 'yes']:
+            print_warning('Skipping development tools setup')
+            return None  # None = skipped, not failure
+
+        # User said yes, proceed with all tools
+        dev_tools_arg = []  # Empty list means install all
+
+    print_verbose('dev_tools_arg: {}'.format(dev_tools_arg))
+
+    # Define available tools
+    tools = {
+        'shellcheck': install_shellcheck,
+        'ruff': install_ruff,
+        'black': install_black,
+        'markdownlint': install_markdownlint,
+    }
+
+    # Select which tools to install
+    if dev_tools_arg:
+        # User specified specific tools
+        options = [k for k in dev_tools_arg if k in tools]
+        print_verbose('Selected tools: {}'.format(options))
+    else:
+        # No tools specified: ask about all
+        options = list(tools.keys())
+        print_verbose('No tools specified, asking about all: {}'.format(options))
+
+    # Install each tool
+    results = {}
+    for tool_name in options:
+        result = tools[tool_name](tracker)
+        results[tool_name] = result
+
+    # Set up pre-commit hooks
+    print('')
+    print('Pre-commit hooks will run the installed tools automatically before each commit.')
+    hook_result = setup_precommit_hooks(tracker)
+    results['pre-commit-hook'] = hook_result
+
+    # Determine overall success
+    # None = skipped (ok), False = failed, True = succeeded
+    failures = [name for name, result in results.items() if result is False]
+
+    if failures:
+        print('')
+        print(colors.WARNING + 'Some tools failed to install: {}'.format(', '.join(failures)) + colors.END)
+        return False
+    else:
+        print('')
+        print(colors.OK + '✓ Development tools setup complete' + colors.END)
+        return True
+
+
 # Installation Verification
 # ------------------------------------------------------------------------------
 
@@ -919,6 +1419,9 @@ def show_setup_summary(results):
                 print('  - Install git and re-run setup.py')
             elif name == 'mozilla':
                 print('  - Check mozilla tools (hg, cargo, etc.) and re-run setup.py --mozilla')
+            elif name == 'dev-tools':
+                print('  - Check tool installation errors above and re-run setup.py --dev-tools')
+                print('    Or install tools manually and run setup.py --dev-tools again')
             else:
                 print('  - Fix {} issues above and re-run setup.py'.format(name))
         print('\n' + colors.FAIL + 'Setup completed with errors. Fix the issues above and re-run.' + colors.END)
@@ -939,19 +1442,24 @@ Examples:
   python3 setup.py -v                 # Verbose mode (show detailed operations)
   python3 setup.py --mozilla          # Install all Mozilla tools
   python3 setup.py --mozilla gecko hg # Install specific Mozilla tools
-  python3 setup.py -v --mozilla       # Verbose + Mozilla tools
+  python3 setup.py --dev-tools        # Install all dev tools (shellcheck, ruff, black, markdownlint)
+  python3 setup.py --dev-tools ruff black # Install specific dev tools
+  python3 setup.py -v --mozilla --dev-tools # Verbose + Mozilla + dev tools
         '''
     )
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Show detailed operations for debugging')
     parser.add_argument('--mozilla', nargs='*',
                         help='Install Mozilla toolkit for gecko development (gecko, hg, tools, rust)')
+    parser.add_argument('--dev-tools', nargs='*',
+                        help='Install development tools (shellcheck, ruff, black, markdownlint) and pre-commit hooks')
     args = parser.parse_args(argv[1:])
 
     # Set global verbose flag
     VERBOSE = args.verbose
 
-    print_verbose('Arguments parsed: verbose={}, mozilla={}'.format(args.verbose, args.mozilla))
+    print_verbose('Arguments parsed: verbose={}, mozilla={}, dev_tools={}'.format(
+        args.verbose, args.mozilla, args.dev_tools))
     print_verbose('BASE_DIR: {}'.format(BASE_DIR))
     print_verbose('HOME_DIR: {}'.format(HOME_DIR))
 
@@ -963,7 +1471,8 @@ Examples:
         'dotfiles': dotfiles_link(tracker),
         'bash': bash_link(tracker),
         'git': git_init(tracker),
-        'mozilla': mozilla_init(args.mozilla, tracker)
+        'mozilla': mozilla_init(args.mozilla, tracker),
+        'dev-tools': dev_tools_init(args.dev_tools, tracker)
     }
 
     show_setup_summary(results)
