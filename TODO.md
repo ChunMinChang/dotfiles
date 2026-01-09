@@ -561,12 +561,31 @@ Generated: 2026-01-07
 - **Impact**: MEDIUM - Improved code quality and maintainability, quick win (15 min)
 - **Time**: 15 minutes (as estimated in topological analysis)
 
-### [ ] 7.2 Standardize function naming conventions
+### [x] 7.2 Standardize function naming conventions ✅
 - **Issue**: Inconsistent naming across languages
-- **Current state**:
-  - Python: `print_hint()`, `print_warning()` (snake_case)
-  - Bash: `PrintError()`, `PrintWarning()` (PascalCase)
-- **Action**: Document convention in CLAUDE.md (accept language differences or standardize)
+- **Status**: COMPLETED (2026-01-08)
+- **Decision**: Accept and document language-specific naming conventions
+- **Changes made**:
+  - Added comprehensive "Naming Conventions" section to CLAUDE.md (lines 158-183)
+  - Documented Python conventions (snake_case for functions, follows PEP 8)
+  - Documented Bash conventions (PascalCase for functions, distinguishes from commands)
+  - Provided clear rationale for language-specific approach
+  - Added contributor guidelines
+- **Current state (now documented)**:
+  - Python: `print_hint()`, `print_warning()` (snake_case - follows PEP 8)
+  - Bash: `PrintError()`, `PrintWarning()` (PascalCase - distinguishes from commands)
+- **Rationale**:
+  1. Python PEP 8 is the official style guide (widely expected)
+  2. Bash PascalCase distinguishes custom functions from Unix commands
+  3. Each language is internally consistent (most important for readability)
+  4. Follows established conventions rather than inventing new ones
+- **Testing**: 4/4 verification checks passed (see TESTING_RESULTS_NAMING_CONVENTIONS.md)
+  - Current naming patterns verified ✅
+  - Convention decision rationale provided ✅
+  - Documentation added to CLAUDE.md ✅
+  - Documentation clarity verified ✅
+- **Impact**: LOW effort (30 min), provides clarity for future contributors, no code changes
+- **Time**: 30 minutes (matched estimate from topological analysis)
 
 ### [ ] 7.3 Review and optimize git/utils.sh functions
 - **File**: `git/utils.sh`
@@ -637,12 +656,12 @@ Generated: 2026-01-07
 
 ### Phase Overview
 - **Total items**: 40+
-- **Complete**: 20 items (50.0%)
-- **Processing**: 1 item (2.5%)
+- **Complete**: 21 items (52.5%)
+- **Processing**: 0 items (0%)
 - **Pending**: 19 items (47.5%)
 - **Last updated**: 2026-01-08
 
-### Phase: Complete ✅ (20 items)
+### Phase: Complete ✅ (21 items)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -663,9 +682,10 @@ Generated: 2026-01-07
   - Item 6.2: Resolved outdated TODO comments (codebase now TODO-free)
   - Item 6.3: Fixed README documentation mismatches
   - Item 7.1: Simplify Mozilla argument parsing
-
-### Phase: Processing 🔄 (1 item)
   - Item 7.2: Standardize function naming conventions
+
+### Phase: Processing 🔄 (0 items)
+  - (None currently in progress)
 
 ### Phase: Pending ⏳ (19 items)
   - Item 4.1: Extract hardcoded paths to configuration
