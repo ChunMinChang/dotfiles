@@ -12,14 +12,8 @@
 # Mozilla Development Paths
 # ==============================================================================
 
-# Mozilla build directory (contains machrc, git-cinnabar, etc.)
+# Mozilla build directory (contains machrc, etc.)
 : "${DOTFILES_MOZBUILD_DIR:=$HOME/.mozbuild}"
-
-# Git-cinnabar directory (primary location)
-: "${DOTFILES_GIT_CINNABAR_PRIMARY:=$DOTFILES_MOZBUILD_DIR/git-cinnabar}"
-
-# Git-cinnabar directory (fallback location)
-: "${DOTFILES_GIT_CINNABAR_FALLBACK:=$HOME/Work/git-cinnabar}"
 
 # Local bin directory (for moz-phab and other user-installed tools)
 : "${DOTFILES_LOCAL_BIN_DIR:=$HOME/.local/bin}"
@@ -59,15 +53,6 @@ export DOTFILES_MACHRC_PATH="$DOTFILES_MOZBUILD_DIR/machrc"
 
 # Cargo env script path
 export DOTFILES_CARGO_ENV_PATH="$DOTFILES_CARGO_DIR/env"
-
-# Git-cinnabar (select primary or fallback)
-if [ -d "$DOTFILES_GIT_CINNABAR_PRIMARY" ]; then
-  export DOTFILES_GIT_CINNABAR_DIR="$DOTFILES_GIT_CINNABAR_PRIMARY"
-elif [ -d "$DOTFILES_GIT_CINNABAR_FALLBACK" ]; then
-  export DOTFILES_GIT_CINNABAR_DIR="$DOTFILES_GIT_CINNABAR_FALLBACK"
-else
-  export DOTFILES_GIT_CINNABAR_DIR="$DOTFILES_GIT_CINNABAR_PRIMARY"  # Use primary as default
-fi
 
 # Pernosco-submit path
 export DOTFILES_PERNOSCO_SUBMIT_PATH="$DOTFILES_WORK_BIN_DIR/pernosco-submit"

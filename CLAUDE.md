@@ -18,7 +18,7 @@ python setup.py
 python setup.py --mozilla          # All Mozilla tools
 python setup.py --mozilla hg       # Just Mercurial config
 python setup.py --mozilla gecko    # Just mach alias and machrc
-python setup.py --mozilla tools    # Just git-cinnabar and moz-phab
+python setup.py --mozilla tools    # Just moz-phab
 python setup.py --mozilla rust     # Just Rust/Cargo environment
 ```
 
@@ -35,7 +35,6 @@ The repository uses a centralized configuration system (`config.sh`) that allows
 
 **Default paths:**
 - Mozilla build directory: `~/.mozbuild`
-- Git-cinnabar: `~/.mozbuild/git-cinnabar` (fallback: `~/Work/git-cinnabar`)
 - Local bin directory: `~/.local/bin`
 - Work bin directory: `~/Work/bin`
 - Cargo directory: `~/.cargo`
@@ -51,13 +50,11 @@ Create `~/.dotfiles_config` and override any variables:
 DOTFILES_MOZBUILD_DIR="$HOME/my-custom-mozbuild"
 DOTFILES_LOCAL_BIN_DIR="$HOME/bin"
 DOTFILES_WORK_BIN_DIR="$HOME/custom-work/bin"
-DOTFILES_GIT_CINNABAR_PRIMARY="$HOME/tools/git-cinnabar"
+DOTFILES_CARGO_DIR="$HOME/.cargo"
 ```
 
 **Available configuration variables:**
 - `DOTFILES_MOZBUILD_DIR` - Mozilla build directory
-- `DOTFILES_GIT_CINNABAR_PRIMARY` - Primary git-cinnabar location
-- `DOTFILES_GIT_CINNABAR_FALLBACK` - Fallback git-cinnabar location
 - `DOTFILES_LOCAL_BIN_DIR` - Local binaries directory
 - `DOTFILES_WORK_BIN_DIR` - Work-related binaries
 - `DOTFILES_CARGO_DIR` - Rust cargo directory
@@ -85,7 +82,7 @@ The shell initialization follows this chain:
 
 3. **Optional Mozilla settings** (appended to `dot.bashrc` by `setup.py --mozilla`):
    - `mozilla/gecko/alias.sh` - mach shortcuts and WebCodecs test aliases
-   - `mozilla/gecko/tools.sh` - git-cinnabar and moz-phab setup
+   - `mozilla/gecko/tools.sh` - moz-phab and pernosco-submit setup
 
 ### Module Organization
 
@@ -99,7 +96,7 @@ The shell initialization follows this chain:
 
 - **`mozilla/gecko/`**: Gecko development tools
   - `alias.sh`: Mach command shortcuts (`mb`, `mr`, `mc`, `mfmt`, etc.) and numerous WebCodecs WPT test aliases (`vf1`-`vf11`, `vd1`-`vd7`, `ve1`-`ve10`)
-  - `tools.sh`: Auto-setup for git-cinnabar, moz-phab, and pernosco-submit
+  - `tools.sh`: Auto-setup for moz-phab and pernosco-submit
   - `machrc`: Custom mach configuration (symlinked to `~/.mozbuild/machrc`)
 
 - **`mozilla/hg/config`**: Mercurial configuration (included in `~/.hgrc`)
@@ -190,7 +187,6 @@ The `dot.bashrc` detects platform using `uname -s | tr '[:upper:]' '[:lower:]'` 
 ### Mozilla Tool Paths
 
 The Mozilla tools expect specific directory structures:
-- git-cinnabar: `~/.mozbuild/git-cinnabar` (fallback: `~/Work/git-cinnabar`)
 - moz-phab: `~/.local/bin/moz-phab`
 - pernosco-submit: `~/Work/bin/pernosco-submit` (Linux only, see `pernosco-submit_template`)
 

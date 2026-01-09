@@ -4,17 +4,6 @@ if [ -r "$DOTFILES/config.sh" ]; then
   . "$DOTFILES/config.sh"
 fi
 
-# Git-cinnabar setup
-if [ -d "$DOTFILES_GIT_CINNABAR_DIR" ]; then
-  export PATH="$DOTFILES_GIT_CINNABAR_DIR:$PATH"
-  if ! CommandExists git-cinnabar; then
-    git cinnabar download
-  fi
-else
-  PrintError "No git-cinnabar in $DOTFILES_GIT_CINNABAR_DIR!"
-  PrintError "Tried: $DOTFILES_GIT_CINNABAR_PRIMARY (primary) and $DOTFILES_GIT_CINNABAR_FALLBACK (fallback)"
-fi
-
 # Moz-phab setup
 if ! command -v moz-phab &> /dev/null; then
   export PATH="$DOTFILES_LOCAL_BIN_DIR:$PATH"

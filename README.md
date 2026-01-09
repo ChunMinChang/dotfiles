@@ -62,7 +62,7 @@ Run `$ bash uninstall.sh` or `$ sh uninstall.sh`
     - Load *mozilla/gecko/alias.sh* into *~/.bashrc*
   - tools: `$ python setup.py --mozilla tools`
     - Load *mozilla/gecko/tools.sh* into *~/.bashrc*
-      - *mozilla/gecko/tools.sh* will check if *git-cinnabar* is downloaded
+      - *mozilla/gecko/tools.sh* will set up moz-phab and pernosco-submit
   - *Rust*: `$ python setup.py --mozilla rust`
     - Load *~/.cargo/env* in *~/.bashrc*
   - Pernosco: It requires to put an executable `pernosco-submit` script under *$HOME/Work/bin*

@@ -44,8 +44,6 @@ def load_config():
     # Default fallback values (same as previous hardcoded values)
     defaults = {
         'DOTFILES_MOZBUILD_DIR': os.path.join(HOME_DIR, '.mozbuild'),
-        'DOTFILES_GIT_CINNABAR_PRIMARY': os.path.join(HOME_DIR, '.mozbuild', 'git-cinnabar'),
-        'DOTFILES_GIT_CINNABAR_FALLBACK': os.path.join(HOME_DIR, 'Work', 'git-cinnabar'),
         'DOTFILES_LOCAL_BIN_DIR': os.path.join(HOME_DIR, '.local', 'bin'),
         'DOTFILES_WORK_BIN_DIR': os.path.join(HOME_DIR, 'Work', 'bin'),
         'DOTFILES_CARGO_DIR': os.path.join(HOME_DIR, '.cargo'),
