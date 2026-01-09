@@ -191,8 +191,18 @@ function ParseGitBranch {
 }
 
 function BranchInPrompt {
-  # Only define the colors we actually use
-  local GREEN="\[\033[0;32m\]"
-  local DEFAULT="\[\033[0m\]"
-  PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
+  # Detect shell and use appropriate escape sequences
+  # bash uses \[ \] for non-printing characters
+  # zsh uses %{ %} for non-printing characters
+  if [ -n "$ZSH_VERSION" ]; then
+    # zsh
+    local GREEN="%{$(tput setaf 2)%}"
+    local DEFAULT="%{$(tput sgr0)%}"
+    PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
+  elif [ -n "$BASH_VERSION" ]; then
+    # bash
+    local GREEN="\[\033[0;32m\]"
+    local DEFAULT="\[\033[0m\]"
+    PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
+  fi
 }
