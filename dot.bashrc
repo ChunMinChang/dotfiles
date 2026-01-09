@@ -19,3 +19,6 @@ SETTINGS_PLATFORM=$SETTINGS_PREFIX$PLATFORM
 
 # Optional settings (settings might be appended by setup.py)
 # ====================================================================
+[ -r /Users/cm/dotfiles/mozilla/gecko/alias.sh ] && . /Users/cm/dotfiles/mozilla/gecko/alias.sh
+[ -r /Users/cm/dotfiles/mozilla/gecko/tools.sh ] && . /Users/cm/dotfiles/mozilla/gecko/tools.sh
+[ -r /Users/cm/.cargo/env ] && . /Users/cm/.cargo/env

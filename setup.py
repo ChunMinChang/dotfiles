@@ -724,10 +724,38 @@ def print_tool_prompt(tool_name, benefits, consequences):
         print('  • {}'.format(consequence))
 
 
-def get_user_confirmation(prompt='Install this tool? [y/N]: '):
-    """Get yes/no confirmation from user."""
-    response = input(prompt).strip().lower()
-    return response in ['y', 'yes']
+def is_interactive():
+    """Check if running in interactive mode (has TTY)."""
+    return sys.stdin.isatty()
+
+
+def get_user_confirmation(prompt='Install this tool? [y/N]: ', default_non_interactive=False):
+    """Get yes/no confirmation from user.
+
+    Args:
+        prompt: The prompt message to display
+        default_non_interactive: Default value to return in non-interactive mode
+
+    Returns:
+        True if user confirms, False otherwise
+    """
+    # In dry-run mode, don't prompt
+    if DRY_RUN:
+        return False
+
+    # In non-interactive mode, use default
+    if not is_interactive():
+        action = 'Installing' if default_non_interactive else 'Skipping'
+        print(colors.WARNING + f'Non-interactive mode detected: {action} (use default)' + colors.END)
+        return default_non_interactive
+
+    # Interactive mode: prompt user
+    try:
+        response = input(prompt).strip().lower()
+        return response in ['y', 'yes']
+    except (EOFError, KeyboardInterrupt):
+        print()  # New line after Ctrl+C
+        return False
 
 
 def install_shellcheck(tracker=None):
@@ -1109,8 +1137,7 @@ exit 0
                 return True
             else:
                 print_warning('Pre-commit hook already exists: {}'.format(precommit_hook))
-                response = input('Replace existing hook? [y/N]: ').strip().lower()
-                if response not in ['y', 'yes']:
+                if not get_user_confirmation('Replace existing hook? [y/N]: ', default_non_interactive=False):
                     print('Keeping existing hook')
                     return True  # Not an error
 
@@ -1172,8 +1199,7 @@ def dev_tools_init(dev_tools_arg, tracker=None):
         print('  • Find bugs early (e.g., unquoted variables, unused imports)')
         print('')
 
-        response = input('Would you like to set up development tools? [y/N]: ').strip().lower()
-        if response not in ['y', 'yes']:
+        if not get_user_confirmation('Would you like to set up development tools? [y/N]: ', default_non_interactive=False):
             print_warning('Skipping development tools setup')
             return None  # None = skipped, not failure
 
@@ -1568,8 +1594,7 @@ Examples:
             if tracker.has_changes():
                 print_warning('Setup made {} change(s) before verification failed'.format(
                     tracker.get_change_count()))
-                response = input('Rollback all changes? [y/N]: ').strip().lower()
-                if response == 'y' or response == 'yes':
+                if get_user_confirmation('Rollback all changes? [y/N]: ', default_non_interactive=False):
                     rollback_changes(tracker)
 
             return 1
@@ -1579,8 +1604,7 @@ Examples:
         if tracker.has_changes():
             print_warning('Setup made {} change(s) before failing'.format(
                 tracker.get_change_count()))
-            response = input('Rollback all changes? [y/N]: ').strip().lower()
-            if response == 'y' or response == 'yes':
+            if get_user_confirmation('Rollback all changes? [y/N]: ', default_non_interactive=False):
                 rollback_changes(tracker)
             else:
                 print('Changes kept. You can re-run setup.py after fixing issues.')
