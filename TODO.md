@@ -239,14 +239,23 @@ Generated: 2026-01-07
   - Provide sensible defaults
   - Document how to override in CLAUDE.md
 
-### [ ] 4.2 Make script location detection robust
-- **File**: `uninstall.sh:49`
+### [x] 4.2 Make script location detection robust ✅
+- **File**: `uninstall.sh:4,36`
 - **Issue**: Uses `$(pwd)` assuming script runs from repo root
-- **Current code**:
-  ```bash
-  BASHRC_HERE=$(pwd)/dot.bashrc
-  ```
-- **Action**: Use `$(dirname "$0")` or `$(cd "$(dirname "$0")" && pwd)`
+- **Status**: COMPLETED (2026-01-07 as part of Item 1.2)
+- **Changes made**:
+  - Replaced `BASHRC_HERE=$(pwd)/dot.bashrc` with proper detection
+  - Added `SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"` at line 4
+  - Changed line 36 to `BASHRC_HERE="$SCRIPT_DIR/dot.bashrc"`
+  - Also fixed `MACHRC_HERE` to use `$SCRIPT_DIR`
+- **Fixed in commit**: ac82207 (Item 1.2 - Fix fragile file path handling)
+- **Testing**: 13/13 tests passed (see TESTING_RESULTS_ITEM_4.2.md)
+  - Works from any directory (repo root, home, /tmp, relative paths) ✅
+  - File paths resolve correctly (BASHRC_HERE, MACHRC_HERE) ✅
+  - Symlink resolution works correctly ✅
+  - No incorrect $(pwd) usage remaining ✅
+  - Syntax validation passed ✅
+- **Impact**: HIGH - Script now works from any directory, not just repo root
 
 ## Priority 5: Error Handling & Validation
 
@@ -561,7 +570,7 @@ Generated: 2026-01-07
 ## Progress Tracking
 
 - **Total items**: 40+
-- **Completed**: 18 (45%)
+- **Completed**: 19 (47.5%)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -573,6 +582,7 @@ Generated: 2026-01-07
   - Item 3.1: Quote all variable expansions in shell scripts
   - Item 3.2: Fix fragile alias quoting
   - Item 3.3: Improve RecursivelyRemove safety
+  - Item 4.2: Make script location detection robust
   - Item 5.1: Add file existence checks (prevents crashes)
   - Item 5.2: Fix append_nonexistent_lines_to_file (critical bug)
   - Item 5.3: Add error exit codes for silent failures
@@ -631,11 +641,17 @@ Generated: 2026-01-07
 - Item 6.2: Entire codebase now TODO-free (professional appearance, clear design documentation)
 - Item 6.3: All Priority 6 complete - documentation now accurate and matches implementation
 
-**Recent Fix (2026-01-08)**:
-- Completed Item 2.3 fully: Fixed 3 missed call sites (dot.settings_linux, dot.settings_darwin, dot.bash_profile)
-- Root cause: Power outage interrupted previous session, left 3 files with old CommandExists logic
-- Impact: Eliminated "bash: [: -eq: unary operator expected" errors on terminal startup
-- All 8 CommandExists call sites now use correct Unix convention (return codes, not echo)
+**Recent Fixes (2026-01-08)**:
+1. **Completed Item 2.3 fully**: Fixed 3 missed call sites (dot.settings_linux, dot.settings_darwin, dot.bash_profile)
+   - Root cause: Power outage interrupted previous session, left 3 files with old CommandExists logic
+   - Impact: Eliminated "bash: [: -eq: unary operator expected" errors on terminal startup
+   - All 8 CommandExists call sites now use correct Unix convention (return codes, not echo)
+
+2. **Verified Item 4.2 complete**: Script location detection (already fixed in Item 1.2)
+   - Created comprehensive test suite: 13 tests covering all scenarios
+   - All tests passed: directory independence, symlink support, file path resolution
+   - Documented in TESTING_RESULTS_ITEM_4.2.md
+   - Impact: Confirmed uninstall.sh works from any directory, not just repo root
 
 ---
 
@@ -657,12 +673,10 @@ This section helps prioritize work by showing dependencies between pending items
   - Complexity: Medium (7 files affected)
   - Impact: Makes codebase more maintainable and testable
 
-- **4.2** Make script location detection robust
-  - Dependencies: None (can be done independently)
-  - Facilitates: Nothing (isolated fix)
-  - Complexity: Low (simple one-line fix)
-  - Impact: Prevents bugs when running from different directories
-  - **QUICK WIN** ⚡
+- **4.2** Make script location detection robust ✅ COMPLETE
+  - Status: Already fixed in Item 1.2 (commit ac82207, 2026-01-07)
+  - Testing: 13/13 tests passed (2026-01-08)
+  - Impact: Script now works from any directory, not just repo root
 
 #### Priority 5: Error Handling
 - **5.5** Add rollback mechanism
@@ -750,7 +764,7 @@ This section helps prioritize work by showing dependencies between pending items
 
 #### Phase 1: Quick Wins (Low effort, immediate value)
 Do these first for quick progress:
-1. **4.2** - Script location detection (5 minutes)
+1. ~~**4.2** - Script location detection~~ ✅ COMPLETE
 2. **7.1** - Simplify Mozilla argument parsing (15 minutes)
 3. **9.2** - Add verbose mode (30 minutes)
 
