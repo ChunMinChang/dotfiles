@@ -15,6 +15,23 @@ if ! CommandExists mvim; then
 fi
 alias vim='mvim -v'
 
+# Git
+# ====================================================================
+if CommandExists git; then
+  if [ -r "$HOME/.gitconfig" ]; then
+    # Show git branch in prompt
+    BranchInPrompt
+  else
+    echo Please set .gitconfig first
+  fi
+else
+  echo Please install git before loading its settings.
+fi
+
+if CommandExists vim; then
+  export GIT_EDITOR=vim
+fi
+
 # platform-dependent paths
 # ====================================================================
 # Source configuration for configurable paths
