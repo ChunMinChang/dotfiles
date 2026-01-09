@@ -155,6 +155,33 @@ The Mozilla tools expect specific directory structures:
 - moz-phab: `~/.local/bin/moz-phab`
 - pernosco-submit: `~/Work/bin/pernosco-submit` (Linux only, see `pernosco-submit_template`)
 
+### Naming Conventions
+
+This repository uses **language-specific naming conventions** rather than enforcing consistency across all languages. This follows best practices for each language and makes the code more familiar to developers.
+
+**Python** (setup.py):
+- **Functions and variables**: `snake_case` (follows PEP 8)
+  - Examples: `print_hint()`, `print_warning()`, `git_init()`, `mozilla_init()`
+- **Classes**: `PascalCase` (standard Python convention)
+- **Constants**: `UPPER_CASE`
+
+**Bash/Shell Scripts** (utils.sh, git/utils.sh, mozilla/gecko/*.sh, etc.):
+- **Functions**: `PascalCase` (distinguishes from built-in Unix commands)
+  - Examples: `PrintError()`, `GitLastCommit()`, `RecursivelyFind()`, `CreateGitBranchForPullRequest()`
+- **Variables**: `snake_case`
+  - Examples: `local cmd="$1"`, `git_config="..."`, `file_path="/path/to/file"`
+- **Environment variables and constants**: `UPPER_CASE`
+  - Examples: `DOTFILES`, `TRASH`, `SCRIPT_DIR`
+
+**Rationale**:
+- Python's PEP 8 is the official style guide and widely expected in the community
+- Bash PascalCase functions are easily distinguished from Unix commands (e.g., `GitLastCommit` vs `git`, `PrintError` vs `echo`)
+- Each language is internally consistent (most important for readability)
+- Developers familiar with each language will recognize these conventions
+- Following established conventions is better than inventing repository-specific ones
+
+**For contributors**: When adding functions, use `snake_case` in Python files and `PascalCase` in shell scripts. Always maintain consistency within the file you're editing.
+
 ## Modification Guidelines
 
 - When editing shell scripts, maintain cross-platform compatibility (bash-compatible syntax)
