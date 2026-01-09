@@ -11,6 +11,7 @@ import sys
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 HOME_DIR = os.environ['HOME']
+VERBOSE = False  # Set to True with -v/--verbose flag
 
 # Note: Python print functions kept separate from shell utils.sh
 # (Python can't source bash scripts - different language ecosystems)
@@ -30,18 +31,30 @@ class colors:
 
 # Symbolically link source to target
 def link(source, target):
+    print_verbose('link() called: source={}, target={}'.format(source, target))
+
     # Validate source exists before creating symlink
+    print_verbose('Checking if source exists: {}'.format(source))
     if not os.path.exists(source):
         print_error('Cannot create symlink: source does not exist')
         print_error('Source: {}'.format(source))
+        print_verbose('link() returning: False (source does not exist)')
         return False
 
+    print_verbose('Source exists: True')
+    print_verbose('Checking if target is a symlink: {}'.format(target))
+
     if os.path.islink(target):
+        print_verbose('Target is a symlink, unlinking')
         print('unlink {}'.format(target))
         os.unlink(target)
+    else:
+        print_verbose('Target is not a symlink or does not exist')
 
     print('link {} to {}'.format(source, target))
     os.symlink(source, target)
+    print_verbose('Symlink created successfully')
+    print_verbose('link() returning: True')
     return True
 
 # Check if `name` exists
@@ -171,18 +184,30 @@ def print_fail(message):
 def print_error(message):
     print_fail(message)
 
+
+def print_verbose(message):
+    """Print verbose debugging information (only when VERBOSE=True)"""
+    if VERBOSE:
+        print(colors.HEADER + '[VERBOSE] ' + colors.END + message)
+
+
 # Setup functions
 # ------------------------------------------------------------------------------
 
 # Link this dotfiles path to $HOME/.dotfiles
 def dotfiles_link():
     print_installing_title('dotfile path')
+    print_verbose('dotfiles_link() starting')
     result = link(BASE_DIR, os.path.join(HOME_DIR, '.dotfiles'))
+    print_verbose('dotfiles_link() returning: {}'.format(result))
     return result
 
 # Link dot.* to ~/.*
 def bash_link():
     print_installing_title('bash startup scripts')
+    print_verbose('bash_link() starting')
+    print_verbose('Platform: {}'.format(platform.system()))
+
     platform_files = {
         'Darwin': [
             'dot.bashrc',
@@ -210,10 +235,12 @@ def bash_link():
 
     #files = filter(lambda f: f.startswith('dot.'), os.listdir(BASE_DIR))
     files = platform_files[platform.system()]
+    print_verbose('Files to process: {}'.format(files))
     errors = []
     skipped = []
 
     for f in files:
+        print_verbose('Processing file: {}'.format(f))
         target = os.path.join(HOME_DIR, f[3:])  # Get name after dot
         src = os.path.join(BASE_DIR, f)
         if os.path.isfile(target):
@@ -247,7 +274,10 @@ def bash_link():
                 errors.append('Failed to link {}'.format(f))
 
     # Return True only if no errors (skipped files are user choice, not errors)
-    return len(errors) == 0
+    success = len(errors) == 0
+    print_verbose('bash_link() completed: errors={}, skipped={}'.format(len(errors), len(skipped)))
+    print_verbose('bash_link() returning: {}'.format(success))
+    return success
 
 # Include git/config from ~/.giconfig
 def git_init():
@@ -291,16 +321,24 @@ def git_init():
 # mozilla stuff
 # ---------------------------------------
 
-def mozilla_init():
-    print_installing_title('mozilla settings', True)
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--mozilla', nargs='*',
-                        help='Installing the toolkit for developing gecko')
-    args = parser.parse_args()
+def mozilla_init(mozilla_arg):
+    """
+    Initialize Mozilla development tools.
 
-    if args.mozilla is None:
+    Args:
+        mozilla_arg: Value from --mozilla argument (None, [], or list of tools)
+
+    Returns:
+        None if skipped, True if all succeeded, False if any failed
+    """
+    print_installing_title('mozilla settings', True)
+
+    if mozilla_arg is None:
         print_warning('Skip installing mozilla toolkit')
+        print_verbose('mozilla_arg is None, skipping Mozilla tools')
         return None  # None = skipped, not failure
+
+    print_verbose('mozilla_arg: {}'.format(mozilla_arg))
 
     funcs = {
         'gecko': gecko_init,
@@ -310,12 +348,14 @@ def mozilla_init():
     }
 
     # Select which Mozilla tools to install
-    if args.mozilla:
+    if mozilla_arg:
         # User specified tools: filter to valid options only
-        options = [k for k in args.mozilla if k in funcs]
+        options = [k for k in mozilla_arg if k in funcs]
+        print_verbose('Selected Mozilla tools: {}'.format(options))
     else:
         # No tools specified: install all
         options = list(funcs.keys())
+        print_verbose('No tools specified, installing all: {}'.format(options))
 
     all_succeeded = True
     for k in options:
@@ -644,11 +684,39 @@ def show_setup_summary(results):
 
 
 def main(argv):
+    global VERBOSE
+
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='Setup dotfiles configuration for bash, git, and optional Mozilla tools',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  python3 setup.py                    # Install dotfiles and git config
+  python3 setup.py -v                 # Verbose mode (show detailed operations)
+  python3 setup.py --mozilla          # Install all Mozilla tools
+  python3 setup.py --mozilla gecko hg # Install specific Mozilla tools
+  python3 setup.py -v --mozilla       # Verbose + Mozilla tools
+        '''
+    )
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Show detailed operations for debugging')
+    parser.add_argument('--mozilla', nargs='*',
+                        help='Install Mozilla toolkit for gecko development (gecko, hg, tools, rust)')
+    args = parser.parse_args(argv[1:])
+
+    # Set global verbose flag
+    VERBOSE = args.verbose
+
+    print_verbose('Arguments parsed: verbose={}, mozilla={}'.format(args.verbose, args.mozilla))
+    print_verbose('BASE_DIR: {}'.format(BASE_DIR))
+    print_verbose('HOME_DIR: {}'.format(HOME_DIR))
+
     results = {
         'dotfiles': dotfiles_link(),
         'bash': bash_link(),
         'git': git_init(),
-        'mozilla': mozilla_init()
+        'mozilla': mozilla_init(args.mozilla)
     }
 
     show_setup_summary(results)
