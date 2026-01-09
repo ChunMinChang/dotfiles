@@ -2,6 +2,49 @@
 
 Generated: 2026-01-07
 
+## TODO Item Processing Workflow
+
+**Standard process for working on TODO items:**
+
+1. **Label item as "Processing"** 🔄
+   - Move item from "Pending" to "Processing" section
+   - Update phase counts in Progress Tracking
+
+2. **Verify the problem exists**
+   - Read relevant files and confirm the issue described
+   - Understand the scope and impact
+
+3. **Design test/verification strategy**
+   - Think through how to test the solution
+   - Define expected results and success criteria
+   - Consider edge cases
+
+4. **Add tests for the item** (if applicable)
+   - Create test file (e.g., `TESTING_RESULTS_ITEMNAME.md`)
+   - Document test cases and methodology
+
+5. **Work on the item**
+   - Implement the solution
+   - Follow best practices from CLAUDE.md
+   - Maintain cross-platform compatibility
+
+6. **Run tests to verify solution**
+   - Execute all tests and verify expected results
+   - Ensure no regressions in other areas
+   - Document test results
+
+7. **Commit with clear messages**
+   - Use descriptive commit message explaining the fix
+   - Reference the TODO item number
+   - Include Co-Authored-By line if appropriate
+
+8. **Mark item as "Complete"** ✅
+   - Move item from "Processing" to "Complete" section
+   - Update phase counts
+   - Update the item's detailed section with completion status
+
+---
+
 ## Priority 1: Critical Security & Reliability Issues 🚨
 
 ### [x] 1.1 Fix dangerous `eval` usage in uninstall.sh ✅
@@ -569,8 +612,14 @@ Generated: 2026-01-07
 
 ## Progress Tracking
 
+### Phase Overview
 - **Total items**: 40+
-- **Completed**: 19 (47.5%)
+- **Complete**: 19 items (47.5%)
+- **Processing**: 0 items (0%)
+- **Pending**: 21 items (52.5%)
+- **Last updated**: 2026-01-08
+
+### Phase: Complete ✅ (19 items)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -590,8 +639,24 @@ Generated: 2026-01-07
   - Item 6.1: Fixed typo in error message
   - Item 6.2: Resolved outdated TODO comments (codebase now TODO-free)
   - Item 6.3: Fixed README documentation mismatches
-- **In progress**: 0
-- **Last updated**: 2026-01-08
+
+### Phase: Processing 🔄 (0 items)
+  - (None currently in progress)
+
+### Phase: Pending ⏳ (21 items)
+  - Item 4.1: Extract hardcoded paths to configuration
+  - Item 5.5: Add rollback mechanism for failed setups
+  - Item 7.1: Simplify Mozilla argument parsing
+  - Item 7.2: Standardize function naming conventions
+  - Item 7.3: Review and optimize git/utils.sh functions
+  - Item 8.1: Create test suite for setup.py
+  - Item 8.2: Create test suite for shell utilities
+  - Item 8.3: Test cross-platform compatibility
+  - Item 9.1: Add dry-run mode to setup.py
+  - Item 9.2: Add verbose mode for debugging
+  - Item 9.3: Improve uninstall automation
+  - Item 9.4: Add pre-commit hooks
+  - Item 9.5: Consider configuration file
 
 **🎉 MILESTONE: ALL PRIORITY 1 (CRITICAL) ITEMS COMPLETE! 🎉**
 - ✅ All critical security vulnerabilities eliminated
@@ -652,6 +717,150 @@ Generated: 2026-01-07
    - All tests passed: directory independence, symlink support, file path resolution
    - Documented in TESTING_RESULTS_ITEM_4.2.md
    - Impact: Confirmed uninstall.sh works from any directory, not just repo root
+
+---
+
+## Dependency Analysis & Topological Ordering
+
+This section provides a comprehensive dependency map and topological ordering for pending items, helping identify the most valuable items to work on next.
+
+### Dependency Map Legend
+- **→** Facilitates/Enables (completing this helps the target)
+- **←** Depends on/Benefits from (needs this for optimal completion)
+- **↔** Related/Overlapping (can be combined or done together)
+- **Level N** - Topological level (lower levels should be done first)
+
+### Visual Dependency Graph
+
+```
+Level 0 (No dependencies - Quick Wins):
+┌─────────────────────────────────────────┐
+│ 7.1 Simplify Mozilla parsing            │ → [8.1]
+│ 7.2 Standardize naming (doc only)       │ → [8.1, 8.2]
+│ 9.2 Add verbose mode                    │ → [general quality]
+└─────────────────────────────────────────┘
+              ↓
+Level 1 (High Priority - Enable Many Others):
+┌─────────────────────────────────────────┐
+│ 8.1 Test suite for setup.py ⭐⭐⭐      │ → [4.1, 5.5, 9.1, 9.4]
+│     (Facilitates 5 items)                │
+│                                          │
+│ 8.2 Test suite for shell utilities ⭐⭐ │ → [7.3, 9.3, 9.4]
+│     (Facilitates 3 items)                │
+└─────────────────────────────────────────┘
+              ↓
+Level 2 (Mid Priority - Depend on Tests or Independent):
+┌─────────────────────────────────────────┐
+│ 4.1 Extract hardcoded paths             │ → [9.5]
+│     (Easier with 8.1)                    │
+│                                          │
+│ 7.3 Review git/utils.sh                 │
+│     (Safer with 8.2)                     │
+│                                          │
+│ 9.1 Dry-run mode                         │
+│     (Benefits from 8.1)                  │
+│                                          │
+│ 9.3 Improve uninstall automation        │
+│     (Benefits from 8.2)                  │
+└─────────────────────────────────────────┘
+              ↓
+Level 3 (Final Polish - Depend on Multiple Items):
+┌─────────────────────────────────────────┐
+│ 5.5 Rollback mechanism                  │
+│     (Depends on 8.1, builds on 5.1-5.4) │
+│                                          │
+│ 8.3 Cross-platform testing              │
+│     (Needs 8.1, 8.2)                     │
+│                                          │
+│ 9.4 Pre-commit hooks                    │
+│     (Uses tests from 8.1, 8.2)          │
+│                                          │
+│ 9.5 Configuration file                  │
+│     (Overlaps with 4.1)                  │
+└─────────────────────────────────────────┘
+```
+
+### Topological Order (Recommended Execution Sequence)
+
+**Priority Tier 1: Foundation Builders** ⚡🔥
+1. **7.1** - Simplify Mozilla argument parsing (15 min, quick win)
+2. **7.2** - Standardize naming conventions (30 min, documentation)
+3. **9.2** - Add verbose mode (30 min, quick win)
+4. **8.1** - Test suite for setup.py ⭐⭐⭐ (HIGH VALUE - facilitates 5 items)
+5. **8.2** - Test suite for shell utilities ⭐⭐ (HIGH VALUE - facilitates 3 items)
+
+**Priority Tier 2: Core Improvements** 🔧
+6. **4.1** - Extract hardcoded paths (now safe with tests)
+7. **7.3** - Review git/utils.sh (now safe with tests)
+8. **9.1** - Dry-run mode (enabled by 8.1)
+9. **9.3** - Improve uninstall automation (enabled by 8.2)
+
+**Priority Tier 3: Advanced Features** 🚀
+10. **5.5** - Rollback mechanism (builds on completed 5.1-5.4 + 8.1)
+11. **8.3** - Cross-platform testing (uses 8.1, 8.2)
+12. **9.4** - Pre-commit hooks (integrates 8.1, 8.2 tests)
+13. **9.5** - Configuration file (combine with 4.1 if desired)
+
+### Value Analysis Matrix
+
+**Critical Path Items** (most valuable - unblock/facilitate many others):
+- **8.1** → Facilitates 5 items: 4.1, 5.5, 9.1, 9.2, 9.4 (HIGHEST VALUE)
+- **8.2** → Facilitates 3 items: 7.3, 9.3, 9.4 (HIGH VALUE)
+- **4.1** → Facilitates 2 items: 8.1 (easier), 9.5 (overlap)
+
+**Effort vs Impact Scoring**:
+```
+Item  │ Effort │ Impact │ Facilitates │ Score │ Level │ Priority
+──────┼────────┼────────┼─────────────┼───────┼───────┼──────────
+8.1   │ High   │ V.High │ 5 items     │ 95/100│ L1    │ ⭐⭐⭐
+8.2   │ High   │ V.High │ 3 items     │ 90/100│ L1    │ ⭐⭐
+7.1   │ Low    │ Low    │ 0 items     │ 70/100│ L0    │ ⚡ Quick
+7.2   │ Low    │ Low    │ 0 items     │ 65/100│ L0    │ ⚡ Quick
+9.2   │ Low    │ Medium │ 0 items     │ 75/100│ L0    │ ⚡ Quick
+4.1   │ Medium │ High   │ 1 item      │ 80/100│ L2    │ 🔧
+7.3   │ Medium │ Medium │ 0 items     │ 70/100│ L2    │ 🔧
+9.1   │ Medium │ Medium │ 0 items     │ 65/100│ L2    │ 🔧
+9.3   │ Medium │ Medium │ 0 items     │ 65/100│ L2    │ 🔧
+5.5   │ M-High │ High   │ 0 items     │ 75/100│ L3    │ 🚀
+8.3   │ Medium │ Medium │ 0 items     │ 70/100│ L3    │ 🚀
+9.4   │ Medium │ Medium │ 0 items     │ 70/100│ L3    │ 🚀
+9.5   │ Medium │ Medium │ 0 items     │ 65/100│ L3    │ 🚀
+```
+
+### Recommended Next Steps
+
+**Option A: Maximum Impact Strategy** 🎯
+Start with the highest-value items that facilitate the most work:
+1. Do all 3 quick wins (7.1, 7.2, 9.2) in 1 hour → Build momentum
+2. Tackle 8.1 (test suite for setup.py) → Unlocks 5 items
+3. Tackle 8.2 (test suite for shell) → Unlocks 3 items
+4. Then work through Level 2 items with confidence
+
+**Option B: Quick Wins First Strategy** ⚡
+Build momentum with easy victories before heavy lifting:
+1. 7.1 (15 min) → Immediate improvement
+2. 7.2 (30 min) → Documentation cleanup
+3. 9.2 (30 min) → User-facing feature
+4. Then move to 8.1 and 8.2
+
+**Option C: Test-Driven Strategy** 🧪
+Establish testing foundation immediately:
+1. 8.1 first → Enables confident refactoring of setup.py
+2. 8.2 second → Enables confident refactoring of shell scripts
+3. Everything else becomes safer and easier
+
+### Blocking Analysis
+
+**Items with NO blockers** (can start immediately):
+- 4.1, 7.1, 7.2, 7.3, 8.1, 8.2, 9.1, 9.2, 9.3
+
+**Items with soft dependencies** (better to wait):
+- 5.5 (better with 8.1)
+- 8.3 (better with 8.1, 8.2)
+- 9.4 (better with 8.1, 8.2)
+- 9.5 (overlaps with 4.1)
+
+**No hard blockers** - All pending items CAN be started now, but the topological order optimizes efficiency and safety.
 
 ---
 
