@@ -625,8 +625,51 @@ Generated: 2026-01-07
 ### [ ] 9.1 Add dry-run mode to setup.py
 - **Action**: Add `--dry-run` flag to show what would be done without doing it
 
-### [ ] 9.2 Add verbose mode for debugging
-- **Action**: Add `-v/--verbose` flag to show detailed operations
+### [x] 9.2 Add verbose mode for debugging ✅
+- **File**: `setup.py`
+- **Status**: COMPLETED (2026-01-08)
+- **Changes made**:
+  - Added global VERBOSE flag (line 14)
+  - Added print_verbose() function (lines 176-179)
+  - Integrated argparse in main() with -v/--verbose and --mozilla flags (lines 657-681)
+  - Modified mozilla_init() to accept mozilla_arg parameter (lines 302-336)
+  - Added verbose messages to key operations (21+ verbose statements total)
+- **Implementation**:
+  ```python
+  # Global flag
+  VERBOSE = False  # Set to True with -v/--verbose flag
+
+  # Verbose print function
+  def print_verbose(message):
+      if VERBOSE:
+          print(colors.HEADER + '[VERBOSE] ' + colors.END + message)
+
+  # Argument parsing in main()
+  parser.add_argument('-v', '--verbose', action='store_true',
+                      help='Show detailed operations for debugging')
+  ```
+- **Verbose messages added to**:
+  - link() function: source/target validation, symlink operations (8 messages)
+  - dotfiles_link(): function entry/exit (2 messages)
+  - bash_link(): platform detection, file processing, completion (5 messages)
+  - mozilla_init(): argument parsing, tool selection (3 messages)
+  - main(): command-line arguments, directories (3 messages)
+- **Features**:
+  - Both -v and --verbose work identically
+  - Works with all existing flags (--mozilla, etc.)
+  - No behavior changes (only adds debug output)
+  - Helpful --help with usage examples
+  - Blue [VERBOSE] prefix for easy identification
+- **Testing**: 7/7 tests passed (see TESTING_RESULTS_VERBOSE_MODE.md)
+  - Syntax validation ✅
+  - Help message shows verbose option ✅
+  - Normal mode: no verbose output ✅
+  - Verbose mode (-v): shows debug info ✅
+  - Verbose mode (--verbose): works identically ✅
+  - Verbose + Mozilla: both flags work together ✅
+  - No functional changes ✅
+- **Impact**: HIGH - Significantly improved debugging experience, better user understanding
+- **Time**: 30 minutes (matched estimate from topological analysis)
 
 ### [ ] 9.3 Improve uninstall automation
 - **Action**: Make uninstall.sh fully automatic (address all TODO comments)
@@ -656,12 +699,12 @@ Generated: 2026-01-07
 
 ### Phase Overview
 - **Total items**: 40+
-- **Complete**: 21 items (52.5%)
-- **Processing**: 1 item (2.5%)
+- **Complete**: 22 items (55.0%)
+- **Processing**: 0 items (0%)
 - **Pending**: 18 items (45.0%)
 - **Last updated**: 2026-01-08
 
-### Phase: Complete ✅ (21 items)
+### Phase: Complete ✅ (22 items)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -683,9 +726,10 @@ Generated: 2026-01-07
   - Item 6.3: Fixed README documentation mismatches
   - Item 7.1: Simplify Mozilla argument parsing
   - Item 7.2: Standardize function naming conventions
-
-### Phase: Processing 🔄 (1 item)
   - Item 9.2: Add verbose mode for debugging
+
+### Phase: Processing 🔄 (0 items)
+  - (None currently in progress)
 
 ### Phase: Pending ⏳ (18 items)
   - Item 4.1: Extract hardcoded paths to configuration
