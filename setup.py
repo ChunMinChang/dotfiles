@@ -309,8 +309,13 @@ def mozilla_init():
         'rust': rust_init,
     }
 
-    options = (set(funcs.keys()).intersection(set(args.mozilla)) if args.mozilla
-               else funcs.keys())
+    # Select which Mozilla tools to install
+    if args.mozilla:
+        # User specified tools: filter to valid options only
+        options = [k for k in args.mozilla if k in funcs]
+    else:
+        # No tools specified: install all
+        options = list(funcs.keys())
 
     all_succeeded = True
     for k in options:
