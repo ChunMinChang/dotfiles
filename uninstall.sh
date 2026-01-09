@@ -4,31 +4,149 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/utils.sh"
 
-PrintTitle "\nUninstall personal environment settings\n"\
+# Parse command-line arguments
+DRY_RUN=false
+SHOW_MANUAL=false
+
+for arg in "$@"; do
+  case $arg in
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    --show-manual)
+      SHOW_MANUAL=true
+      shift
+      ;;
+    --help|-h)
+      echo "Usage: $0 [OPTIONS]"
+      echo ""
+      echo "Uninstall personal dotfiles environment settings"
+      echo ""
+      echo "Options:"
+      echo "  --dry-run       Show what would be removed without actually removing anything"
+      echo "  --show-manual   Display manual cleanup steps without uninstalling"
+      echo "  -h, --help      Show this help message"
+      echo ""
+      echo "Examples:"
+      echo "  $0                    # Uninstall dotfiles"
+      echo "  $0 --dry-run          # Preview what would be removed"
+      echo "  $0 --show-manual      # Show manual cleanup steps only"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $arg"
+      echo "Run '$0 --help' for usage information"
+      exit 1
+      ;;
+  esac
+done
+
+# Track what was removed and what needs manual cleanup
+REMOVED_ITEMS=()
+MANUAL_ITEMS=()
+
+# Helper function to unlink symlinks
+UnlinkIfSymlink() {
+  local target="$1"
+  local expected_source="$2"
+
+  if [ -L "$target" ]; then
+    local actual_source="$(readlink -f "$target")"
+    if [ "$actual_source" = "$expected_source" ]; then
+      if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] Would unlink $target"
+        REMOVED_ITEMS+=("$target")
+      else
+        echo "Unlink $target"
+        unlink "$target"
+        REMOVED_ITEMS+=("$target")
+      fi
+      return 0
+    else
+      echo "$target is a symlink to $actual_source (not ours), stay unchanged"
+      return 1
+    fi
+  elif [ -e "$target" ]; then
+    echo "$target is not a symlink, stay unchanged"
+    return 1
+  else
+    echo "$target does not exist"
+    return 1
+  fi
+}
+
+# Handle --show-manual mode (show manual cleanup steps only)
+if [ "$SHOW_MANUAL" = true ]; then
+  PrintTitle "\nManual Cleanup Steps\n"\
 "====================================================================\n"
+  echo "These items need manual removal to avoid losing your customizations:"
+  echo ""
+
+  FOUND_MANUAL=false
+
+  # Check Mozilla hg config
+  if [ -f "$HOME/.hgrc" ] && grep -q "%include.*mozilla/hg/config" "$HOME/.hgrc" 2>/dev/null; then
+    FOUND_MANUAL=true
+    echo "1. Remove Mozilla hg config from ~/.hgrc"
+    echo "   Edit ~/.hgrc and remove lines containing:"
+    echo "     %include <path-to-dotfiles>/mozilla/hg/config"
+    echo ""
+  fi
+
+  # Check Git config
+  if [ -f "$HOME/.gitconfig" ] && grep -q "path.*dotfiles/git/config" "$HOME/.gitconfig" 2>/dev/null; then
+    FOUND_MANUAL=true
+    echo "2. Remove git config include from ~/.gitconfig"
+    echo "   Edit ~/.gitconfig and remove lines under [include] section:"
+    echo "     path = <path-to-dotfiles>/git/config"
+    echo "   Or run:"
+    echo "     git config --global --unset include.path"
+    echo ""
+  fi
+
+  # Check Bashrc loader
+  if [ -f "$HOME/.bashrc" ] && grep -q "dot.bashrc" "$HOME/.bashrc" 2>/dev/null; then
+    FOUND_MANUAL=true
+    echo "3. Remove dot.bashrc loader from ~/.bashrc"
+    echo "   Edit ~/.bashrc and remove lines like:"
+    grep "dot.bashrc" "$HOME/.bashrc" 2>/dev/null | sed 's/^/     /'
+    echo ""
+  fi
+
+  if [ "$FOUND_MANUAL" = false ]; then
+    echo "✓ No manual cleanup needed!"
+    echo ""
+  fi
+
+  PrintSubTitle "Note: Symlinks are removed automatically by uninstall.sh"
+  echo "Run 'bash uninstall.sh' to remove symlinks."
+  echo "Run 'bash uninstall.sh --dry-run' to preview what would be removed."
+  echo ""
+  exit 0
+fi
+
+# Show dry-run banner if enabled
+if [ "$DRY_RUN" = true ]; then
+  PrintTitle "\n[DRY-RUN MODE] Previewing uninstall - no changes will be made\n"\
+"====================================================================\n"
+else
+  PrintTitle "\nUninstall personal environment settings\n"\
+"====================================================================\n"
+fi
 
 PrintSubTitle "\nUnlink Mozilla stuff\n"\
 "--------------------------------------------------------------------\n"
 # Unlink machrc
 MACHRC_GLOBAL="$HOME/.mozbuild/machrc"
 MACHRC_HERE="$SCRIPT_DIR/mozilla/gecko/machrc"
-if [ -L "$MACHRC_GLOBAL" ]; then
-  MACHRC_LINK="$(readlink -f "$MACHRC_GLOBAL")"
-  if [ "$MACHRC_LINK" = "$MACHRC_HERE" ]; then
-    echo "Unlink $MACHRC_GLOBAL"
-    unlink "$MACHRC_GLOBAL"
-  else
-    echo "$MACHRC_GLOBAL stay unchanged"
-  fi
-elif [ -e "$MACHRC_GLOBAL" ]; then
-  echo "$MACHRC_GLOBAL is not a symlink, stay unchanged"
-else
-  echo "$MACHRC_GLOBAL does not exist"
-fi
+UnlinkIfSymlink "$MACHRC_GLOBAL" "$MACHRC_HERE"
 
 # Remove mozilla hg config
 # Note: Manual removal required - user file may contain customizations
-PrintWarning "Please remove ./mozilla/hg/config with prefix %include in $HOME/.hgrc manually"
+if [ -f "$HOME/.hgrc" ] && grep -q "%include.*mozilla/hg/config" "$HOME/.hgrc" 2>/dev/null; then
+  MANUAL_ITEMS+=("Remove Mozilla hg config from ~/.hgrc")
+fi
 
 PrintSubTitle "\nUninstall custom settings\n"\
 "--------------------------------------------------------------------\n"
@@ -63,40 +181,105 @@ fi
 echo Uninstall personal environment settings on $PLATFORM
 
 # Unlink the platform settings ($SETTINGS_PLATFORM is set in $BASHRC_HERE)
-if [ -r "$SETTINGS_PLATFORM" ]; then
-  echo "Unlink $SETTINGS_PLATFORM"
-  unlink "$SETTINGS_PLATFORM"
-fi
+SETTINGS_HERE="$SCRIPT_DIR/dot.settings_$PLATFORM"
+UnlinkIfSymlink "$SETTINGS_PLATFORM" "$SETTINGS_HERE"
 
 # Unlink the entry point of environment settings on darwin (MacOSX)
-if [ "$PLATFORM" == "darwin" ] && [ -r ~/.zshrc ]; then
-  echo "Unlink ~/.zshrc"
-  unlink ~/.zshrc
+if [ "$PLATFORM" == "darwin" ]; then
+  ZSHRC_HERE="$SCRIPT_DIR/dot.zshrc"
+  UnlinkIfSymlink "$HOME/.zshrc" "$ZSHRC_HERE"
 fi
 
 # Unlink the $DOTFILES ($DOTFILES is set in $BASHRC_HERE)
-if [ -r "$DOTFILES" ]; then
-  echo "Unlink $DOTFILES"
-  unlink "$DOTFILES"
-fi
+UnlinkIfSymlink "$DOTFILES" "$SCRIPT_DIR"
 
 # Remove git config
 # Note: Manual removal required - user file may contain customizations
-PrintWarning "Please remove ./git/config under [include] in $HOME/.gitconfig manually"
+if [ -f "$HOME/.gitconfig" ] && grep -q "path.*dotfiles/git/config" "$HOME/.gitconfig" 2>/dev/null; then
+  MANUAL_ITEMS+=("Remove git config include from ~/.gitconfig")
+fi
 
 # Unlink the $HOME/.bashrc
 BASHRC_GLOBAL="$HOME/.bashrc"
-if [ -L "$BASHRC_GLOBAL" ]; then
-  BASHRC_LINK="$(readlink -f "$BASHRC_GLOBAL")"
-  if [ "$BASHRC_LINK" = "$BASHRC_HERE" ]; then
-    echo "Unlink $BASHRC_GLOBAL"
-    unlink "$BASHRC_GLOBAL"
-  else
-    echo "$BASHRC_GLOBAL is a symlink to $BASHRC_LINK, stay unchanged"
-  fi
+if UnlinkIfSymlink "$BASHRC_GLOBAL" "$BASHRC_HERE"; then
+  : # Successfully unlinked
 elif [ -e "$BASHRC_GLOBAL" ] && [ "$PLATFORM" = "linux" ]; then
   # Note: Manual removal required - user file may contain customizations
-  PrintWarning "Please remove $BASHRC_HERE in $BASHRC_GLOBAL manually"
-elif [ ! -e "$BASHRC_GLOBAL" ]; then
-  echo "$BASHRC_GLOBAL does not exist"
+  if grep -q "dot.bashrc" "$BASHRC_GLOBAL" 2>/dev/null; then
+    MANUAL_ITEMS+=("Remove dot.bashrc loader from ~/.bashrc")
+  fi
+fi
+
+# Summary
+PrintTitle "\nUninstall Summary\n"\
+"====================================================================\n"
+
+# Show what was removed automatically
+if [ ${#REMOVED_ITEMS[@]} -gt 0 ]; then
+  PrintSubTitle "Automatically removed (${#REMOVED_ITEMS[@]} items):"
+  for item in "${REMOVED_ITEMS[@]}"; do
+    echo "  ✓ $item"
+  done
+  echo ""
+else
+  echo "No items were automatically removed."
+  echo ""
+fi
+
+# Show what needs manual cleanup
+if [ ${#MANUAL_ITEMS[@]} -gt 0 ]; then
+  PrintSubTitle "Manual cleanup required (${#MANUAL_ITEMS[@]} items):"
+  PrintWarning "The following items need manual removal to avoid losing customizations:"
+  echo ""
+
+  for item in "${MANUAL_ITEMS[@]}"; do
+    echo "  • $item"
+  done
+  echo ""
+
+  PrintSubTitle "Exact cleanup commands:"
+  echo ""
+
+  # Mozilla hg config
+  if [ -f "$HOME/.hgrc" ] && grep -q "%include.*mozilla/hg/config" "$HOME/.hgrc" 2>/dev/null; then
+    echo "  # Remove Mozilla hg config from ~/.hgrc"
+    echo "  # Edit ~/.hgrc and remove lines containing:"
+    echo "  #   %include $SCRIPT_DIR/mozilla/hg/config"
+    echo ""
+  fi
+
+  # Git config
+  if [ -f "$HOME/.gitconfig" ] && grep -q "path.*dotfiles/git/config" "$HOME/.gitconfig" 2>/dev/null; then
+    echo "  # Remove git config include from ~/.gitconfig"
+    echo "  # Edit ~/.gitconfig and remove lines under [include] section:"
+    echo "  #   path = $SCRIPT_DIR/git/config"
+    echo "  # Or run:"
+    echo "  git config --global --unset include.path"
+    echo ""
+  fi
+
+  # Bashrc loader
+  if [ -f "$BASHRC_GLOBAL" ] && grep -q "dot.bashrc" "$BASHRC_GLOBAL" 2>/dev/null; then
+    echo "  # Remove dot.bashrc loader from ~/.bashrc"
+    echo "  # Edit ~/.bashrc and remove lines containing:"
+    grep "dot.bashrc" "$BASHRC_GLOBAL" 2>/dev/null | sed 's/^/  #   /'
+    echo ""
+  fi
+else
+  echo "✓ No manual cleanup required!"
+  echo ""
+fi
+
+# Final message
+if [ "$DRY_RUN" = true ]; then
+  PrintTitle "\n[DRY-RUN COMPLETE] No changes were made\n"\
+"====================================================================\n"
+  echo "To actually uninstall, run without --dry-run flag:"
+  echo "  bash uninstall.sh"
+  echo ""
+elif [ ${#MANUAL_ITEMS[@]} -gt 0 ]; then
+  PrintWarning "Uninstall partially complete. Please complete manual cleanup steps above."
+else
+  PrintSubTitle "✓ Uninstall complete!"
+  echo ""
 fi
