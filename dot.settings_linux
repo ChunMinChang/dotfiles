@@ -2,8 +2,8 @@ alias open='xdg-open'
 
 # Git
 # ====================================================================
-if [ $(CommandExists git) -eq 1 ]; then
-  if [ -r $HOME/.gitconfig ]; then
+if CommandExists git; then
+  if [ -r "$HOME/.gitconfig" ]; then
     # Show git branch in prompt
     BranchInPrompt
   else
@@ -13,17 +13,23 @@ else
   echo Please install git before loading its settings.
 fi
 
-if [ $(CommandExists vim) -eq 1 ]; then
+if CommandExists vim; then
   export GIT_EDITOR=vim
 fi
 
 # platform-dependent paths
 # ====================================================================
-TRASH=$HOME/.local/share/Trash/files
+# Source configuration for configurable paths
+if [ -r "$DOTFILES/config.sh" ]; then
+  # shellcheck source=config.sh
+  . "$DOTFILES/config.sh"
+fi
+
+# Use configured trash directory (defaults to standard Linux location)
+TRASH="${DOTFILES_TRASH_DIR:-$HOME/.local/share/Trash/files}"
 
 function OpenWithWayland()
 {
-  local cmd=$@
-  echo $cmd
-  $cmd --enable-features=UseOzonePlatform --ozone-platform=wayland --log debug
+  echo "$@"
+  "$@" --enable-features=UseOzonePlatform --ozone-platform=wayland --log debug
 }

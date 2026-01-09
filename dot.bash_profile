@@ -4,8 +4,8 @@
 
 # Git
 # ====================================================================
-if [ $(CommandExists git) -eq 1 ]; then
-  if [ -r $HOME/.gitconfig ]; then
+if CommandExists git; then
+  if [ -r "$HOME/.gitconfig" ]; then
     # Show git branch in prompt
     BranchInPrompt
   else

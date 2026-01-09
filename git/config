@@ -19,26 +19,38 @@
   # git commit --amend --date="$(date -R)"
   updateTime = "!f() { git commit --amend --date=now; }; f"
 
-  searchlog = "!f() { git log --all --grep=\"$1\"; }; f"
-
   undochanged = !git checkout -f && git clean -df
   uncitill = "!f() { git reset HEAD~$1; }; f"
   undotill = "!f() { git uncitill $1 && git undochanged; }; f"
 
   mozpatch = "!f() { git format-patch -$1 --unified=8;  }; f"
 
-  lastChange = "!f() { git log -p $1; }; f"
-
   # Open all edited files
   edit = !$1 $(git status --short | awk '$1 ~ /^M|A|U/ {print $2}' )
   emptycommit= "!f() { git commit --allow-empty -m \"$1\"; }; f"
 
-  # Log Graph
-  hist = log --graph HEAD
-  his = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
-  glog1 = log --graph
-  glog2 = log --graph --oneline --all
-  glog3 = log --graph --abbrev-commit --decorate --date=relative --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(bold yellow)%d%C(reset)' --all
-  glog4 = log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold cyan)%aD%C(reset) %C(bold green)(%ar)%C(reset)%C(bold yellow)%d%C(reset)%n'' %C(white)%s%C(reset) %C(dim white)- %an%C(reset)' --all
-  glog5 = log --graph --all --date=short --pretty=format':%C(yellow)%h%Cblue%d%Creset %s %Cgreen %aN, %ad%Creset'
-  lg = !"git glog4"
+  # === Log Viewing ===
+  # Simple one-line log (current branch, last 10 commits)
+  l = log --oneline -10
+
+  # Simple one-line log (all branches, last 20 commits)
+  la = log --oneline --all -20
+
+  # Graph: compact one-line with all branches
+  lg = log --graph --oneline --all --decorate
+
+  # Graph: detailed with colors and relative dates
+  ll = log --graph --abbrev-commit --decorate --date=relative --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(bold yellow)%d%C(reset)' --all
+
+  # Graph: very detailed with absolute & relative dates (2-line format)
+  lll = log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold cyan)%aD%C(reset) %C(bold green)(%ar)%C(reset)%C(bold yellow)%d%C(reset)%n''          %C(white)%s%C(reset) %C(dim white)- %an%C(reset)' --all
+
+  # === Search & Filter ===
+  # Search commit messages
+  search = "!f() { git log --all --grep=\"$1\"; }; f"
+
+  # Show history with patches for a specific file
+  file-history = log -p --follow
+
+  # Show recent changes to a file (one-line)
+  file-log = log --oneline --follow

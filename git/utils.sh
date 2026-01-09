@@ -25,62 +25,162 @@ alias gut='git'
 # Run commands on all files in the last commit
 # ------------------------------------------------
 function GitLastCommit() {
-  local cmd=$1
+  if [ -z "$1" ]; then
+    PrintError "Usage: GitLastCommit <command>"
+    return 1
+  fi
+
+  local cmd="$1"
   # Load edited files into tabs if cmd is vim
   if [ "$cmd" == "vim" ]; then
     cmd="vim -p" # open files in tabs
   fi
-  git diff-tree --no-commit-id --name-only --diff-filter=d -r HEAD | xargs $cmd
+
+  # Get list of files from last commit
+  local files
+  files=$(git diff-tree --no-commit-id --name-only --diff-filter=d -r HEAD 2>&1)
+
+  if [ $? -ne 0 ]; then
+    PrintError "Failed to get files from last commit. Are you in a git repository?"
+    return 1
+  fi
+
+  if [ -z "$files" ]; then
+    PrintWarning "No files in last commit"
+    return 0
+  fi
+
+  # Pass files to command
+  echo "$files" | xargs "$cmd"
 }
 
 # Run commands on all uncommit files
 # ------------------------------------------------
 function GitUncommit() {
-  local cmd=$1
+  if [ -z "$1" ]; then
+    PrintError "Usage: GitUncommit <command>"
+    return 1
+  fi
+
+  local cmd="$1"
   # Load edited files into tabs if cmd is vim
   if [ "$cmd" == "vim" ]; then
     cmd="vim -p" # open files in tabs
   fi
-  $cmd $(git status --porcelain | awk '{print $2}')
-  # git ls-files --modified --deleted --others -z | xargs -0 $cmd
+
+  # Check if there are any uncommitted files
+  local file_count
+  file_count=$(git ls-files --modified --deleted --others | wc -l)
+
+  if [ "$file_count" -eq 0 ]; then
+    PrintWarning "No uncommitted files"
+    return 0
+  fi
+
+  # Run command on uncommitted files (using null-terminated list for safety)
+  git ls-files --modified --deleted --others -z | xargs -0 "$cmd"
 }
 
-# Add some files except some certian files
+# Add some files except some certain files
 # ------------------------------------------------
 function GitAddExcept {
+  if [ $# -eq 0 ]; then
+    PrintError "Usage: GitAddExcept [-A|-u] <file1> [file2] ..."
+    PrintError "  -A, --all     Add all files except specified ones"
+    PrintError "  -u, --update  Add updated files except specified ones"
+    return 1
+  fi
+
   local option=""
   local files=()
   while [[ $# -gt 0 ]]
   do
-  arg="$1"
+    arg="$1"
 
-  case $arg in
+    case $arg in
       -A|--all)
-      option=$arg
-      shift # past argument
-      ;;
+        option="$arg"
+        shift
+        ;;
       -u|--update)
-      option=$arg
-      shift # past argument
-      ;;
-      *)    # unknown option
-      files+=("$1") # save it in an array for later
-      shift # past argument
-      ;;
-  esac
+        option="$arg"
+        shift
+        ;;
+      *)  # Files to exclude
+        files+=("$1")
+        shift
+        ;;
+    esac
   done
-  git add $option
+
+  # Validate that we have files to exclude
+  if [ ${#files[@]} -eq 0 ]; then
+    PrintError "No files specified to exclude"
+    return 1
+  fi
+
+  # If no option provided, default to -A (add all)
+  if [ -z "$option" ]; then
+    option="-A"
+  fi
+
+  # Add files with the specified option
+  git add "$option" || return 1
+
+  # Reset (unstage) the excluded files
   git reset "${files[@]}"
 }
 
-# Create a branch for pull #
+# Create a branch for pull request
 # ------------------------------------------------
 function CreateGitBranchForPullRequest {
-  local remote=$1
-  local number=$2
-  git fetch $remote pull/$number/head:pr-$number
-  printf "\nCurrent git branches:\n"
-  git branch -v
+  if [ $# -ne 2 ]; then
+    PrintError "Usage: CreateGitBranchForPullRequest <remote> <pr-number>"
+    PrintError "Example: CreateGitBranchForPullRequest upstream 123"
+    return 1
+  fi
+
+  local remote="$1"
+  local number="$2"
+
+  # Validate that number is actually a number
+  if ! [[ "$number" =~ ^[0-9]+$ ]]; then
+    PrintError "PR number must be a positive integer: '$number'"
+    return 1
+  fi
+
+  # Validate that remote exists
+  if ! git remote | grep -q "^${remote}$"; then
+    PrintError "Remote '$remote' does not exist"
+    PrintError "Available remotes:"
+    git remote -v
+    return 1
+  fi
+
+  local branch_name="pr-$number"
+
+  # Check if branch already exists
+  if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+    PrintWarning "Branch '$branch_name' already exists"
+    read -p "Overwrite existing branch? [y/N]: " -r response
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+      echo "Cancelled"
+      return 0
+    fi
+    # Delete existing branch
+    git branch -D "$branch_name"
+  fi
+
+  # Fetch the pull request
+  echo "Fetching pull request #$number from $remote..."
+  if git fetch "$remote" "pull/$number/head:$branch_name"; then
+    echo "✓ Successfully created branch: $branch_name"
+    printf "\nCurrent git branches:\n"
+    git branch -v
+  else
+    PrintError "Failed to fetch pull request #$number from $remote"
+    return 1
+  fi
 }
 
 
@@ -91,47 +191,18 @@ function ParseGitBranch {
 }
 
 function BranchInPrompt {
-  local            BLACK="\[\033[0;30m\]"
-  local       BOLD_BLACK="\[\033[1;30m\]"
-  local       LINE_BLACK="\[\033[4;30m\]"
-  local         BG_BLACK="\[\033[40m\]"
-  local       HIGH_BLACK="\[\033[0;90m\]"
-  local  BOLD_HIGH_BLACK="\[\033[1;90m\]"
-  # OPTIONAL - if you want to use any of these other colors:
-  local              RED="\[\033[0;31m\]"
-  local         BOLD_RED="\[\033[1;31m\]"
-  local           BG_RED="\[\033[41m\]"
-
-  local            GREEN="\[\033[0;32m\]"
-  local       BOLD_GREEN="\[\033[1;32m\]"
-  local       LINE_GREEN="\[\033[4;32m\]"
-  local         BG_GREEN="\[\033[42m\]"
-  local       HIGH_GREEN="\[\033[0;92m\]"
-  local  BOLD_HIGH_GREEN="\[\033[1;92m\]"
-
-  local           YELLOW="\[\033[0;33m\]"
-  local      BOLD_YELLOW="\[\033[1;33m\]"
-  local      LINE_YELLOW="\[\033[4;33m\]"
-  local        BG_YELLOW="\[\033[43m\]"
-  local      HIGH_YELLOW="\[\033[0;93m\]"
-  local BOLD_HIGH_YELLOW="\[\033[1;93m\]"
-
-  local         BLUE="\[\033[0;34m\]"
-  local    BOLD_BLUE="\[\033[1;34m\]"
-  local      BG_BLUE="\[\033[44m\]"
-
-  local       PURPLE="\[\033[0;35m\]"
-  local  BOLD_PURPLE="\[\033[1;35m\]"
-  local    BG_PURPLE="\[\033[45m\]"
-
-  local         CYAN="\[\033[0;36m\]"
-  local    BOLD_CYAN="\[\033[1;36m\]"
-  local      BG_CYAN="\[\033[46m\]"
-
-  local         GRAY="\[\033[0;37m\]"
-  local    BOLD_GRAY="\[\033[1;37m\]"
-  local      BG_GRAY="\[\033[47m\]"
-  # END OPTIONAL
-  local     DEFAULT="\[\033[0m\]"
-  PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
+  # Detect shell and use appropriate escape sequences
+  # bash uses \[ \] for non-printing characters
+  # zsh uses %{ %} for non-printing characters
+  if [ -n "$ZSH_VERSION" ]; then
+    # zsh
+    local GREEN="%{$(tput setaf 2)%}"
+    local DEFAULT="%{$(tput sgr0)%}"
+    PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
+  elif [ -n "$BASH_VERSION" ]; then
+    # bash
+    local GREEN="\[\033[0;32m\]"
+    local DEFAULT="\[\033[0m\]"
+    PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
+  fi
 }

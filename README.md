@@ -1,125 +1,253 @@
-# dotfiles
+# Personal Dotfiles
 
-My personal environment settings.
+Cross-platform shell configuration for Linux and macOS with enhanced git workflows and Mozilla Gecko development tools.
 
-## Install
+## Quick Start
 
-Run `$ python setup.py` to set up the common environment settings. For more specific needs, see _Optional settings_ below.
+```bash
+# Install
+python setup.py                    # Basic setup
+python setup.py --dry-run          # Preview changes first
+python setup.py --mozilla          # Add Mozilla dev tools
+python setup.py --dev-tools        # Add pre-commit hooks
 
-## Uninstall
+# Uninstall
+bash uninstall.sh --dry-run        # Preview removal
+bash uninstall.sh                  # Remove dotfiles
+```
 
-Run `$ bash uninstall.sh` or `$ sh uninstall.sh`
+## What You Get
 
-## Common Settings
+### All Platforms
 
-- *setup.py*: A python program to install all my personal settings
-  - Link *~/.dotfiles* to the *path/to/repo*.
-  - Link *~/.bashrc* to *dot.bashrc* if there is no *~/.bashrc*,
-    or append a command to load *dot.bashrc* in *~/.bashrc*
-  - Link *~/.zshrc* to *dot.zshrc* on *MacOSX*
-  - Link *~/.settings_darwin* to *dot.settings_darwin*
-  - Link *~/.settings_linux* to *dot.settings_linux*
-  - Append *git/config* under `[include]` of *~/.gitconfig*
-- *dot.bashrc*: Cross-platform common settings
-  - Will be symbolically linked from $HOME/.bashrc, if users don't have $HOME/.bashrc.
-    Or be loaded from $HOME/.bashrc if users already have their own $HOME/.bashrc.
-    - $HOME/.bashrc is a shell script and the entry point to initialize the shell sessions on the Linux platforms
-  - Set *~/.dotfiles* to the *path/to/repo*.
-  - Load *utils.sh* for common commands and alias
-  - Load *git/utils.sh* for common git commands and alias
-  - Load *dot.settings_${PLATFORM}*, where *${PLATFORM}* is *darwin* or *linux*, for platform-denpendent settings
-- *utils.sh*: common cross-platform alias and utils functions
-- *git*
-  - *git/config*: Common *git* alias
-  - *git/utils.sh*: Common alias for git typo and utilility git functions
-- *OSX* files
-  - *dot.zshrc*, for mac OS >= 10.15
-    - Will be symbolically linked from *$HOME/.zshrc* on the *OSX* platforms
-      - *$HOME/.zshrc* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms for mac OS >= 10.15
-    - Load *$HOME/.bashrc*
-  - *dot.bash_profile*, for mac OS <= 10.14
-    - Will be symbolically linked from *$HOME/.bash_profile* on the *OSX* platforms
-      - *$HOME/.bash_profile* is a shell script and the entry point to initialize the shell sessions on the *OSX* platforms for mac OS <= 10.14
-    - Load *$HOME/.bashrc*
-  - *dot.settings_darwin*
-    - Will be loaded by *dot.bashrc* if the platform is *MacOSX*
-    - Custom settings on *OSX*
-- *Linux* files
-  - *dot.settings_linux*
-    - Will be loaded by *dot.bashrc* if the platform is *Linux*
-    - Custom settings on *Linux*
-- *vscode*
-  - *settings.json*: Custom *vscode* settings
+**Symlinks created:**
+- `~/.dotfiles` → this repository
+- `~/.bashrc` → `dot.bashrc` (or loader appended if exists)
+- `~/.settings_{linux|darwin}` → platform-specific settings
 
-## Optional settings
+**Git configuration:**
+- `git/config` included in `~/.gitconfig`
 
-- mozilla
-  - All toolkit: `$ python setup.py --mozilla`
-  - hg: `$ python setup.py --mozilla hg`
-    - add `%include mozilla/hg/config` into *~/.hgrc*
-  - mach alias and machrc: ```$ python setup.py --mozilla gecko```
-    - Link *~/.mozbuild/machrc* to the *mozilla/gecko/machrc*.
-    - Load *mozilla/gecko/alias.sh* into *~/.bashrc*
-  - tools: `$ python setup.py --mozilla tools`
-    - Load *mozilla/gecko/tools.sh* into *~/.bashrc*
-      - *mozilla/gecko/tools.sh* will check if *git-cinnabar* is downloaded
-  - *Rust*: `$ python setup.py --mozilla rust`
-    - Load *~/.cargo/env* in *~/.bashrc*
-  - Pernosco: It requires to put an executable `pernosco-submit` script under *$HOME/Work/bin*
-    - The script template is *pernosco-submit_template* file
-    - AMD Zen-based CPUs require extra settings: https://github.com/rr-debugger/rr/wiki/Zen
-    - The *pernosco-submit* requires `aws-cli` installed (`sudo apt install awscli` should work)
+### Linux Specific
 
-Run `$ python setup.py -h` to get the messages for optional settings.
+**Symlinks:**
+- `~/.settings_linux` → `dot.settings_linux`
 
-## Utils Usage
+**Features:**
+- Git branch in shell prompt
+- Trash directory: `~/.local/share/Trash/files`
+- `OpenWithWayland` command for running GUI apps
 
-### Git
+### macOS Specific
 
--  Run commands on all the files in the last commit
-  - ex: `$ GitLastCommit vim` or `$ GitLastCommit code`
--  Run commands on all the added/changed/modified files in the code editor
-  - ex: `$ GitUncommit vim` or `$ GitUncommit code`
-- Add all/updated files except _f1, f2, f3, ..._
-  - ex: Add all updated files, except _A_ and _B_
-    - `$ GitAddExcept -u A B`
-  - ex: Add all files, except _P_, _Q_ and _R_
-    - `$ GitAddExcept -A P Q R`
-- Create a branch for a pull request on a remote tracked repositories
-  - ex: Create a branch for pull request _123_ on upstream repo
-    - `$ CreateGitBranchForPullRequest upstream 123`
+**Symlinks:**
+- `~/.zshrc` → `dot.zshrc` (macOS ≥10.15)
+- `~/.bash_profile` → `dot.bash_profile` (macOS ≤10.14)
+- `~/.settings_darwin` → `dot.settings_darwin`
 
-### Gecko
+**Features:**
+- Trash directory: `~/.Trash`
+- zsh entry point that loads bash configuration
 
-- Generate a W3C Spec page from a _bs_ file
-  - ex: Generate a w3c spec page called _test.html_ from _index.bs_
-    - `$ W3CSpec index.bs test.html`
-- Check diff/patch before submitting review
-  - ex: Check the uncommited/changed files
-    - `$ MozCheckDiff`
-  - ex: Check the uncommited/changed files between commit-A and commit-B
-    - `$ MozCheckDiff <commit-A>..<commit-B>`
+### Mozilla Development (Optional)
 
-### Common
+Run `python setup.py --mozilla` to add:
+- Mach aliases and machrc
+- Mercurial configuration
+- pernosco-submit setup
+- Rust/Cargo environment
 
-- Recursively find files under the current folder
-  - ex: Recursively list all the _.sh_ files
-    - `$ RecursivelyFind "*.sh"`
-- Recursively remove files under the current folder
-  - ex: Recursively delete all the *.DS_Store* files
-    - `$ RecursivelyFind "*.DS_Store"`
-- Throw files to trash can
-  - ex: Throw _hello.txt_ and _world.log_ to Trash
-    - `$ Trash hello.txt world.log`
+## Available Commands
 
-## TODO
+### Git Aliases (Short)
 
-- Use *zsh* configuration tool (e.g. *ohmyzsh*) on zsh
-- Make it work on Windows!
-- vim
-  - add some basic environment settings for vim
-- vscode
-  - Link `setting.json` to the *vscode* application from `~/dotfiles/vscode/settings.json`
-  - Sync the extensions
-- mozilla stuff
-  - Append `~/dotfiles/mozilla/machrc` into `~/.mozbuild/machrc`
+```bash
+git st          # status
+git br          # branch -v
+git co          # checkout
+git ci          # commit
+git df          # diff --patience
+git pl          # pull
+git ps          # push
+git rb          # rebase
+git cp          # cherry-pick
+```
+
+### Git Aliases (Log)
+
+```bash
+git l           # Last 10 commits (one-line)
+git la          # Last 20 commits, all branches
+git lg          # Graph view (compact)
+git ll          # Graph view (detailed with dates)
+git lll         # Graph view (very detailed, 2-line)
+git search "text"    # Search commit messages
+git file-log <file>  # File history (one-line)
+git file-history <file>  # File history with patches
+```
+
+### Git Workflow Functions
+
+```bash
+GitLastCommit vim              # Open last commit files in vim
+GitUncommit code               # Open modified files in VS Code
+GitAddExcept -u file1 file2    # Add all updated except file1, file2
+CreateGitBranchForPullRequest upstream 123  # Create PR branch
+```
+
+### Shell Utilities
+
+```bash
+RecursivelyFind "*.sh"         # Find files recursively
+RecursivelyRemove "*.DS_Store" # Delete files recursively (with confirmation)
+Trash file1 file2              # Move files to trash
+HostHTTP                       # Start local HTTP server
+```
+
+### Mozilla Gecko Development
+
+**Build & Run:**
+```bash
+mb              # ./mach build
+mr              # ./mach run
+mc              # ./mach clobber
+mfb             # Format then build
+```
+
+**Code Quality:**
+```bash
+mfmt            # Format all files
+mfmtfor <path>  # Format specific path
+mfmtuc          # Format uncommitted files
+manal <file>    # Static analysis check
+MozCheckDiff    # Check diff formatting
+```
+
+**Testing:**
+```bash
+mm              # mochitest
+mg              # gtest
+mw              # wpt
+mt              # try server
+vf1-vf11        # WebCodecs VideoFrame tests
+vd1-vd7         # WebCodecs VideoDecoder tests
+ve1-ve10        # WebCodecs VideoEncoder tests
+wcf             # Full-cycle WebCodecs test
+```
+
+**Utilities:**
+```bash
+UpdateCrate <crate>      # Update Rust crate
+W3CSpec input.bs out.html  # Generate W3C spec
+```
+
+## Testing
+
+Run tests to verify the installation works correctly:
+
+```bash
+# Test Python setup script (22 tests)
+python3 test_setup.py
+
+# Test shell utilities (19 tests)
+bash test_shell_utils.sh
+```
+
+**When to run:**
+- After installation to verify everything works
+- After modifying setup.py or shell scripts
+- Before committing changes
+
+**What they test:**
+- `test_setup.py`: Symlink creation, file operations, configuration loading, setup flow
+- `test_shell_utils.sh`: All shell functions (CommandExists, Print functions, Git utils, RecursivelyFind, etc.)
+
+## Configuration
+
+Customize paths without modifying code. Create `~/.dotfiles_config`:
+
+```bash
+# Example ~/.dotfiles_config
+DOTFILES_MOZBUILD_DIR="$HOME/my-mozbuild"
+DOTFILES_LOCAL_BIN_DIR="$HOME/bin"
+DOTFILES_TRASH_DIR_LINUX="$HOME/.trash"
+```
+
+**Available variables:**
+- `DOTFILES_MOZBUILD_DIR` - Mozilla build directory (default: `~/.mozbuild`)
+- `DOTFILES_LOCAL_BIN_DIR` - Local binaries (default: `~/.local/bin`)
+- `DOTFILES_WORK_BIN_DIR` - Work binaries (default: `~/Work/bin`)
+- `DOTFILES_CARGO_DIR` - Rust cargo (default: `~/.cargo`)
+- `DOTFILES_TRASH_DIR_LINUX` - Linux trash (default: `~/.local/share/Trash/files`)
+- `DOTFILES_TRASH_DIR_DARWIN` - macOS trash (default: `~/.Trash`)
+
+---
+
+## For Claude Code
+
+### Architecture
+
+**Shell initialization flow:**
+1. Platform entry: `~/.bashrc` (Linux) or `~/.zshrc`/`~/.bash_profile` (macOS)
+2. Common init: `dot.bashrc` sets `DOTFILES`, loads `utils.sh`, `git/utils.sh`, platform settings
+3. Optional: Mozilla tools (`mozilla/gecko/alias.sh`, `mozilla/gecko/tools.sh`)
+
+**Module organization:**
+- `setup.py` - Installation orchestrator (symlinks, loaders, git/hg config)
+- `config.sh` - Centralized configuration (sourced by both Python and shell)
+- `utils.sh` - Cross-platform utilities (RecursivelyFind, Trash, HostHTTP, Print functions)
+- `git/config` - Git aliases (included in ~/.gitconfig)
+- `git/utils.sh` - Git workflow functions (GitLastCommit, GitUncommit, GitAddExcept, etc.)
+- `mozilla/gecko/alias.sh` - Mach shortcuts and WebCodecs test aliases
+- `mozilla/gecko/tools.sh` - pernosco-submit setup
+- `mozilla/gecko/machrc` - Custom mach config (symlinked to ~/.mozbuild/machrc)
+- `mozilla/hg/config` - Mercurial config (included in ~/.hgrc)
+
+### Key Implementation Details
+
+**Non-destructive setup:**
+- Existing files preserved: appends loader commands instead of overwriting
+- Uses `os.path.samefile()` to detect existing symlinks
+- Git config uses `include.path` mechanism
+
+**Platform detection:**
+- Uses `uname -s | tr '[:upper:]' '[:lower:]'`
+- Loads appropriate `~/.settings_{platform}` file
+
+**Naming conventions:**
+- Python (setup.py): `snake_case` for functions/variables (PEP 8)
+- Shell scripts: `PascalCase` for functions (distinguishes from Unix commands)
+- Variables: `snake_case`
+- Constants/env vars: `UPPER_CASE`
+
+**Rollback mechanism:**
+- `ChangeTracker` class records all changes during setup
+- On failure: offers to rollback changes in reverse order (LIFO)
+- Restores previous symlinks, removes appended lines, unsets git config
+
+**Verification:**
+- After setup: validates symlinks, file readability, bash syntax, git config
+- Exit code 0 only if all verifications pass
+- ~300ms overhead
+
+**Error handling:**
+- All functions return True/False/None (success/failure/skipped)
+- `show_setup_summary()` displays clear results with ✓/✗/⊘ symbols
+- Proper exit codes: 0=success, 1=failure, 130=Ctrl+C
+
+### Testing
+
+**Test suites:**
+- `test_setup.py` - 22 tests covering setup.py (symlinks, file ops, verification, main flow)
+- `test_shell_utils.sh` - 19 tests covering shell utilities (functions, syntax, git utils)
+
+**Run before:**
+- Committing changes to setup.py or shell scripts
+- Refactoring core functionality
+- Adding new features
+
+**Coverage:**
+- Path handling, file operations, symlink creation/validation
+- Append operations with deduplication and substring handling
+- Git workflow functions, verification functions
+- Integration tests with various flags (--mozilla, --dev-tools, -v, --dry-run)

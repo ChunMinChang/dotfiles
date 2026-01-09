@@ -40,8 +40,13 @@ alias wcf='./mach wpt testing/web-platform/tests/webcodecs/full-cycle-test.https
 # Format check
 alias mfmt='./mach clang-format'
 alias mfmtfor='./mach clang-format --path'
-alias mfmtuc='GitUncommit "./mach clang-format --path"' # Format all uncommit files
 alias manal='./mach static-analysis check' # usage: `manal <FILE_PATH>`
+
+# Format all uncommit files
+function MozFormatUncommit() {
+  GitUncommit './mach clang-format --path'
+}
+alias mfmtuc='MozFormatUncommit'
 
 # Debug
 alias mmd10='./mach mochitest --disable-e10s'
@@ -68,24 +73,23 @@ alias mw='./mach wpt'
 
 # Check if the diff meets lints
 function MozCheckDiff() {
-  local files=`git diff --name-only $1`
-  for file in $files; do
-    printf "Check $file\n"
-    ./mach clang-format --path $file
-    ./mach static-analysis check $file
+  git diff --name-only "$1" | while IFS= read -r file; do
+    printf "Check %s\n" "$file"
+    ./mach clang-format --path "$file"
+    ./mach static-analysis check "$file"
     printf "\n"
   done
 }
 
 # Update a crate under <path-to>/<gecko>/toolkit/library/rust/shared/Cargo.toml
 function UpdateCrate() {
-  local crate=$1
-  cargo update -p $crate && ./mach vendor rust --ignore-modified
+  local crate="$1"
+  cargo update -p "$crate" && ./mach vendor rust --ignore-modified
 }
 
 # Generate a w3c spec page from a .bs file
 function W3CSpec() {
-  local file=$1
-  local page=$2
-  curl https://api.csswg.org/bikeshed/ -F file=@$file -F force=1 > $page
+  local file="$1"
+  local page="$2"
+  curl https://api.csswg.org/bikeshed/ -F "file=@$file" -F force=1 > "$page"
 }
