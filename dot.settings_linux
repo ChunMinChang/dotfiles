@@ -19,7 +19,14 @@ fi
 
 # platform-dependent paths
 # ====================================================================
-TRASH=$HOME/.local/share/Trash/files
+# Source configuration for configurable paths
+if [ -r "$DOTFILES/config.sh" ]; then
+  # shellcheck source=config.sh
+  . "$DOTFILES/config.sh"
+fi
+
+# Use configured trash directory (defaults to standard Linux location)
+TRASH="${DOTFILES_TRASH_DIR:-$HOME/.local/share/Trash/files}"
 
 function OpenWithWayland()
 {

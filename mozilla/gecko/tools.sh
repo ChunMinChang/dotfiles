@@ -1,32 +1,36 @@
-DEFAULT_GIT_CINNABAR="$HOME/.mozbuild/git-cinnabar"
-if [ -d "$DEFAULT_GIT_CINNABAR" ]; then
-  GIT_CINNABAR="$DEFAULT_GIT_CINNABAR"
-else # fallback
-  GIT_CINNABAR="$HOME/Work/git-cinnabar"
+# Source configuration
+if [ -r "$DOTFILES/config.sh" ]; then
+  # shellcheck source=../../config.sh
+  . "$DOTFILES/config.sh"
 fi
 
-if [ -d "$GIT_CINNABAR" ]; then
-  export PATH="$GIT_CINNABAR:$PATH"
+# Git-cinnabar setup
+if [ -d "$DOTFILES_GIT_CINNABAR_DIR" ]; then
+  export PATH="$DOTFILES_GIT_CINNABAR_DIR:$PATH"
   if ! CommandExists git-cinnabar; then
     git cinnabar download
   fi
 else
-  PrintError "No git-cinnabar in $GIT_CINNABAR!"
+  PrintError "No git-cinnabar in $DOTFILES_GIT_CINNABAR_DIR!"
+  PrintError "Tried: $DOTFILES_GIT_CINNABAR_PRIMARY (primary) and $DOTFILES_GIT_CINNABAR_FALLBACK (fallback)"
 fi
 
+# Moz-phab setup
 if ! command -v moz-phab &> /dev/null; then
-  export PATH="$HOME/.local/bin:$PATH"
+  export PATH="$DOTFILES_LOCAL_BIN_DIR:$PATH"
   if ! CommandExists moz-phab; then
     PrintError 'No moz-phab command!\nInstall moz-phab: https://moz-conduit.readthedocs.io/en/latest/phabricator-user.html!'
   fi
 fi
 
+# Pernosco-submit setup (Linux only)
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   if ! command -v pernosco-submit &> /dev/null; then
-    if [ -r "$HOME/Work/bin/pernosco-submit" ]; then
-      export PATH="$HOME/Work/bin:$PATH"
+    if [ -r "$DOTFILES_PERNOSCO_SUBMIT_PATH" ]; then
+      export PATH="$DOTFILES_WORK_BIN_DIR:$PATH"
     else
-      PrintError "Please put a pernosco-submit script under $HOME/Work/bin. See Mozilla Pernosco Info Page, Docs and pernosco-submit_template"
+      PrintError "Please put a pernosco-submit script at: $DOTFILES_PERNOSCO_SUBMIT_PATH"
+      PrintError "See Mozilla Pernosco Info Page, Docs and pernosco-submit_template"
     fi
   fi
 fi

@@ -13,6 +13,9 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 HOME_DIR = os.environ['HOME']
 VERBOSE = False  # Set to True with -v/--verbose flag
 
+# Configuration paths loaded from config.sh
+CONFIG = None  # Lazy-loaded config dictionary
+
 # Note: Python print functions kept separate from shell utils.sh
 # (Python can't source bash scripts - different language ecosystems)
 # Shell scripts use Print* functions from utils.sh
@@ -28,6 +31,70 @@ class colors:
 
 # Utils
 # ------------------------------------------------------------------------------
+
+def load_config():
+    """Load configuration from config.sh.
+
+    Returns a dictionary with all DOTFILES_* configuration variables.
+    Falls back to default hardcoded values if config.sh cannot be loaded.
+    """
+    config_path = os.path.join(BASE_DIR, 'config.sh')
+
+    # Default fallback values (same as previous hardcoded values)
+    defaults = {
+        'DOTFILES_MOZBUILD_DIR': os.path.join(HOME_DIR, '.mozbuild'),
+        'DOTFILES_GIT_CINNABAR_PRIMARY': os.path.join(HOME_DIR, '.mozbuild', 'git-cinnabar'),
+        'DOTFILES_GIT_CINNABAR_FALLBACK': os.path.join(HOME_DIR, 'Work', 'git-cinnabar'),
+        'DOTFILES_LOCAL_BIN_DIR': os.path.join(HOME_DIR, '.local', 'bin'),
+        'DOTFILES_WORK_BIN_DIR': os.path.join(HOME_DIR, 'Work', 'bin'),
+        'DOTFILES_CARGO_DIR': os.path.join(HOME_DIR, '.cargo'),
+        'DOTFILES_TRASH_DIR_LINUX': os.path.join(HOME_DIR, '.local', 'share', 'Trash', 'files'),
+        'DOTFILES_TRASH_DIR_DARWIN': os.path.join(HOME_DIR, '.Trash'),
+        'DOTFILES_MACHRC_PATH': os.path.join(HOME_DIR, '.mozbuild', 'machrc'),
+        'DOTFILES_CARGO_ENV_PATH': os.path.join(HOME_DIR, '.cargo', 'env'),
+    }
+
+    # Try to load from config.sh
+    if not os.path.exists(config_path):
+        print_verbose('config.sh not found, using default values')
+        return defaults
+
+    try:
+        # Source config.sh and export all DOTFILES_* variables
+        cmd = f'source "{config_path}" && env | grep "^DOTFILES_"'
+        result = subprocess.run(
+            ['bash', '-c', cmd],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        if result.returncode != 0:
+            print_verbose('Failed to source config.sh, using defaults')
+            return defaults
+
+        # Parse the output to extract config values
+        config = defaults.copy()
+        for line in result.stdout.strip().split('\n'):
+            if '=' in line:
+                key, value = line.split('=', 1)
+                config[key] = value
+
+        print_verbose('Config loaded from config.sh')
+        return config
+
+    except (subprocess.TimeoutExpired, Exception) as e:
+        print_verbose('Error loading config.sh: {}'.format(e))
+        return defaults
+
+
+def get_config():
+    """Get the configuration dictionary (lazy load)."""
+    global CONFIG
+    if CONFIG is None:
+        CONFIG = load_config()
+    return CONFIG
+
 
 # Symbolically link source to target
 def link(source, target):
@@ -368,7 +435,8 @@ def mozilla_init(mozilla_arg):
 
 def gecko_init():
     print_installing_title('gecko alias and machrc')
-    machrc = os.path.join(HOME_DIR, '.mozbuild', 'machrc')
+    config = get_config()
+    machrc = config['DOTFILES_MACHRC_PATH']
     if os.path.isfile(machrc):
         print_fail(''.join(['{} exists! Abort!\n'.format(machrc),
                             'Apply default settings for now.']))
@@ -429,7 +497,8 @@ def rust_init():
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return False
 
-    cargo_env = os.path.join(HOME_DIR, '.cargo', 'env')
+    config = get_config()
+    cargo_env = config['DOTFILES_CARGO_ENV_PATH']
     if not os.path.isfile(cargo_env):
         error_messages.insert(0, '{} does not exist! Abort!'.format(cargo_env))
         print_fail(''.join(error_messages))

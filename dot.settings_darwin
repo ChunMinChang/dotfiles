@@ -17,4 +17,11 @@ alias vim='mvim -v'
 
 # platform-dependent paths
 # ====================================================================
-TRASH=$HOME/.Trash
+# Source configuration for configurable paths
+if [ -r "$DOTFILES/config.sh" ]; then
+  # shellcheck source=config.sh
+  . "$DOTFILES/config.sh"
+fi
+
+# Use configured trash directory (defaults to standard macOS location)
+TRASH="${DOTFILES_TRASH_DIR:-$HOME/.Trash}"

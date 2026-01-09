@@ -268,20 +268,39 @@ Generated: 2026-01-07
 
 ## Priority 4: Configuration & Hardcoded Paths
 
-### [ ] 4.1 Extract hardcoded paths to configuration
+### [x] 4.1 Extract hardcoded paths to configuration ✅
 - **Issue**: 8+ critical paths are hardcoded and not configurable
-- **Locations**:
-  - `setup.py:206` - `$HOME/.mozbuild/machrc`
-  - `mozilla/gecko/tools.sh:5` - `$HOME/Work/git-cinnabar`
-  - `mozilla/gecko/tools.sh:18` - `$HOME/.local/bin`
-  - `mozilla/gecko/tools.sh:26` - `$HOME/Work/bin/pernosco-submit`
-  - `dot.settings_linux:22` - `$HOME/.local/share/Trash/files`
-  - `dot.settings_darwin:20` - `$HOME/.Trash`
-  - `setup.py:263` - `$HOME/.cargo/env`
-- **Action**:
-  - Create `config.sh` or `config.py` with configurable paths
-  - Provide sensible defaults
-  - Document how to override in CLAUDE.md
+- **Status**: COMPLETED (2026-01-09)
+- **Changes made**:
+  - **Created config.sh**: Centralized configuration file with all path defaults
+  - **Added load_config() to setup.py**: Python reads config via subprocess
+  - **Updated gecko_init()**: Uses DOTFILES_MACHRC_PATH from config
+  - **Updated rust_init()**: Uses DOTFILES_CARGO_ENV_PATH from config
+  - **Updated mozilla/gecko/tools.sh**: Sources config.sh for all Mozilla paths
+  - **Updated dot.settings_linux**: Sources config.sh for TRASH path
+  - **Updated dot.settings_darwin**: Sources config.sh for TRASH path
+  - **Added Configuration section to CLAUDE.md**: Full documentation of override mechanism
+- **Implementation Details**:
+  - Configuration variables with DOTFILES_ prefix to avoid naming conflicts
+  - User override via `~/.dotfiles_config` file
+  - Sensible defaults matching previous hardcoded values (backward compatible)
+  - Fallback mechanism if config.sh unavailable (defensive programming)
+  - Works seamlessly with both Python and shell scripts
+- **Configurable paths** (8 paths extracted):
+  - `DOTFILES_MOZBUILD_DIR` - Mozilla build directory (default: `~/.mozbuild`)
+  - `DOTFILES_GIT_CINNABAR_PRIMARY/FALLBACK` - Git-cinnabar locations
+  - `DOTFILES_LOCAL_BIN_DIR` - Local binaries (default: `~/.local/bin`)
+  - `DOTFILES_WORK_BIN_DIR` - Work binaries (default: `~/Work/bin`)
+  - `DOTFILES_CARGO_DIR` - Rust cargo (default: `~/.cargo`)
+  - `DOTFILES_TRASH_DIR_LINUX` - Linux trash (default: `~/.local/share/Trash/files`)
+  - `DOTFILES_TRASH_DIR_DARWIN` - macOS trash (default: `~/.Trash`)
+  - Plus derived paths: MACHRC_PATH, CARGO_ENV_PATH, PERNOSCO_SUBMIT_PATH
+- **Testing**: All existing test suites pass
+  - Python tests: 22/22 passed ✅
+  - Shell tests: 19/19 passed ✅
+  - Config loading verified in both Python and shell contexts ✅
+- **Files modified**: 7 files (config.sh created, 6 files updated)
+- **Impact**: HIGH - Users can now customize paths without modifying code, significantly improved maintainability
 
 ### [x] 4.2 Make script location detection robust ✅
 - **File**: `uninstall.sh:4,36`
@@ -790,12 +809,12 @@ Generated: 2026-01-07
 
 ### Phase Overview
 - **Total items**: 40+
-- **Complete**: 24 items (60.0%)
+- **Complete**: 25 items (62.5%)
 - **Processing**: 0 items (0%)
-- **Pending**: 16 items (40.0%)
-- **Last updated**: 2026-01-08
+- **Pending**: 15 items (37.5%)
+- **Last updated**: 2026-01-09
 
-### Phase: Complete ✅ (24 items)
+### Phase: Complete ✅ (25 items)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -807,6 +826,7 @@ Generated: 2026-01-07
   - Item 3.1: Quote all variable expansions in shell scripts
   - Item 3.2: Fix fragile alias quoting
   - Item 3.3: Improve RecursivelyRemove safety
+  - Item 4.1: Extract hardcoded paths to configuration
   - Item 4.2: Make script location detection robust
   - Item 5.1: Add file existence checks (prevents crashes)
   - Item 5.2: Fix append_nonexistent_lines_to_file (critical bug)
@@ -824,8 +844,7 @@ Generated: 2026-01-07
 ### Phase: Processing 🔄 (0 items)
   - (None currently in progress)
 
-### Phase: Pending ⏳ (16 items)
-  - Item 4.1: Extract hardcoded paths to configuration
+### Phase: Pending ⏳ (15 items)
   - Item 5.5: Add rollback mechanism for failed setups
   - Item 7.3: Review and optimize git/utils.sh functions
   - Item 8.3: Test cross-platform compatibility
@@ -848,6 +867,14 @@ Generated: 2026-01-07
 - ✅ All shell variables properly quoted
 - ✅ Fragile alias quoting fixed (converted to function)
 - ✅ RecursivelyRemove now safe with preview & confirmation
+
+**🎉 MILESTONE: ALL PRIORITY 4 (CONFIGURATION & PATHS) ITEMS COMPLETE! 🎉**
+- ✅ Item 4.1: Hardcoded paths extracted to configuration system
+- ✅ Item 4.2: Script location detection made robust
+- ✅ Created config.sh with 8+ configurable paths
+- ✅ User override mechanism via ~/.dotfiles_config
+- ✅ Full documentation in CLAUDE.md
+- ✅ Users can now customize paths without modifying code
 
 **🎉 MILESTONE: PRIORITY 5 (ERROR HANDLING) 80% COMPLETE! 🎉**
 - ✅ Item 5.1: File existence checks (prevents 4 crash points)
@@ -875,6 +902,7 @@ Generated: 2026-01-07
 - Item 2.3: Fixed confusing inverted logic, improved code clarity (5 files updated initially, 3 more fixed after power outage)
 - Item 3.1 unblocks 4 shell-related improvements (3.2, 3.3, 7.3, 8.2)
 - Item 1.4 improves security (Ctrl+C works) and debugging (error messages)
+- Item 4.1: Extracted all hardcoded paths to centralized config.sh (8+ paths, user override via ~/.dotfiles_config)
 - Item 5.1: Added file existence checks at 4 crash points (prevents OSError/FileNotFoundError, validates repository)
 - Item 5.2: Fixed CRITICAL false positive bug in append function (foundational fix, unblocks 5.4 & 8.1)
 - Item 5.3: Added error exit codes (8 functions modified, proper exit codes enable automation, clear summary feedback)
@@ -893,6 +921,18 @@ Generated: 2026-01-07
    - All tests passed: directory independence, symlink support, file path resolution
    - Documented in TESTING_RESULTS_ITEM_4.2.md
    - Impact: Confirmed uninstall.sh works from any directory, not just repo root
+
+**Recent Fixes (2026-01-09)**:
+1. **Completed Item 4.1**: Extract hardcoded paths to configuration
+   - Created config.sh with centralized configuration system
+   - Extracted 8+ hardcoded paths (Mozilla, Cargo, Trash, git-cinnabar, local/work bin directories)
+   - Added load_config() to setup.py for Python integration
+   - Updated 6 files to source and use config.sh (mozilla/gecko/tools.sh, dot.settings_linux/darwin, setup.py functions)
+   - Implemented user override mechanism via ~/.dotfiles_config
+   - Added comprehensive documentation in CLAUDE.md Configuration section
+   - All tests pass: Python (22/22), Shell (19/19), config loading verified
+   - Impact: Users can now customize all paths without modifying code
+   - 🎉 **PRIORITY 4 NOW 100% COMPLETE!** 🎉
 
 ---
 

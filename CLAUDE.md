@@ -27,6 +27,45 @@ python setup.py --mozilla rust     # Just Rust/Cargo environment
 bash uninstall.sh
 ```
 
+## Configuration
+
+### Customizing Paths
+
+The repository uses a centralized configuration system (`config.sh`) that allows you to customize installation paths without modifying the code. All paths have sensible defaults that match standard conventions.
+
+**Default paths:**
+- Mozilla build directory: `~/.mozbuild`
+- Git-cinnabar: `~/.mozbuild/git-cinnabar` (fallback: `~/Work/git-cinnabar`)
+- Local bin directory: `~/.local/bin`
+- Work bin directory: `~/Work/bin`
+- Cargo directory: `~/.cargo`
+- Trash directory (Linux): `~/.local/share/Trash/files`
+- Trash directory (macOS): `~/.Trash`
+
+**To customize paths:**
+
+Create `~/.dotfiles_config` and override any variables:
+
+```bash
+# Example ~/.dotfiles_config
+DOTFILES_MOZBUILD_DIR="$HOME/my-custom-mozbuild"
+DOTFILES_LOCAL_BIN_DIR="$HOME/bin"
+DOTFILES_WORK_BIN_DIR="$HOME/custom-work/bin"
+DOTFILES_GIT_CINNABAR_PRIMARY="$HOME/tools/git-cinnabar"
+```
+
+**Available configuration variables:**
+- `DOTFILES_MOZBUILD_DIR` - Mozilla build directory
+- `DOTFILES_GIT_CINNABAR_PRIMARY` - Primary git-cinnabar location
+- `DOTFILES_GIT_CINNABAR_FALLBACK` - Fallback git-cinnabar location
+- `DOTFILES_LOCAL_BIN_DIR` - Local binaries directory
+- `DOTFILES_WORK_BIN_DIR` - Work-related binaries
+- `DOTFILES_CARGO_DIR` - Rust cargo directory
+- `DOTFILES_TRASH_DIR_LINUX` - Linux trash directory
+- `DOTFILES_TRASH_DIR_DARWIN` - macOS trash directory
+
+The configuration is loaded by both Python scripts and shell scripts, ensuring consistent paths throughout the system.
+
 ## Architecture
 
 ### Entry Point Flow
