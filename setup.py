@@ -12,6 +12,7 @@ import sys
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 HOME_DIR = os.environ['HOME']
 VERBOSE = False  # Set to True with -v/--verbose flag
+DRY_RUN = False  # Set to True with --dry-run flag
 
 # Configuration paths loaded from config.sh
 CONFIG = None  # Lazy-loaded config dictionary
@@ -272,17 +273,24 @@ def link(source, target, tracker=None):
         print_verbose('Target is a symlink, unlinking')
         # Record what the old symlink pointed to
         old_target = os.readlink(target)
-        print('unlink {}'.format(target))
-        os.unlink(target)
+
+        if DRY_RUN:
+            print_dry_run('Would unlink {}'.format(target))
+        else:
+            print('unlink {}'.format(target))
+            os.unlink(target)
     else:
         print_verbose('Target is not a symlink or does not exist')
 
-    print('link {} to {}'.format(source, target))
-    os.symlink(source, target)
-    print_verbose('Symlink created successfully')
+    if DRY_RUN:
+        print_dry_run('Would link {} to {}'.format(source, target))
+    else:
+        print('link {} to {}'.format(source, target))
+        os.symlink(source, target)
+        print_verbose('Symlink created successfully')
 
-    # Record the change if tracker provided
-    if tracker:
+    # Record the change if tracker provided (even in dry-run for preview)
+    if tracker and not DRY_RUN:
         tracker.record_symlink_created(target, source, old_target)
 
     print_verbose('link() returning: True')
@@ -374,18 +382,24 @@ def append_nonexistent_lines_to_file(file, lines, tracker=None):
 
         # Append new lines
         if lines_to_append:
-            with open(file, 'a') as f:
-                # Add newline to last line if needed
+            if DRY_RUN:
                 if needs_newline:
-                    f.write('\n')
-
+                    print_dry_run('Would add newline at end of {}'.format(file))
                 for line in lines_to_append:
-                    f.write(line + '\n')
-                    print('{} is appended into {}'.format(line, file))
+                    print_dry_run('Would append into {}: {}'.format(file, line))
+            else:
+                with open(file, 'a') as f:
+                    # Add newline to last line if needed
+                    if needs_newline:
+                        f.write('\n')
 
-            # Record the change if tracker provided
-            if tracker:
-                tracker.record_lines_appended(file, lines_to_append)
+                    for line in lines_to_append:
+                        f.write(line + '\n')
+                        print('{} is appended into {}'.format(line, file))
+
+                # Record the change if tracker provided
+                if tracker:
+                    tracker.record_lines_appended(file, lines_to_append)
 
         return True
 
@@ -425,6 +439,19 @@ def print_verbose(message):
     """Print verbose debugging information (only when VERBOSE=True)"""
     if VERBOSE:
         print(colors.HEADER + '[VERBOSE] ' + colors.END + message)
+
+
+def print_dry_run(message):
+    """Print dry-run action (only when DRY_RUN=True)"""
+    if DRY_RUN:
+        print(colors.HINT + '[DRY-RUN] ' + colors.END + message)
+
+
+def print_title(message):
+    """Print a section title"""
+    print('\n' + colors.HEADER + '=' * 50 + colors.END)
+    print(colors.HEADER + message + colors.END)
+    print(colors.HEADER + '=' * 50 + colors.END)
 
 
 # Setup functions
@@ -539,11 +566,14 @@ def git_init(tracker=None):
         print_error('Cannot configure git include.path')
         return False
 
-    subprocess.call(['git', 'config', '--global', 'include.path', path])
+    if DRY_RUN:
+        print_dry_run('Would run: git config --global include.path {}'.format(path))
+    else:
+        subprocess.call(['git', 'config', '--global', 'include.path', path])
 
-    # Record the git config change
-    if tracker:
-        tracker.record_git_config('include.path', path)
+        # Record the git config change
+        if tracker:
+            tracker.record_git_config('include.path', path)
 
     # Show the current file if it exists:
     if os.path.exists(git_config):
@@ -1075,23 +1105,34 @@ exit 0
     try:
         # Check if hook already exists
         if os.path.exists(precommit_hook):
-            print_warning('Pre-commit hook already exists: {}'.format(precommit_hook))
-            response = input('Replace existing hook? [y/N]: ').strip().lower()
-            if response not in ['y', 'yes']:
-                print('Keeping existing hook')
-                return True  # Not an error
+            if DRY_RUN:
+                print_dry_run('Pre-commit hook already exists: {}'.format(precommit_hook))
+                print_dry_run('Would prompt to replace existing hook')
+                return True
+            else:
+                print_warning('Pre-commit hook already exists: {}'.format(precommit_hook))
+                response = input('Replace existing hook? [y/N]: ').strip().lower()
+                if response not in ['y', 'yes']:
+                    print('Keeping existing hook')
+                    return True  # Not an error
 
         # Write hook script
-        print('Creating pre-commit hook: {}'.format(precommit_hook))
-        with open(precommit_hook, 'w') as f:
-            f.write(hook_content)
+        if DRY_RUN:
+            print_dry_run('Would create pre-commit hook: {}'.format(precommit_hook))
+            print_dry_run('Would make hook executable (chmod 755)')
+            print_hint('Hook would be project-local (only for this dotfiles repo)')
+            print_hint('Hook would warn about issues but allow commits to proceed')
+        else:
+            print('Creating pre-commit hook: {}'.format(precommit_hook))
+            with open(precommit_hook, 'w') as f:
+                f.write(hook_content)
 
-        # Make executable
-        os.chmod(precommit_hook, 0o755)
+            # Make executable
+            os.chmod(precommit_hook, 0o755)
 
-        print(colors.OK + '✓ Pre-commit hook installed successfully' + colors.END)
-        print_hint('Hook is project-local (only for this dotfiles repo)')
-        print_hint('It will warn about issues but allow commits to proceed')
+            print(colors.OK + '✓ Pre-commit hook installed successfully' + colors.END)
+            print_hint('Hook is project-local (only for this dotfiles repo)')
+            print_hint('It will warn about issues but allow commits to proceed')
 
         return True
 
@@ -1116,8 +1157,13 @@ def dev_tools_init(dev_tools_arg, tracker=None):
     """
     print_installing_title('development tools', True)
 
-    # If dev_tools_arg is None and not explicitly invoked, ask user
+    # If dev_tools_arg is None and not explicitly invoked, ask user (skip in dry-run)
     if dev_tools_arg is None:
+        if DRY_RUN:
+            print_dry_run('Would prompt user to set up development tools')
+            print_dry_run('Skipping dev-tools in dry-run mode')
+            return None
+
         print('\nDevelopment tools include linters and formatters for bash, Python, and markdown.')
         print('These tools help catch errors early via pre-commit hooks.')
         print('')
@@ -1135,6 +1181,16 @@ def dev_tools_init(dev_tools_arg, tracker=None):
 
         # User said yes, proceed with all tools
         dev_tools_arg = []  # Empty list means install all
+
+    # In dry-run mode, just show what would be done
+    if DRY_RUN and dev_tools_arg is not None:
+        print_dry_run('Would install development tools')
+        if dev_tools_arg:
+            print_dry_run('Specified tools: {}'.format(', '.join(dev_tools_arg)))
+        else:
+            print_dry_run('Would install all tools: shellcheck, ruff, black, markdownlint')
+        print_dry_run('Would set up pre-commit hooks')
+        return True
 
     print_verbose('dev_tools_arg: {}'.format(dev_tools_arg))
 
@@ -1439,27 +1495,38 @@ def main(argv):
         epilog='''
 Examples:
   python3 setup.py                    # Install dotfiles and git config
+  python3 setup.py --dry-run          # Show what would be done (no changes made)
   python3 setup.py -v                 # Verbose mode (show detailed operations)
   python3 setup.py --mozilla          # Install all Mozilla tools
   python3 setup.py --mozilla gecko hg # Install specific Mozilla tools
   python3 setup.py --dev-tools        # Install all dev tools (shellcheck, ruff, black, markdownlint)
   python3 setup.py --dev-tools ruff black # Install specific dev tools
-  python3 setup.py -v --mozilla --dev-tools # Verbose + Mozilla + dev tools
+  python3 setup.py --dry-run --mozilla --dev-tools # Preview full setup
         '''
     )
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Show detailed operations for debugging')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Show what would be done without making any changes')
     parser.add_argument('--mozilla', nargs='*',
                         help='Install Mozilla toolkit for gecko development (gecko, hg, tools, rust)')
     parser.add_argument('--dev-tools', nargs='*',
                         help='Install development tools (shellcheck, ruff, black, markdownlint) and pre-commit hooks')
     args = parser.parse_args(argv[1:])
 
-    # Set global verbose flag
+    # Set global flags
+    global VERBOSE, DRY_RUN
     VERBOSE = args.verbose
+    DRY_RUN = args.dry_run
 
-    print_verbose('Arguments parsed: verbose={}, mozilla={}, dev_tools={}'.format(
-        args.verbose, args.mozilla, args.dev_tools))
+    # Show dry-run banner
+    if DRY_RUN:
+        print_title('DRY-RUN MODE - No changes will be made')
+        print(colors.HINT + 'This will show what would be done without making any actual changes.' + colors.END)
+        print('')
+
+    print_verbose('Arguments parsed: verbose={}, dry_run={}, mozilla={}, dev_tools={}'.format(
+        args.verbose, args.dry_run, args.mozilla, args.dev_tools))
     print_verbose('BASE_DIR: {}'.format(BASE_DIR))
     print_verbose('HOME_DIR: {}'.format(HOME_DIR))
 
@@ -1476,6 +1543,14 @@ Examples:
     }
 
     show_setup_summary(results)
+
+    # In dry-run mode, skip verification and show final message
+    if DRY_RUN:
+        print('')
+        print_title('DRY-RUN COMPLETE')
+        print(colors.HINT + 'No changes were made to your system.' + colors.END)
+        print(colors.OK + 'To actually apply these changes, run without --dry-run flag.' + colors.END)
+        return 0
 
     # Only verify if setup succeeded
     if all(r is not False for r in results.values()):

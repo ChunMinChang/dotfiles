@@ -777,8 +777,49 @@ Generated: 2026-01-07
 
 ## Optional Enhancements
 
-### [ ] 9.1 Add dry-run mode to setup.py
-- **Action**: Add `--dry-run` flag to show what would be done without doing it
+### [x] 9.1 Add dry-run mode to setup.py ✅
+- **Issue**: No way to preview setup changes before applying them
+- **Status**: COMPLETED (2026-01-09)
+- **Changes made**:
+  - **Added --dry-run flag**: `python3 setup.py --dry-run`
+  - **Added DRY_RUN global flag**: Controls whether changes are actually made
+  - **Created print_dry_run() helper**: Consistent formatting for dry-run messages
+  - **Updated link() function**: Shows "Would link X to Y" instead of creating symlinks
+  - **Updated append_nonexistent_lines_to_file()**: Shows "Would append" without modifying files
+  - **Updated git_init()**: Shows "Would run: git config..." without setting config
+  - **Updated dev_tools_init()**: Shows what tools would be installed without prompting
+  - **Updated setup_precommit_hooks()**: Shows hook would be created without writing file
+  - **Added dry-run banner**: Clear indication at start that no changes will be made
+  - **Added completion message**: Reminds users no changes were made and how to apply
+- **Implementation Details**:
+  - All file operations check DRY_RUN flag before executing
+  - Symlink creation, file appending, git config all show previews only
+  - Tool installations skipped entirely in dry-run mode
+  - Change tracker not used in dry-run (no changes to track)
+  - Verification skipped in dry-run mode (nothing to verify)
+  - Clear [DRY-RUN] prefix on all preview messages
+- **Usage Examples**:
+  ```bash
+  python3 setup.py --dry-run                        # Preview basic setup
+  python3 setup.py --dry-run --mozilla gecko       # Preview with Mozilla tools
+  python3 setup.py --dry-run --dev-tools ruff      # Preview with dev tools
+  python3 setup.py --dry-run --mozilla --dev-tools # Preview full setup
+  python3 setup.py --dry-run -v                    # Dry-run with verbose output
+  ```
+- **Output Features**:
+  - Banner at start: "DRY-RUN MODE - No changes will be made"
+  - All operations prefixed with [DRY-RUN] in cyan
+  - Summary shows what would happen
+  - Final message: "DRY-RUN COMPLETE - No changes were made"
+  - Reminds user to run without --dry-run to apply changes
+- **Testing**: All existing tests pass
+  - Python tests: 22/22 passed ✅
+  - Shell tests: 19/19 passed ✅
+  - Dry-run mode tested with various flag combinations
+  - No actual changes made during dry-run
+- **Files modified**: 1 file (setup.py)
+- **Lines added**: ~50 lines (flag, helper, dry-run checks, messages)
+- **Impact**: MEDIUM - Users can safely preview setup changes before applying, reduces fear of running setup
 
 ### [x] 9.2 Add verbose mode for debugging ✅
 - **File**: `setup.py`
@@ -893,12 +934,12 @@ Generated: 2026-01-07
 
 ### Phase Overview
 - **Total items**: 40+
-- **Complete**: 28 items (70%)
+- **Complete**: 29 items (72.5%)
 - **Processing**: 0 items (0%)
-- **Pending**: 12 items (30%)
+- **Pending**: 11 items (27.5%)
 - **Last updated**: 2026-01-09
 
-### Phase: Complete ✅ (28 items)
+### Phase: Complete ✅ (29 items)
   - Item 1.1: Fixed dangerous eval usage (code injection vulnerability)
   - Item 1.2: Fixed fragile file path handling in uninstall.sh
   - Item 1.3: Fixed git status parsing to handle spaces in filenames
@@ -925,15 +966,15 @@ Generated: 2026-01-07
   - Item 7.3: Review and optimize git/utils.sh functions
   - Item 8.1: Create test suite for setup.py
   - Item 8.2: Create test suite for shell utilities
+  - Item 9.1: Add dry-run mode for previewing changes
   - Item 9.2: Add verbose mode for debugging
   - Item 9.4: Add pre-commit hooks (dev-tools system with individual confirmations)
 
 ### Phase: Processing 🔄 (0 items)
   - (None currently in progress)
 
-### Phase: Pending ⏳ (12 items)
+### Phase: Pending ⏳ (11 items)
   - Item 8.3: Test cross-platform compatibility
-  - Item 9.1: Add dry-run mode to setup.py
   - Item 9.3: Improve uninstall automation
   - Item 9.5: Consider configuration file
 
@@ -997,6 +1038,7 @@ Generated: 2026-01-07
 - Item 6.2: Entire codebase now TODO-free (professional appearance, clear design documentation)
 - Item 6.3: All Priority 6 complete - documentation now accurate and matches implementation
 - Item 7.3: Optimized git/utils.sh (added validation, error handling, fixed unquoted variable, removed 40+ unused variables)
+- Item 9.1: Dry-run mode for safe preview (--dry-run flag, all operations preview only, clear visual indicators, 50+ lines)
 - Item 9.4: Dev-tools system with pre-commit hooks (4 tools, individual confirmations, project-local, non-blocking, 500+ lines)
 
 **Recent Fixes (2026-01-08)**:
@@ -1074,6 +1116,26 @@ Generated: 2026-01-07
    - Files modified: 2 (setup.py, test_setup.py)
    - Lines added: ~500 lines
    - Impact: Catches common errors before commits, maintains code quality across all file types
+
+5. **Completed Item 9.1**: Add dry-run mode to setup.py
+   - Implemented comprehensive dry-run mode for safe preview of setup changes
+   - **Added --dry-run flag**: `python3 setup.py --dry-run`
+   - **All operations show previews only**: No actual changes made to system
+   - **Updated link()**: Shows "Would link X to Y" without creating symlinks
+   - **Updated append_nonexistent_lines_to_file()**: Shows "Would append" without modifying files
+   - **Updated git_init()**: Shows "Would run: git config..." without setting config
+   - **Updated dev_tools_init()**: Shows what tools would be installed without user prompts
+   - **Updated setup_precommit_hooks()**: Shows hook would be created without writing file
+   - **Clear visual indicators**: [DRY-RUN] prefix in cyan on all preview messages
+   - **Banner messages**: Start and end banners clearly indicate dry-run mode
+   - **Completion message**: Reminds users no changes were made and how to apply
+   - Works with all flags: --mozilla, --dev-tools, -v (verbose)
+   - Change tracker not used (no changes to track)
+   - Verification skipped (nothing to verify)
+   - All tests pass: Python (22/22), Shell (19/19)
+   - Files modified: 1 (setup.py)
+   - Lines added: ~50 lines
+   - Impact: Users can safely preview setup changes, reduces fear of running setup, enables testing
 
 ---
 
