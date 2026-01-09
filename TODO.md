@@ -33,15 +33,16 @@ Generated: 2026-01-07
    - Ensure no regressions in other areas
    - Document test results
 
-7. **Commit with clear messages**
-   - Use descriptive commit message explaining the fix
-   - Reference the TODO item number
-   - Include Co-Authored-By line if appropriate
-
-8. **Mark item as "Complete"** ✅
+7. **Mark item as "Complete"** ✅
    - Move item from "Processing" to "Complete" section
    - Update phase counts
    - Update the item's detailed section with completion status
+
+8. **Commit with clear messages**
+   - Use descriptive commit message explaining the fix
+   - Reference the TODO item number
+   - Include Co-Authored-By line if appropriate
+   - Include the TODO.md update in the same commit
 
 ---
 
