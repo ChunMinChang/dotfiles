@@ -327,35 +327,37 @@ test_cross_platform_compatibility() {
     print_section "Cross-Platform Compatibility"
 
     # Test that the functions work on current platform
-    TESTS_RUN=$((TESTS_RUN + 1))
+    # Don't assume shell based on platform - test both shells on any platform
     platform=$(uname -s)
 
-    if [[ "$platform" == "Darwin" ]]; then
-        # macOS - should use zsh
-        result=$(zsh -c '
-            source ~/.zshrc 2>/dev/null
-            type BranchInPrompt
-        ' 2>&1)
+    # Test 1: Functions work in bash (regardless of platform)
+    TESTS_RUN=$((TESTS_RUN + 1))
+    result=$(bash -c '
+        source git/utils.sh 2>/dev/null
+        type BranchInPrompt
+    ' 2>&1)
 
-        if echo "$result" | grep -q "shell function"; then
-            print_pass "Prompt functions load correctly on macOS (zsh)"
-        else
-            print_fail "Prompt functions should load on macOS"
-        fi
-    elif [[ "$platform" == "Linux" ]]; then
-        # Linux - should use bash
-        result=$(bash -c '
-            source ~/.bashrc 2>/dev/null
+    if echo "$result" | grep -q "function"; then
+        print_pass "Prompt functions load correctly in bash on $platform"
+    else
+        print_fail "Prompt functions should load in bash on $platform"
+    fi
+
+    # Test 2: Functions work in zsh (regardless of platform)
+    TESTS_RUN=$((TESTS_RUN + 1))
+    if command -v zsh >/dev/null 2>&1; then
+        result=$(zsh -c '
+            source git/utils.sh 2>/dev/null
             type BranchInPrompt
         ' 2>&1)
 
         if echo "$result" | grep -q "function"; then
-            print_pass "Prompt functions load correctly on Linux (bash)"
+            print_pass "Prompt functions load correctly in zsh on $platform"
         else
-            print_fail "Prompt functions should load on Linux"
+            print_fail "Prompt functions should load in zsh on $platform"
         fi
     else
-        print_fail "Unknown platform: $platform"
+        print_pass "Zsh not available on $platform (skipped)"
     fi
 }
 
