@@ -15,7 +15,7 @@
 # Mozilla build directory (contains machrc, etc.)
 : "${DOTFILES_MOZBUILD_DIR:=$HOME/.mozbuild}"
 
-# Local bin directory (for moz-phab and other user-installed tools)
+# Local bin directory (for user-installed tools)
 : "${DOTFILES_LOCAL_BIN_DIR:=$HOME/.local/bin}"
 
 # Work bin directory (for pernosco-submit and other work tools)

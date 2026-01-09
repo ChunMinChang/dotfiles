@@ -4,14 +4,6 @@ if [ -r "$DOTFILES/config.sh" ]; then
   . "$DOTFILES/config.sh"
 fi
 
-# Moz-phab setup
-if ! command -v moz-phab &> /dev/null; then
-  export PATH="$DOTFILES_LOCAL_BIN_DIR:$PATH"
-  if ! CommandExists moz-phab; then
-    PrintError 'No moz-phab command!\nInstall moz-phab: https://moz-conduit.readthedocs.io/en/latest/phabricator-user.html!'
-  fi
-fi
-
 # Pernosco-submit setup (Linux only)
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   if ! command -v pernosco-submit &> /dev/null; then

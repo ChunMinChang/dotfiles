@@ -54,7 +54,7 @@ bash uninstall.sh                  # Remove dotfiles
 Run `python setup.py --mozilla` to add:
 - Mach aliases and machrc
 - Mercurial configuration
-- moz-phab and pernosco-submit setup
+- pernosco-submit setup
 - Rust/Cargo environment
 
 ## Available Commands
@@ -199,7 +199,7 @@ DOTFILES_TRASH_DIR_LINUX="$HOME/.trash"
 - `git/config` - Git aliases (included in ~/.gitconfig)
 - `git/utils.sh` - Git workflow functions (GitLastCommit, GitUncommit, GitAddExcept, etc.)
 - `mozilla/gecko/alias.sh` - Mach shortcuts and WebCodecs test aliases
-- `mozilla/gecko/tools.sh` - moz-phab and pernosco-submit setup
+- `mozilla/gecko/tools.sh` - pernosco-submit setup
 - `mozilla/gecko/machrc` - Custom mach config (symlinked to ~/.mozbuild/machrc)
 - `mozilla/hg/config` - Mercurial config (included in ~/.hgrc)
 
