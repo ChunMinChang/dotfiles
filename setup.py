@@ -96,8 +96,164 @@ def get_config():
     return CONFIG
 
 
+# Change Tracking & Rollback
+# ------------------------------------------------------------------------------
+
+class ChangeTracker:
+    """Tracks all changes made during setup for potential rollback."""
+
+    def __init__(self):
+        self.changes = []  # List of change records in chronological order
+
+    def record_symlink_created(self, target, source, old_target=None):
+        """Record that a symlink was created.
+
+        Args:
+            target: Path where symlink was created
+            source: What the symlink points to
+            old_target: If replacing existing symlink, what it pointed to before
+        """
+        self.changes.append({
+            'type': 'symlink',
+            'target': target,
+            'source': source,
+            'old_target': old_target
+        })
+        print_verbose('ChangeTracker: Recorded symlink {} -> {}'.format(target, source))
+
+    def record_lines_appended(self, file_path, lines):
+        """Record that lines were appended to a file.
+
+        Args:
+            file_path: Path to file that was modified
+            lines: List of lines that were appended
+        """
+        self.changes.append({
+            'type': 'append',
+            'file': file_path,
+            'lines': lines
+        })
+        print_verbose('ChangeTracker: Recorded {} line(s) appended to {}'.format(
+            len(lines), file_path))
+
+    def record_git_config(self, key, value):
+        """Record that a git config was set.
+
+        Args:
+            key: Git config key that was set
+            value: Value that was set
+        """
+        self.changes.append({
+            'type': 'git_config',
+            'key': key,
+            'value': value
+        })
+        print_verbose('ChangeTracker: Recorded git config {} = {}'.format(key, value))
+
+    def has_changes(self):
+        """Return True if any changes have been recorded."""
+        return len(self.changes) > 0
+
+    def get_change_count(self):
+        """Return the number of changes recorded."""
+        return len(self.changes)
+
+
+def rollback_changes(tracker):
+    """Rollback all changes tracked by the ChangeTracker.
+
+    Changes are undone in reverse order (LIFO).
+
+    Args:
+        tracker: ChangeTracker instance with recorded changes
+
+    Returns:
+        True if rollback succeeded, False if any errors occurred
+    """
+    if not tracker.has_changes():
+        print('No changes to rollback.')
+        return True
+
+    print_title('Rolling Back Changes')
+    print('Undoing {} change(s)...'.format(tracker.get_change_count()))
+
+    errors = []
+    # Process changes in reverse order (undo most recent first)
+    for change in reversed(tracker.changes):
+        try:
+            if change['type'] == 'symlink':
+                target = change['target']
+                old_target = change.get('old_target')
+
+                if os.path.islink(target):
+                    print('Removing symlink: {}'.format(target))
+                    os.unlink(target)
+
+                    # If we replaced an existing symlink, restore it
+                    if old_target:
+                        print('Restoring previous symlink: {} -> {}'.format(target, old_target))
+                        os.symlink(old_target, target)
+                elif os.path.exists(target):
+                    print_warning('Not removing {} (not a symlink)'.format(target))
+                else:
+                    print_verbose('Symlink {} already removed'.format(target))
+
+            elif change['type'] == 'append':
+                file_path = change['file']
+                lines = change['lines']
+
+                if not os.path.exists(file_path):
+                    print_verbose('File {} does not exist, skipping'.format(file_path))
+                    continue
+
+                print('Removing {} line(s) from {}'.format(len(lines), file_path))
+
+                # Read all lines
+                with open(file_path, 'r') as f:
+                    all_lines = f.readlines()
+
+                # Remove the appended lines
+                lines_to_remove = set(line.rstrip('\n') for line in lines)
+                filtered_lines = [
+                    line for line in all_lines
+                    if line.rstrip('\n') not in lines_to_remove
+                ]
+
+                # Write back filtered content
+                with open(file_path, 'w') as f:
+                    f.writelines(filtered_lines)
+
+            elif change['type'] == 'git_config':
+                key = change['key']
+                print('Removing git config: {}'.format(key))
+
+                # Remove the git config setting
+                result = subprocess.run(
+                    ['git', 'config', '--global', '--unset', key],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+
+                if result.returncode != 0:
+                    # Non-zero could mean already unset, which is fine
+                    print_verbose('git config unset returned {}'.format(result.returncode))
+
+        except Exception as e:
+            error_msg = 'Error rolling back {}: {}'.format(change['type'], e)
+            print_error(error_msg)
+            errors.append(error_msg)
+
+    if errors:
+        print_error('Rollback completed with {} error(s)'.format(len(errors)))
+        return False
+    else:
+        print_ok('Rollback completed successfully')
+        return True
+
+
 # Symbolically link source to target
-def link(source, target):
+def link(source, target, tracker=None):
     print_verbose('link() called: source={}, target={}'.format(source, target))
 
     # Validate source exists before creating symlink
@@ -111,8 +267,11 @@ def link(source, target):
     print_verbose('Source exists: True')
     print_verbose('Checking if target is a symlink: {}'.format(target))
 
+    old_target = None
     if os.path.islink(target):
         print_verbose('Target is a symlink, unlinking')
+        # Record what the old symlink pointed to
+        old_target = os.readlink(target)
         print('unlink {}'.format(target))
         os.unlink(target)
     else:
@@ -121,6 +280,11 @@ def link(source, target):
     print('link {} to {}'.format(source, target))
     os.symlink(source, target)
     print_verbose('Symlink created successfully')
+
+    # Record the change if tracker provided
+    if tracker:
+        tracker.record_symlink_created(target, source, old_target)
+
     print_verbose('link() returning: True')
     return True
 
@@ -161,7 +325,7 @@ def bash_load_command(path):
     return ''.join(['[ -r ', path, ' ] && . ', path])
 
 
-def append_nonexistent_lines_to_file(file, lines):
+def append_nonexistent_lines_to_file(file, lines, tracker=None):
     """
     Append lines to a file if they don't already exist.
 
@@ -172,6 +336,7 @@ def append_nonexistent_lines_to_file(file, lines):
     Args:
         file: Path to the file to modify
         lines: List of lines to append (without trailing newlines)
+        tracker: Optional ChangeTracker to record changes
 
     Returns:
         True if all operations successful, False otherwise
@@ -218,6 +383,10 @@ def append_nonexistent_lines_to_file(file, lines):
                     f.write(line + '\n')
                     print('{} is appended into {}'.format(line, file))
 
+            # Record the change if tracker provided
+            if tracker:
+                tracker.record_lines_appended(file, lines_to_append)
+
         return True
 
     except IOError as e:
@@ -262,15 +431,15 @@ def print_verbose(message):
 # ------------------------------------------------------------------------------
 
 # Link this dotfiles path to $HOME/.dotfiles
-def dotfiles_link():
+def dotfiles_link(tracker=None):
     print_installing_title('dotfile path')
     print_verbose('dotfiles_link() starting')
-    result = link(BASE_DIR, os.path.join(HOME_DIR, '.dotfiles'))
+    result = link(BASE_DIR, os.path.join(HOME_DIR, '.dotfiles'), tracker)
     print_verbose('dotfiles_link() returning: {}'.format(result))
     return result
 
 # Link dot.* to ~/.*
-def bash_link():
+def bash_link(tracker=None):
     print_installing_title('bash startup scripts')
     print_verbose('bash_link() starting')
     print_verbose('Platform: {}'.format(platform.system()))
@@ -325,7 +494,7 @@ def bash_link():
             if f == 'dot.bashrc' or f == 'dot.zshrc':
                 print('Append a command to load {} in {}'.format(src, target))
                 result = append_nonexistent_lines_to_file(
-                    target, [bash_load_command(src)])
+                    target, [bash_load_command(src)], tracker)
                 if not result:
                     errors.append('Failed to append to {}'.format(target))
             else:
@@ -336,7 +505,7 @@ def bash_link():
                 print('  3. Keep existing file (skip)')
                 skipped.append(f)
         else:
-            result = link(src, target)
+            result = link(src, target, tracker)
             if not result:
                 errors.append('Failed to link {}'.format(f))
 
@@ -347,7 +516,7 @@ def bash_link():
     return success
 
 # Include git/config from ~/.giconfig
-def git_init():
+def git_init(tracker=None):
     print_installing_title('git settings')
     if not is_tool('git'):
         print_fail('Please install git first!')
@@ -372,6 +541,10 @@ def git_init():
 
     subprocess.call(['git', 'config', '--global', 'include.path', path])
 
+    # Record the git config change
+    if tracker:
+        tracker.record_git_config('include.path', path)
+
     # Show the current file if it exists:
     if os.path.exists(git_config):
         with open(git_config, 'r') as f:
@@ -388,12 +561,13 @@ def git_init():
 # mozilla stuff
 # ---------------------------------------
 
-def mozilla_init(mozilla_arg):
+def mozilla_init(mozilla_arg, tracker=None):
     """
     Initialize Mozilla development tools.
 
     Args:
         mozilla_arg: Value from --mozilla argument (None, [], or list of tools)
+        tracker: Optional ChangeTracker to record changes
 
     Returns:
         None if skipped, True if all succeeded, False if any failed
@@ -426,14 +600,14 @@ def mozilla_init(mozilla_arg):
 
     all_succeeded = True
     for k in options:
-        result = funcs[k]()
+        result = funcs[k](tracker)
         if not result:
             all_succeeded = False
 
     return all_succeeded
 
 
-def gecko_init():
+def gecko_init(tracker=None):
     print_installing_title('gecko alias and machrc')
     config = get_config()
     machrc = config['DOTFILES_MACHRC_PATH']
@@ -442,7 +616,7 @@ def gecko_init():
                             'Apply default settings for now.']))
     else:
         path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'machrc')
-        if not link(path, machrc):
+        if not link(path, machrc, tracker):
             return False
 
     bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
@@ -451,11 +625,11 @@ def gecko_init():
         return False
 
     path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'alias.sh')
-    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
+    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)], tracker)
     return result
 
 
-def hg_init():
+def hg_init(tracker=None):
     print_installing_title('hg settings')
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.']
 
@@ -471,11 +645,11 @@ def hg_init():
         return False
 
     path = os.path.join(BASE_DIR, 'mozilla', 'hg', 'config')
-    result = append_nonexistent_lines_to_file(hg_config, ['%include ' + path])
+    result = append_nonexistent_lines_to_file(hg_config, ['%include ' + path], tracker)
     return result
 
 
-def tools_init():
+def tools_init(tracker=None):
     print_installing_title('tools settings')
 
     bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
@@ -484,11 +658,11 @@ def tools_init():
         return False
 
     path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'tools.sh')
-    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)])
+    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)], tracker)
     return result
 
 
-def rust_init():
+def rust_init(tracker=None):
     print_installing_title('rust settings')
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.']
 
@@ -504,7 +678,7 @@ def rust_init():
         print_fail(''.join(error_messages))
         return False
 
-    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(cargo_env)])
+    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(cargo_env)], tracker)
     return result
 
 
@@ -781,11 +955,15 @@ Examples:
     print_verbose('BASE_DIR: {}'.format(BASE_DIR))
     print_verbose('HOME_DIR: {}'.format(HOME_DIR))
 
+    # Create change tracker for rollback capability
+    tracker = ChangeTracker()
+    print_verbose('ChangeTracker created')
+
     results = {
-        'dotfiles': dotfiles_link(),
-        'bash': bash_link(),
-        'git': git_init(),
-        'mozilla': mozilla_init(args.mozilla)
+        'dotfiles': dotfiles_link(tracker),
+        'bash': bash_link(tracker),
+        'git': git_init(tracker),
+        'mozilla': mozilla_init(args.mozilla, tracker)
     }
 
     show_setup_summary(results)
@@ -803,9 +981,28 @@ Examples:
             # Setup succeeded but verification failed
             print_error('Installation verification failed!')
             print_error('Fix the issues above and re-run setup.py')
+
+            # Offer rollback for verification failures
+            if tracker.has_changes():
+                print_warning('Setup made {} change(s) before verification failed'.format(
+                    tracker.get_change_count()))
+                response = input('Rollback all changes? [y/N]: ').strip().lower()
+                if response == 'y' or response == 'yes':
+                    rollback_changes(tracker)
+
             return 1
     else:
-        # Setup failed, skip verification
+        # Setup failed
+        # Offer rollback
+        if tracker.has_changes():
+            print_warning('Setup made {} change(s) before failing'.format(
+                tracker.get_change_count()))
+            response = input('Rollback all changes? [y/N]: ').strip().lower()
+            if response == 'y' or response == 'yes':
+                rollback_changes(tracker)
+            else:
+                print('Changes kept. You can re-run setup.py after fixing issues.')
+
         return 1
 
 

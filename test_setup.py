@@ -371,8 +371,11 @@ class TestMainFunction(unittest.TestCase):
 
         exit_code = setup.main(['setup.py', '--mozilla', 'gecko'])
 
-        # Should have called mozilla_init with argument
-        mock_mozilla.assert_called_once_with(['gecko'])
+        # Should have called mozilla_init with argument and tracker
+        # Check that first argument is ['gecko'] and second is a ChangeTracker
+        self.assertEqual(len(mock_mozilla.call_args[0]), 2)
+        self.assertEqual(mock_mozilla.call_args[0][0], ['gecko'])
+        self.assertIsInstance(mock_mozilla.call_args[0][1], setup.ChangeTracker)
 
 
 def run_tests():
