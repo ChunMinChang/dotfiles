@@ -1,10 +1,13 @@
 import argparse
 import fileinput
+import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 # Global variables
 # ------------------------------------------------------------------------------
@@ -247,7 +250,7 @@ def rollback_changes(tracker):
         print_error('Rollback completed with {} error(s)'.format(len(errors)))
         return False
     else:
-        print_ok('Rollback completed successfully')
+        print('Rollback completed successfully')
         return True
 
 
@@ -1509,6 +1512,299 @@ def show_setup_summary(results):
         print('\n' + colors.OK + 'All steps completed successfully!' + colors.END)
 
 
+# ============================================================================
+# Claude Code Security Hooks
+# ============================================================================
+
+def claude_security_init(tracker, dry_run=False):
+    """
+    Install Claude Code security hooks (system-wide).
+    Merges hooks into ~/.claude.json without overwriting existing hooks.
+    """
+    print_title('Claude Code Security Hooks')
+
+    hooks_dir = os.path.join(os.path.expanduser('~'), '.dotfiles-claude-hooks')
+    source_hook = os.path.join(BASE_DIR, '.claude', 'hooks', 'security-read-blocker.py')
+    dest_hook = os.path.join(hooks_dir, 'security-read-blocker.py')
+    claude_config = os.path.join(os.path.expanduser('~'), '.claude.json')
+
+    if dry_run:
+        print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
+        print(f"  1. Create directory: {hooks_dir}")
+        print(f"  2. Copy hook script: {source_hook} → {dest_hook}")
+        print(f"  3. Make executable: {dest_hook}")
+
+        if os.path.exists(claude_config):
+            print(f"  4. Backup: {claude_config} → {claude_config}.backup-claude-security")
+            print(f"  5. Merge security hooks into: {claude_config}")
+        else:
+            print(f"  4. Create: {claude_config} with security hooks")
+
+        print(f"\n{colors.HINT}Would add to ~/.claude.json:{colors.END}")
+        security_hook_config = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Read|Bash|Grep|Glob",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": str(dest_hook),
+                                "timeout": 5
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+        print(json.dumps(security_hook_config, indent=2))
+        print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
+        return True
+
+    # 1. Create hooks directory
+    os.makedirs(hooks_dir, exist_ok=True)
+    print(f'Created directory: {hooks_dir}')
+
+    # 2. Copy hook script
+    if not os.path.exists(source_hook):
+        print_error(f'Hook script not found: {source_hook}')
+        return False
+
+    shutil.copy(source_hook, dest_hook)
+    os.chmod(dest_hook, 0o755)  # Make executable
+    print(f'Installed hook script: {dest_hook}')
+
+    # 3. Backup and update ~/.claude.json
+    if os.path.exists(claude_config):
+        # Backup
+        backup = os.path.dirname(claude_config) + '/.claude.json.backup-claude-security'
+        shutil.copy(claude_config, backup)
+        print_hint(f'Backed up config to: {backup}')
+
+        # Load existing config
+        with open(claude_config, 'r') as f:
+            config = json.load(f)
+    else:
+        config = {}
+        print_hint('Creating new ~/.claude.json')
+
+    # 4. Merge security hooks (non-destructive)
+    if 'hooks' not in config:
+        config['hooks'] = {}
+
+    # Add PreToolUse hook
+    security_hook = {
+        "matcher": "Read|Bash|Grep|Glob",
+        "hooks": [
+            {
+                "type": "command",
+                "command": str(dest_hook),
+                "timeout": 5
+            }
+        ]
+    }
+
+    if 'PreToolUse' not in config['hooks']:
+        config['hooks']['PreToolUse'] = []
+
+    # Check if already installed (avoid duplicates)
+    already_installed = any(
+        'security-read-blocker.py' in str(h.get('hooks', [{}])[0].get('command', ''))
+        for h in config['hooks'].get('PreToolUse', [])
+    )
+
+    if already_installed:
+        print_hint('Security hooks already installed')
+        return True
+
+    # Append our hook
+    config['hooks']['PreToolUse'].append(security_hook)
+
+    # 5. Write back atomically
+    temp_file = claude_config + '.tmp'
+    with open(temp_file, 'w') as f:
+        json.dump(config, f, indent=2)
+
+    os.rename(temp_file, claude_config)
+
+    print('✓ Claude Code security hooks installed')
+    print_hint(f'  Hook script: {dest_hook}')
+    print_hint(f'  Config file: {claude_config}')
+    print_hint(f'  Log file: {os.path.join(hooks_dir, "security-blocks.log")} (created on first block)')
+    print('')
+    print_warning('IMPORTANT: Restart Claude Code for hooks to take effect')
+
+    return True
+
+
+def claude_security_remove(dry_run=False):
+    """Remove Claude Code security hooks from ~/.claude.json."""
+    print_title('Remove Claude Security Hooks')
+
+    claude_config = os.path.join(os.path.expanduser('~'), '.claude.json')
+
+    if not os.path.exists(claude_config):
+        print_warning('No Claude config found at ~/.claude.json')
+        return True
+
+    if dry_run:
+        print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
+        print(f"  1. Backup: {claude_config} → {claude_config}.backup-before-removal")
+        print(f"  2. Remove security hooks from: {claude_config}")
+        print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
+        return True
+
+    # Backup
+    backup = os.path.dirname(claude_config) + '/.claude.json.backup-before-removal'
+    shutil.copy(claude_config, backup)
+    print_hint(f'Backed up config to: {backup}')
+
+    # Load config
+    with open(claude_config, 'r') as f:
+        config = json.load(f)
+
+    # Remove security hooks
+    if 'hooks' not in config or 'PreToolUse' not in config['hooks']:
+        print_hint('No hooks found in config')
+        return True
+
+    original_count = len(config['hooks']['PreToolUse'])
+
+    # Filter out security hooks
+    config['hooks']['PreToolUse'] = [
+        hook_entry for hook_entry in config['hooks']['PreToolUse']
+        if not any(
+            'security-read-blocker.py' in str(h.get('command', ''))
+            for h in hook_entry.get('hooks', [])
+        )
+    ]
+
+    removed_count = original_count - len(config['hooks']['PreToolUse'])
+
+    if removed_count > 0:
+        # Clean up empty arrays
+        if len(config['hooks']['PreToolUse']) == 0:
+            del config['hooks']['PreToolUse']
+
+        if len(config['hooks']) == 0:
+            del config['hooks']
+
+        # Write back atomically
+        temp_file = claude_config + '.tmp'
+        with open(temp_file, 'w') as f:
+            json.dump(config, f, indent=2)
+
+        os.rename(temp_file, claude_config)
+
+        print(f'✓ Removed {removed_count} security hook(s)')
+        print_hint('Restart Claude Code for changes to take effect')
+    else:
+        print_hint('No security hooks found to remove')
+
+    return True
+
+
+def show_claude_hooks():
+    """Show all hooks in ~/.claude.json with source identification."""
+    print_title('Current Claude Hooks')
+
+    claude_config = os.path.join(os.path.expanduser('~'), '.claude.json')
+
+    if not os.path.exists(claude_config):
+        print_warning('No Claude config found at ~/.claude.json')
+        return True
+
+    with open(claude_config, 'r') as f:
+        config = json.load(f)
+
+    if 'hooks' not in config or not config['hooks']:
+        print_hint('No hooks configured')
+        return True
+
+    print(f"Hooks in {claude_config}:")
+    print("=" * 60)
+
+    for event_name, hook_entries in config['hooks'].items():
+        print(f"\n{colors.HEADER}{event_name}:{colors.END}")
+
+        for i, entry in enumerate(hook_entries):
+            matcher = entry.get('matcher', 'N/A')
+            print(f"  [{i+1}] Matcher: {colors.OK}{matcher}{colors.END}")
+
+            for j, hook in enumerate(entry.get('hooks', [])):
+                command = hook.get('command', '')
+                timeout = hook.get('timeout', 60)
+                hook_type = hook.get('type', 'command')
+
+                # Identify source
+                source = "Unknown"
+                if 'security-read-blocker.py' in command:
+                    source = f"{colors.WARNING}DOTFILES (security){colors.END}"
+                elif '.dotfiles-claude-hooks' in command:
+                    source = f"{colors.WARNING}DOTFILES{colors.END}"
+
+                print(f"      Hook {j+1}:")
+                print(f"        Type:    {hook_type}")
+                print(f"        Command: {command}")
+                print(f"        Timeout: {timeout}s")
+                print(f"        Source:  {source}")
+
+    print("\n" + "=" * 60)
+    return True
+
+
+def show_claude_security_log():
+    """Show blocked access log from security hooks."""
+    print_title('Claude Security Blocks Log')
+
+    log_file = os.path.join(os.path.expanduser('~'), '.dotfiles-claude-hooks', 'security-blocks.log')
+
+    if not os.path.exists(log_file):
+        print_hint(f'No log file found at: {log_file}')
+        print_hint('This means no access has been blocked yet')
+        return True
+
+    try:
+        with open(log_file, 'r') as f:
+            lines = f.readlines()
+
+        if not lines:
+            print_hint('Log file is empty - no blocks recorded')
+            return True
+
+        print(f"Blocked access attempts: {len(lines)}")
+        print("=" * 60)
+
+        # Show last 20 entries
+        for line in lines[-20:]:
+            try:
+                entry = json.loads(line)
+                timestamp = entry.get('timestamp', 'Unknown')
+                tool = entry.get('tool_name', 'Unknown')
+                file_path = entry.get('file_path', 'Unknown')
+                reason = entry.get('reason', 'Unknown')
+
+                print(f"\n{colors.WARNING}Blocked:{colors.END} {timestamp}")
+                print(f"  Tool:   {tool}")
+                print(f"  File:   {file_path}")
+                print(f"  Reason: {reason}")
+            except json.JSONDecodeError:
+                continue
+
+        if len(lines) > 20:
+            print(f"\n{colors.HINT}... showing last 20 of {len(lines)} entries{colors.END}")
+
+        print("\n" + "=" * 60)
+        print(f"Full log: {log_file}")
+
+    except Exception as e:
+        print_error(f'Error reading log file: {e}')
+        return False
+
+    return True
+
+
+
 def main(argv):
     global VERBOSE
 
@@ -1526,6 +1822,10 @@ Examples:
   python3 setup.py --dev-tools        # Install all dev tools (shellcheck, ruff, black, markdownlint)
   python3 setup.py --dev-tools ruff black # Install specific dev tools
   python3 setup.py --dry-run --mozilla --dev-tools # Preview full setup
+  python3 setup.py --claude-security  # Install Claude Code security hooks
+  python3 setup.py --all              # Install everything (dotfiles + git + mozilla + dev-tools + claude-security)
+  python3 setup.py --show-claude-hooks # Show installed hooks
+  python3 setup.py --remove-claude-security # Remove security hooks
         '''
     )
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -1536,6 +1836,16 @@ Examples:
                         help='Install Mozilla toolkit for gecko development (gecko, hg, tools, rust)')
     parser.add_argument('--dev-tools', nargs='*',
                         help='Install development tools (shellcheck, ruff, black, markdownlint) and pre-commit hooks')
+    parser.add_argument('--claude-security', action='store_true',
+                        help='Install Claude Code security hooks (system-wide, blocks access to credentials)')
+    parser.add_argument('--remove-claude-security', action='store_true',
+                        help='Remove Claude Code security hooks')
+    parser.add_argument('--show-claude-hooks', action='store_true',
+                        help='Show all installed Claude Code hooks')
+    parser.add_argument('--show-claude-security-log', action='store_true',
+                        help='Show log of blocked access attempts')
+    parser.add_argument('--all', action='store_true',
+                        help='Install all components (dotfiles + git + mozilla + dev-tools + claude-security)')
     args = parser.parse_args(argv[1:])
 
     # Set global flags
@@ -1554,6 +1864,23 @@ Examples:
     print_verbose('BASE_DIR: {}'.format(BASE_DIR))
     print_verbose('HOME_DIR: {}'.format(HOME_DIR))
 
+    # Handle show commands (don't need tracker)
+    if args.show_claude_hooks:
+        return 0 if show_claude_hooks() else 1
+
+    if args.show_claude_security_log:
+        return 0 if show_claude_security_log() else 1
+
+    # Handle removal command (don't need tracker)
+    if args.remove_claude_security:
+        return 0 if claude_security_remove(DRY_RUN) else 1
+
+    # Handle --all flag
+    if args.all:
+        args.mozilla = args.mozilla or []
+        args.dev_tools = args.dev_tools or []
+        args.claude_security = True
+
     # Create change tracker for rollback capability
     tracker = ChangeTracker()
     print_verbose('ChangeTracker created')
@@ -1563,7 +1890,8 @@ Examples:
         'bash': bash_link(tracker),
         'git': git_init(tracker),
         'mozilla': mozilla_init(args.mozilla, tracker),
-        'dev-tools': dev_tools_init(args.dev_tools, tracker)
+        'dev-tools': dev_tools_init(args.dev_tools, tracker),
+        'claude-security': claude_security_init(tracker, DRY_RUN) if args.claude_security else None
     }
 
     show_setup_summary(results)

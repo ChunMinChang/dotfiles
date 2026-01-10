@@ -21,8 +21,8 @@ python test_setup.py
 
 **Expected results**:
 ```
-Tests run:    22
-Tests passed: 22
+Tests run:    26
+Tests passed: 26
 Tests failed: 0
 
 ✓ All tests passed!
@@ -34,10 +34,11 @@ Tests failed: 0
 - File path handling and symlink creation
 - Configuration file parsing
 - Mozilla tools setup logic
+- Claude security hooks integration
 - Error handling and edge cases
 - Non-interactive mode support (CI/CD compatibility)
 
-**Test coverage**: 22 tests covering all setup.py functions
+**Test coverage**: 26 tests covering all setup.py functions including Claude security integration
 
 ---
 
@@ -140,15 +141,76 @@ Tests failed: 10
 
 ---
 
+### 4. Claude Security Tests (`test_claude_security.py`)
+
+**Purpose**: Validates Claude Code security hooks functionality.
+
+**When to run**:
+- After modifying `.claude/hooks/security-read-blocker.py`
+- After modifying Claude security functions in `setup.py`
+- Before committing changes to security hooks
+- When testing on a new platform
+- After adding new protected file patterns
+
+**How to run**:
+```bash
+python3 test_claude_security.py
+```
+
+**Expected results**:
+```
+Tests run:    23
+Tests passed: 22
+Tests failed: 1
+
+✗ Some tests failed (1 uninstall test requires manual verification)
+```
+
+**What it validates**:
+- Hook script behavior (SSH keys, credentials, .env filtering)
+- Pattern matching (glob-style, content-based)
+- Logging functionality
+- setup.py integration (command-line flags)
+- Hook installation and removal
+- Cross-platform compatibility
+- Documentation completeness
+
+**Test coverage**: 23 tests covering:
+- 8 hook script behavior tests
+- 2 logging functionality tests
+- 6 setup.py integration tests
+- 3 hook installation tests
+- 1 uninstallation test (manual verification)
+- 1 cross-platform compatibility test
+- 2 documentation tests
+
+**Note**: One test requires manual verification and is expected to "fail" until actual uninstall/reinstall cycle is tested manually.
+
+---
+
 ## Running All Tests
 
-To run all test suites in sequence:
+### Option 1: Use test_all.sh (Recommended)
+
+Run all test suites in sequence with a single command:
+
+```bash
+bash test_all.sh
+```
+
+This will run all 4 test suites and provide a summary at the end.
+
+### Option 2: Run Manually
+
+To run all test suites manually in sequence:
 
 ```bash
 echo "=== Running Setup Tests ===" && \
-python test_setup.py && \
+python3 test_setup.py && \
 echo -e "\n=== Running Shell Utilities Tests ===" && \
 bash test_shell_utils.sh && \
+echo -e "\n=== Running Claude Security Tests ===" && \
+python3 test_claude_security.py && \
 echo -e "\n=== Running Prompt Colors Tests ===" && \
 bash test_prompt_colors.sh
 ```
@@ -168,9 +230,12 @@ Example GitHub Actions workflow:
 ```yaml
 - name: Run tests
   run: |
-    python test_setup.py
-    bash test_shell_utils.sh
-    bash test_prompt_colors.sh
+    bash test_all.sh
+    # Or run individually:
+    # python3 test_setup.py
+    # bash test_shell_utils.sh
+    # python3 test_claude_security.py
+    # bash test_prompt_colors.sh
 ```
 
 ---
@@ -252,6 +317,12 @@ test_new_feature() {
 ---
 
 **Last Updated**: 2026-01-09
-**Test Coverage**: 63 total tests across 3 suites
+**Test Coverage**: 90 total tests across 4 suites
+- test_setup.py: 26 tests (setup infrastructure + Claude security integration)
+- test_shell_utils.sh: 19 tests (shell utilities)
+- test_claude_security.py: 23 tests (security hooks behavior)
+- test_prompt_colors.sh: 22 tests (prompt colors)
+
+**Test Runner**: `test_all.sh` runs all suites with summary
 **Platforms**: Linux (Ubuntu 22.04+), macOS (10.15+)
 **Shells**: bash, zsh

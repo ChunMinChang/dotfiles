@@ -386,6 +386,59 @@ class TestMainFunction(unittest.TestCase):
         self.assertIsInstance(mock_mozilla.call_args[0][1], setup.ChangeTracker)
 
 
+class TestClaudeSecurityIntegration(unittest.TestCase):
+    """Test Claude security hooks integration with setup.py"""
+
+    def test_claude_security_flag_recognized(self):
+        """Test that --claude-security flag is recognized"""
+        result = subprocess.run(
+            ['python3', 'setup.py', '--claude-security', '--dry-run'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        self.assertIn('Claude Code Security Hooks', result.stdout)
+        self.assertIn('Would add to ~/.claude.json:', result.stdout)
+        self.assertEqual(result.returncode, 0)
+
+    def test_remove_claude_security_flag_recognized(self):
+        """Test that --remove-claude-security flag is recognized"""
+        result = subprocess.run(
+            ['python3', 'setup.py', '--remove-claude-security', '--dry-run'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        self.assertIn('Remove Claude Security Hooks', result.stdout)
+        self.assertEqual(result.returncode, 0)
+
+    def test_show_claude_hooks_flag_recognized(self):
+        """Test that --show-claude-hooks flag is recognized"""
+        result = subprocess.run(
+            ['python3', 'setup.py', '--show-claude-hooks'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        self.assertIn('Current Claude Hooks', result.stdout)
+        self.assertEqual(result.returncode, 0)
+
+    def test_all_flag_includes_claude_security(self):
+        """Test that --all flag includes Claude security"""
+        result = subprocess.run(
+            ['python3', 'setup.py', '--all', '--dry-run'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        self.assertIn('Claude Code Security Hooks', result.stdout)
+        self.assertEqual(result.returncode, 0)
+
+
 def run_tests():
     """Run all tests and return results"""
     # Create test suite
@@ -401,6 +454,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestVerifyFileReadability))
     suite.addTests(loader.loadTestsFromTestCase(TestVerifyBashSyntax))
     suite.addTests(loader.loadTestsFromTestCase(TestMainFunction))
+    suite.addTests(loader.loadTestsFromTestCase(TestClaudeSecurityIntegration))
 
     # Run tests with verbose output
     runner = unittest.TextTestRunner(verbosity=2)

@@ -10,6 +10,8 @@ python setup.py                    # Basic setup
 python setup.py --dry-run          # Preview changes first
 python setup.py --mozilla          # Add Mozilla dev tools
 python setup.py --dev-tools        # Add pre-commit hooks
+python setup.py --claude-security  # Add Claude Code security hooks
+python setup.py --all              # Install everything
 
 # Uninstall
 bash uninstall.sh --dry-run        # Preview removal
@@ -141,16 +143,59 @@ UpdateCrate <crate>      # Update Rust crate
 W3CSpec input.bs out.html  # Generate W3C spec
 ```
 
+## Claude Code Security (Optional)
+
+Run `python setup.py --claude-security` to install **system-wide security hooks** that protect sensitive files across all Claude Code sessions.
+
+**What it protects:**
+- SSH keys (`~/.ssh/id_*`)
+- Cloud credentials (AWS, GCP, Azure, DigitalOcean)
+- Mozilla credentials (`~/.arcrc`, pernosco-submit scripts)
+- API tokens (GitHub, npm, PyPI)
+- Password managers (KeePass, 1Password, LastPass)
+- Sensitive .env files (only those with API_KEY, SECRET, TOKEN keywords)
+
+**What it allows:**
+- All source code and project files
+- Build artifacts (`~/.mozbuild/*`, `node_modules/`)
+- Non-sensitive config files
+- Safe .env files without secrets
+
+**Commands:**
+```bash
+python setup.py --claude-security           # Install hooks
+python setup.py --show-claude-hooks         # Show installed hooks
+python setup.py --show-claude-security-log  # View blocked attempts log
+python setup.py --remove-claude-security    # Uninstall hooks
+
+# Emergency override (temporary)
+export DOTFILES_CLAUDE_SECURITY_DISABLED=true
+```
+
+**How it works:**
+- Installs `~/.dotfiles-claude-hooks/security-read-blocker.py`
+- Registers PreToolUse hook in `~/.claude.json` (system-wide)
+- Blocks Read/Bash/Grep/Glob tools from accessing sensitive files
+- Logs all blocked attempts to `~/.dotfiles-claude-hooks/security-blocks.log`
+- Uses content-based filtering for .env files (not all .env blocked)
+
+**Important:** Restart Claude Code after installation for hooks to take effect.
+
+See [CLAUDE_SECURITY.md](CLAUDE_SECURITY.md) for detailed documentation, troubleshooting, and advanced usage.
+
 ## Testing
 
 Run tests to verify the installation works correctly:
 
 ```bash
-# Test Python setup script (22 tests)
-python3 test_setup.py
+# Run all test suites (90 tests total)
+bash test_all.sh
 
-# Test shell utilities (19 tests)
-bash test_shell_utils.sh
+# Or run individually:
+python3 test_setup.py              # 26 tests - setup infrastructure + Claude security integration
+bash test_shell_utils.sh           # 19 tests - shell utilities
+python3 test_claude_security.py    # 23 tests - security hooks behavior
+bash test_prompt_colors.sh         # 22 tests - prompt colors
 ```
 
 **When to run:**
@@ -159,8 +204,12 @@ bash test_shell_utils.sh
 - Before committing changes
 
 **What they test:**
-- `test_setup.py`: Symlink creation, file operations, configuration loading, setup flow
+- `test_setup.py`: Symlink creation, file operations, configuration loading, setup flow, Claude security flags
 - `test_shell_utils.sh`: All shell functions (CommandExists, Print functions, Git utils, RecursivelyFind, etc.)
+- `test_claude_security.py`: Claude security hook functionality, installation, logging, cross-platform compatibility
+- `test_prompt_colors.sh`: Prompt color formatting across bash and zsh
+
+**See [TESTING.md](TESTING.md) for detailed testing documentation.**
 
 ## Configuration
 
