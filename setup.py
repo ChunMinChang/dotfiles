@@ -614,7 +614,6 @@ def mozilla_init(mozilla_arg, tracker=None):
 
     funcs = {
         'gecko': gecko_init,
-        'hg': hg_init,
         'tools': tools_init,
         'rust': rust_init,
     }
@@ -657,26 +656,6 @@ def gecko_init(tracker=None):
 
     path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'alias.sh')
     result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)], tracker)
-    return result
-
-
-def hg_init(tracker=None):
-    print_installing_title('hg settings')
-    error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.']
-
-    if not is_tool('hg'):
-        error_messages.insert(0, 'Please install hg(mercurial) first!')
-        print_fail(''.join(error_messages))
-        return False
-
-    hg_config = os.path.join(HOME_DIR, '.hgrc')
-    if not os.path.isfile(hg_config):
-        error_messages.insert(0, '{} does not exist! Abort!'.format(hg_config))
-        print_fail(''.join(error_messages))
-        return False
-
-    path = os.path.join(BASE_DIR, 'mozilla', 'hg', 'config')
-    result = append_nonexistent_lines_to_file(hg_config, ['%include ' + path], tracker)
     return result
 
 
@@ -1501,7 +1480,7 @@ def show_setup_summary(results):
             if name == 'git':
                 print('  - Install git and re-run setup.py')
             elif name == 'mozilla':
-                print('  - Check mozilla tools (hg, cargo, etc.) and re-run setup.py --mozilla')
+                print('  - Check mozilla tools (cargo, etc.) and re-run setup.py --mozilla')
             elif name == 'dev-tools':
                 print('  - Check tool installation errors above and re-run setup.py --dev-tools')
                 print('    Or install tools manually and run setup.py --dev-tools again')
@@ -1818,7 +1797,7 @@ Examples:
   python3 setup.py --dry-run          # Show what would be done (no changes made)
   python3 setup.py -v                 # Verbose mode (show detailed operations)
   python3 setup.py --mozilla          # Install all Mozilla tools
-  python3 setup.py --mozilla gecko hg # Install specific Mozilla tools
+  python3 setup.py --mozilla gecko tools # Install specific Mozilla tools
   python3 setup.py --dev-tools        # Install all dev tools (shellcheck, ruff, black, markdownlint)
   python3 setup.py --dev-tools ruff black # Install specific dev tools
   python3 setup.py --dry-run --mozilla --dev-tools # Preview full setup
@@ -1833,7 +1812,7 @@ Examples:
     parser.add_argument('--dry-run', action='store_true',
                         help='Show what would be done without making any changes')
     parser.add_argument('--mozilla', nargs='*',
-                        help='Install Mozilla toolkit for gecko development (gecko, hg, tools, rust)')
+                        help='Install Mozilla toolkit for gecko development (gecko, tools, rust)')
     parser.add_argument('--dev-tools', nargs='*',
                         help='Install development tools (shellcheck, ruff, black, markdownlint) and pre-commit hooks')
     parser.add_argument('--claude-security', action='store_true',

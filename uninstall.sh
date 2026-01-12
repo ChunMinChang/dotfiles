@@ -85,15 +85,6 @@ if [ "$SHOW_MANUAL" = true ]; then
 
   FOUND_MANUAL=false
 
-  # Check Mozilla hg config
-  if [ -f "$HOME/.hgrc" ] && grep -q "%include.*mozilla/hg/config" "$HOME/.hgrc" 2>/dev/null; then
-    FOUND_MANUAL=true
-    echo "1. Remove Mozilla hg config from ~/.hgrc"
-    echo "   Edit ~/.hgrc and remove lines containing:"
-    echo "     %include <path-to-dotfiles>/mozilla/hg/config"
-    echo ""
-  fi
-
   # Check Git config
   if [ -f "$HOME/.gitconfig" ] && grep -q "path.*dotfiles/git/config" "$HOME/.gitconfig" 2>/dev/null; then
     FOUND_MANUAL=true
@@ -142,11 +133,6 @@ MACHRC_GLOBAL="$HOME/.mozbuild/machrc"
 MACHRC_HERE="$SCRIPT_DIR/mozilla/gecko/machrc"
 UnlinkIfSymlink "$MACHRC_GLOBAL" "$MACHRC_HERE"
 
-# Remove mozilla hg config
-# Note: Manual removal required - user file may contain customizations
-if [ -f "$HOME/.hgrc" ] && grep -q "%include.*mozilla/hg/config" "$HOME/.hgrc" 2>/dev/null; then
-  MANUAL_ITEMS+=("Remove Mozilla hg config from ~/.hgrc")
-fi
 
 PrintSubTitle "\nUninstall custom settings\n"\
 "--------------------------------------------------------------------\n"
@@ -239,14 +225,6 @@ if [ ${#MANUAL_ITEMS[@]} -gt 0 ]; then
 
   PrintSubTitle "Exact cleanup commands:"
   echo ""
-
-  # Mozilla hg config
-  if [ -f "$HOME/.hgrc" ] && grep -q "%include.*mozilla/hg/config" "$HOME/.hgrc" 2>/dev/null; then
-    echo "  # Remove Mozilla hg config from ~/.hgrc"
-    echo "  # Edit ~/.hgrc and remove lines containing:"
-    echo "  #   %include $SCRIPT_DIR/mozilla/hg/config"
-    echo ""
-  fi
 
   # Git config
   if [ -f "$HOME/.gitconfig" ] && grep -q "path.*dotfiles/git/config" "$HOME/.gitconfig" 2>/dev/null; then

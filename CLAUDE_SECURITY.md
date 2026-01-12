@@ -25,7 +25,6 @@ The security hooks block Claude Code from reading:
 
 ### Mozilla Developer Credentials
 - **Phabricator**: `~/.arcrc` (contains Phabricator API tokens)
-- **Mercurial**: `~/.hgrc` (may contain authentication)
 - **Pernosco**: `pernosco-submit` scripts (debugging service tokens)
 
 ### API Tokens and Secrets

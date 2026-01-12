@@ -55,7 +55,6 @@ bash uninstall.sh                  # Remove dotfiles
 
 Run `python setup.py --mozilla` to add:
 - Mach aliases and machrc
-- Mercurial configuration
 - pernosco-submit setup
 - Rust/Cargo environment
 
@@ -242,7 +241,7 @@ DOTFILES_TRASH_DIR_LINUX="$HOME/.trash"
 3. Optional: Mozilla tools (`mozilla/gecko/alias.sh`, `mozilla/gecko/tools.sh`)
 
 **Module organization:**
-- `setup.py` - Installation orchestrator (symlinks, loaders, git/hg config)
+- `setup.py` - Installation orchestrator (symlinks, loaders, git config)
 - `config.sh` - Centralized configuration (sourced by both Python and shell)
 - `utils.sh` - Cross-platform utilities (RecursivelyFind, Trash, HostHTTP, Print functions)
 - `git/config` - Git aliases (included in ~/.gitconfig)
@@ -250,7 +249,6 @@ DOTFILES_TRASH_DIR_LINUX="$HOME/.trash"
 - `mozilla/gecko/alias.sh` - Mach shortcuts and WebCodecs test aliases
 - `mozilla/gecko/tools.sh` - pernosco-submit setup
 - `mozilla/gecko/machrc` - Custom mach config (symlinked to ~/.mozbuild/machrc)
-- `mozilla/hg/config` - Mercurial config (included in ~/.hgrc)
 
 ### Key Implementation Details
 

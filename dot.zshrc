@@ -18,7 +18,7 @@ setopt PROMPT_SUBST
 #     '< (%f%s) %F{2}%b%f'
 # zstyle ':vcs_info:(sv[nk]|bzr):*' branchformat '%b%F{1}:%F{3}%r'
 #
-# zstyle ':vcs_info:*' enable git hg cvs svn
+# zstyle ':vcs_info:*' enable git cvs svn
 #
 # vcs_info_wrapper() {
 #   vcs_info
