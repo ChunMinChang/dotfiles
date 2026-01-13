@@ -645,7 +645,7 @@ def gecko_init(tracker=None):
         print_fail(''.join(['{} exists! Abort!\n'.format(machrc),
                             'Apply default settings for now.']))
     else:
-        path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'machrc')
+        path = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'machrc')
         if not link(path, machrc, tracker):
             return False
 
@@ -654,7 +654,7 @@ def gecko_init(tracker=None):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return False
 
-    path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'alias.sh')
+    path = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'alias.sh')
     result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)], tracker)
     return result
 
@@ -667,7 +667,7 @@ def tools_init(tracker=None):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return False
 
-    path = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'tools.sh')
+    path = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'tools.sh')
     result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)], tracker)
     return result
 
@@ -1736,7 +1736,7 @@ def show_claude_hooks():
 # Firefox Claude Settings (Project-local)
 # ============================================================================
 
-FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'dot.claude')
+FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'dot.claude')
 
 
 def get_user_input(prompt, default=''):

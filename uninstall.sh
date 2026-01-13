@@ -130,7 +130,7 @@ PrintSubTitle "\nUnlink Mozilla stuff\n"\
 "--------------------------------------------------------------------\n"
 # Unlink machrc
 MACHRC_GLOBAL="$HOME/.mozbuild/machrc"
-MACHRC_HERE="$SCRIPT_DIR/mozilla/gecko/machrc"
+MACHRC_HERE="$SCRIPT_DIR/mozilla/firefox/machrc"
 UnlinkIfSymlink "$MACHRC_GLOBAL" "$MACHRC_HERE"
 
 

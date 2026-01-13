@@ -211,7 +211,7 @@ python setup.py --uninstall-firefox-claude ~/Work/firefox
 ```
 
 **How it works:**
-- Symlinks hooks/skills from `mozilla/gecko/dot.claude/` to target project
+- Symlinks hooks/skills from `mozilla/firefox/dot.claude/` to target project
 - Creates/updates `settings.local.json` (local-only, not committed)
 - If existing settings found, prompts to merge or override
 - Uninstall only removes dotfiles symlinks (preserves other settings)
@@ -280,7 +280,7 @@ DOTFILES_TRASH_DIR_LINUX="$HOME/.trash"
 **Shell initialization flow:**
 1. Platform entry: `~/.bashrc` (Linux) or `~/.zshrc`/`~/.bash_profile` (macOS)
 2. Common init: `dot.bashrc` sets `DOTFILES`, loads `utils.sh`, `git/utils.sh`, platform settings
-3. Optional: Mozilla tools (`mozilla/gecko/alias.sh`, `mozilla/gecko/tools.sh`)
+3. Optional: Mozilla tools (`mozilla/firefox/alias.sh`, `mozilla/firefox/tools.sh`)
 
 **Module organization:**
 - `setup.py` - Installation orchestrator (symlinks, loaders, git config)
@@ -288,10 +288,10 @@ DOTFILES_TRASH_DIR_LINUX="$HOME/.trash"
 - `utils.sh` - Cross-platform utilities (RecursivelyFind, Trash, HostHTTP, Print functions)
 - `git/config` - Git aliases (included in ~/.gitconfig)
 - `git/utils.sh` - Git workflow functions (GitLastCommit, GitUncommit, GitAddExcept, etc.)
-- `mozilla/gecko/alias.sh` - Mach shortcuts and WebCodecs test aliases
-- `mozilla/gecko/tools.sh` - pernosco-submit setup
-- `mozilla/gecko/machrc` - Custom mach config (symlinked to ~/.mozbuild/machrc)
-- `mozilla/gecko/dot.claude/` - Firefox Claude hooks/skills overlay (symlinked per-project)
+- `mozilla/firefox/alias.sh` - Mach shortcuts and WebCodecs test aliases
+- `mozilla/firefox/tools.sh` - pernosco-submit setup
+- `mozilla/firefox/machrc` - Custom mach config (symlinked to ~/.mozbuild/machrc)
+- `mozilla/firefox/dot.claude/` - Firefox Claude hooks/skills overlay (symlinked per-project)
 
 ### Key Implementation Details
 
