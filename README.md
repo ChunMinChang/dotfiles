@@ -13,6 +13,9 @@ python setup.py --dev-tools        # Add pre-commit hooks
 python setup.py --claude-security  # Add Claude Code security hooks
 python setup.py --all              # Install everything
 
+# Firefox Claude settings (per-project)
+python setup.py --install-firefox-claude ~/Work/firefox
+
 # Uninstall
 bash uninstall.sh --dry-run        # Preview removal
 bash uninstall.sh                  # Remove dotfiles
@@ -182,6 +185,45 @@ export DOTFILES_CLAUDE_SECURITY_DISABLED=true
 
 See [CLAUDE_SECURITY.md](CLAUDE_SECURITY.md) for detailed documentation, troubleshooting, and advanced usage.
 
+## Firefox Claude Settings (Optional)
+
+Install Firefox-specific Claude hooks and skills to any Firefox/Gecko project. Uses symlinks for easy management across multiple repos.
+
+**What's included:**
+- `post-edit-format.sh` - Auto-formats files after edits (`./mach format`)
+- `post-edit-lint.sh` - Auto-lints files after edits (`./mach lint --fix`)
+- `should-format-lint.sh` - File extension filter for format/lint hooks
+- `update-media-lib` skill - Guide for updating vendored media libraries
+
+**Commands:**
+```bash
+# Install (prompts for Firefox project path)
+python setup.py --install-firefox-claude
+
+# Install to specific path
+python setup.py --install-firefox-claude ~/Work/gecko
+
+# Preview what would be installed
+python setup.py --install-firefox-claude ~/Work/firefox --dry-run
+
+# Uninstall
+python setup.py --uninstall-firefox-claude ~/Work/firefox
+```
+
+**How it works:**
+- Symlinks hooks/skills from `mozilla/gecko/dot.claude/` to target project
+- Creates/updates `settings.local.json` (local-only, not committed)
+- If existing settings found, prompts to merge or override
+- Uninstall only removes dotfiles symlinks (preserves other settings)
+
+**Why symlinks?**
+- Single source of truth in dotfiles
+- Updates to hooks/skills propagate to all linked projects
+- Easy to manage multiple Firefox repos
+- Sync across machines via git
+
+**Important:** Restart Claude Code after installation for changes to take effect.
+
 ## Testing
 
 Run tests to verify the installation works correctly:
@@ -249,6 +291,7 @@ DOTFILES_TRASH_DIR_LINUX="$HOME/.trash"
 - `mozilla/gecko/alias.sh` - Mach shortcuts and WebCodecs test aliases
 - `mozilla/gecko/tools.sh` - pernosco-submit setup
 - `mozilla/gecko/machrc` - Custom mach config (symlinked to ~/.mozbuild/machrc)
+- `mozilla/gecko/dot.claude/` - Firefox Claude hooks/skills overlay (symlinked per-project)
 
 ### Key Implementation Details
 

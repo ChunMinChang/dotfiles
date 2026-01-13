@@ -1732,6 +1732,332 @@ def show_claude_hooks():
     return True
 
 
+# ============================================================================
+# Firefox Claude Settings (Project-local)
+# ============================================================================
+
+FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, 'mozilla', 'gecko', 'dot.claude')
+
+
+def get_user_input(prompt, default=''):
+    """Get text input from user with optional default."""
+    if DRY_RUN:
+        return default
+    if not is_interactive():
+        return default
+    try:
+        result = input(prompt).strip()
+        return result if result else default
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+
+
+def install_firefox_claude(target_dir=None, dry_run=False):
+    """
+    Install Firefox-specific Claude settings (hooks, skills) to a target project.
+    Uses symlinks for easy management across multiple repos.
+    """
+    print_title('Install Firefox Claude Settings')
+
+    # Verify overlay exists
+    if not os.path.isdir(FIREFOX_CLAUDE_OVERLAY):
+        print_error(f'Firefox Claude overlay not found: {FIREFOX_CLAUDE_OVERLAY}')
+        return False
+
+    # Ask for target directory if not provided
+    if not target_dir:
+        default_target = os.path.join(HOME_DIR, 'Work', 'firefox')
+        target_dir = get_user_input(
+            f'Enter Firefox project path [{default_target}]: ',
+            default_target
+        )
+
+    # Expand and validate target
+    target_dir = os.path.expanduser(target_dir)
+    if not os.path.isdir(target_dir):
+        print_error(f'Target directory does not exist: {target_dir}')
+        return False
+
+    # Check for mach to confirm it's a Firefox repo
+    mach_path = os.path.join(target_dir, 'mach')
+    if not os.path.exists(mach_path):
+        print_warning(f'No "mach" found in {target_dir}')
+        if not get_user_confirmation('Continue anyway? [y/N]: '):
+            print('Aborted.')
+            return False
+
+    target_claude_dir = os.path.join(target_dir, '.claude')
+    target_hooks_dir = os.path.join(target_claude_dir, 'hooks')
+    target_skills_dir = os.path.join(target_claude_dir, 'skills')
+    target_settings = os.path.join(target_claude_dir, 'settings.local.json')
+
+    # Check for existing settings
+    existing_settings = os.path.exists(target_settings)
+    merge_mode = None
+
+    if existing_settings and not dry_run:
+        print_warning(f'Existing settings found: {target_settings}')
+        print('Options:')
+        print('  [m] Merge - Keep existing settings and add new hooks/skills')
+        print('  [o] Override - Replace with dotfiles settings (creates symlink)')
+        print('  [c] Cancel - Abort installation')
+        choice = get_user_input('Choose [m/o/c]: ', 'c').lower()
+        if choice == 'c':
+            print('Aborted.')
+            return False
+        merge_mode = choice == 'm'
+        if merge_mode:
+            print_warning('Merge creates a local file, not a symlink.')
+            print_warning('Future updates to dotfiles settings will NOT auto-propagate.')
+            print_warning('To get updates, re-run with override mode or manually edit.')
+
+    if dry_run:
+        print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
+        print(f"  Target: {target_dir}")
+        print(f"  1. Create directory: {target_hooks_dir}")
+        print(f"  2. Create directory: {target_skills_dir}")
+
+        # List hooks to symlink
+        step = 3
+        source_hooks = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'hooks')
+        if os.path.isdir(source_hooks):
+            for hook in os.listdir(source_hooks):
+                src = os.path.join(source_hooks, hook)
+                dst = os.path.join(target_hooks_dir, hook)
+                print(f"  {step}. Symlink: {dst} -> {src}")
+                step += 1
+
+        # List skills to symlink
+        source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'skills')
+        if os.path.isdir(source_skills):
+            for skill in os.listdir(source_skills):
+                src = os.path.join(source_skills, skill)
+                dst = os.path.join(target_skills_dir, skill)
+                print(f"  {step}. Symlink: {dst} -> {src}")
+                step += 1
+
+        # Settings
+        src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'settings.local.json')
+        if existing_settings:
+            print(f"  {step}. Existing settings found: {target_settings}")
+            print(f"       (You will be prompted to merge or override when running without --dry-run)")
+        else:
+            print(f"  {step}. Symlink: {target_settings} -> {src_settings}")
+
+        print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
+        return True
+
+    # Create directories
+    os.makedirs(target_hooks_dir, exist_ok=True)
+    os.makedirs(target_skills_dir, exist_ok=True)
+    print(f'Created: {target_hooks_dir}')
+    print(f'Created: {target_skills_dir}')
+
+    # Symlink hooks
+    source_hooks = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'hooks')
+    if os.path.isdir(source_hooks):
+        for hook in os.listdir(source_hooks):
+            src = os.path.join(source_hooks, hook)
+            dst = os.path.join(target_hooks_dir, hook)
+
+            if os.path.islink(dst):
+                os.unlink(dst)
+            elif os.path.exists(dst):
+                print_warning(f'Skipping existing file: {dst}')
+                continue
+
+            os.symlink(src, dst)
+            print(f'Linked: {hook}')
+
+    # Symlink skills
+    source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'skills')
+    if os.path.isdir(source_skills):
+        for skill in os.listdir(source_skills):
+            src = os.path.join(source_skills, skill)
+            dst = os.path.join(target_skills_dir, skill)
+
+            if os.path.islink(dst):
+                os.unlink(dst)
+            elif os.path.exists(dst):
+                print_warning(f'Skipping existing directory: {dst}')
+                continue
+
+            os.symlink(src, dst)
+            print(f'Linked: {skill}')
+
+    # Handle settings.local.json
+    src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'settings.local.json')
+
+    if merge_mode and existing_settings:
+        # Merge settings
+        print('Merging settings...')
+        with open(target_settings, 'r') as f:
+            existing = json.load(f)
+        with open(src_settings, 'r') as f:
+            new_settings = json.load(f)
+
+        # Merge permissions
+        if 'permissions' in new_settings:
+            if 'permissions' not in existing:
+                existing['permissions'] = {}
+            if 'allow' in new_settings['permissions']:
+                existing_allow = set(existing.get('permissions', {}).get('allow', []))
+                new_allow = set(new_settings['permissions']['allow'])
+                existing['permissions']['allow'] = list(existing_allow | new_allow)
+
+        # Merge hooks
+        if 'hooks' in new_settings:
+            if 'hooks' not in existing:
+                existing['hooks'] = {}
+            for event, hooks in new_settings['hooks'].items():
+                if event not in existing['hooks']:
+                    existing['hooks'][event] = []
+                # Add hooks that aren't already there
+                existing_cmds = set()
+                for h in existing['hooks'][event]:
+                    for hook in h.get('hooks', []):
+                        existing_cmds.add(hook.get('command', ''))
+                for new_hook in hooks:
+                    for hook in new_hook.get('hooks', []):
+                        if hook.get('command', '') not in existing_cmds:
+                            existing['hooks'][event].append(new_hook)
+                            break
+
+        # Merge MCP servers
+        for key in ['enableAllProjectMcpServers', 'enabledMcpjsonServers']:
+            if key in new_settings:
+                existing[key] = new_settings[key]
+
+        # Write merged settings
+        with open(target_settings, 'w') as f:
+            json.dump(existing, f, indent=2)
+        print(f'Merged settings: {target_settings}')
+
+    else:
+        # Symlink settings
+        if os.path.islink(target_settings):
+            os.unlink(target_settings)
+        elif os.path.exists(target_settings):
+            backup = target_settings + '.backup'
+            shutil.move(target_settings, backup)
+            print_hint(f'Backed up existing settings to: {backup}')
+
+        os.symlink(src_settings, target_settings)
+        print(f'Linked: settings.local.json')
+
+    print('')
+    print(colors.OK + '✓ Firefox Claude settings installed' + colors.END)
+    print_hint(f'  Target: {target_dir}')
+    print_hint(f'  Hooks and skills are symlinked from: {FIREFOX_CLAUDE_OVERLAY}')
+    print('')
+    print_warning('IMPORTANT: Restart Claude Code for changes to take effect')
+
+    return True
+
+
+def uninstall_firefox_claude(target_dir=None, dry_run=False):
+    """
+    Remove Firefox-specific Claude settings from a target project.
+    Only removes symlinks that point to our overlay.
+    """
+    print_title('Uninstall Firefox Claude Settings')
+
+    # Ask for target directory if not provided
+    if not target_dir:
+        default_target = os.path.join(HOME_DIR, 'Work', 'firefox')
+        target_dir = get_user_input(
+            f'Enter Firefox project path [{default_target}]: ',
+            default_target
+        )
+
+    target_dir = os.path.expanduser(target_dir)
+    target_claude_dir = os.path.join(target_dir, '.claude')
+
+    if not os.path.isdir(target_claude_dir):
+        print_warning(f'No .claude directory found: {target_claude_dir}')
+        return True
+
+    target_hooks_dir = os.path.join(target_claude_dir, 'hooks')
+    target_skills_dir = os.path.join(target_claude_dir, 'skills')
+    target_settings = os.path.join(target_claude_dir, 'settings.local.json')
+
+    removed = []
+
+    if dry_run:
+        print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
+        print(f"  Target: {target_dir}")
+
+    # Remove hook symlinks
+    if os.path.isdir(target_hooks_dir):
+        for hook in os.listdir(target_hooks_dir):
+            hook_path = os.path.join(target_hooks_dir, hook)
+            if os.path.islink(hook_path):
+                link_target = os.readlink(hook_path)
+                if FIREFOX_CLAUDE_OVERLAY in link_target or '.dotfiles' in link_target:
+                    if dry_run:
+                        print(f"  Would remove symlink: {hook_path}")
+                    else:
+                        os.unlink(hook_path)
+                        print(f'Removed: {hook_path}')
+                    removed.append(hook_path)
+
+    # Remove skill symlinks
+    if os.path.isdir(target_skills_dir):
+        for skill in os.listdir(target_skills_dir):
+            skill_path = os.path.join(target_skills_dir, skill)
+            if os.path.islink(skill_path):
+                link_target = os.readlink(skill_path)
+                if FIREFOX_CLAUDE_OVERLAY in link_target or '.dotfiles' in link_target:
+                    if dry_run:
+                        print(f"  Would remove symlink: {skill_path}")
+                    else:
+                        os.unlink(skill_path)
+                        print(f'Removed: {skill_path}')
+                    removed.append(skill_path)
+
+    # Remove settings symlink
+    if os.path.islink(target_settings):
+        link_target = os.readlink(target_settings)
+        if FIREFOX_CLAUDE_OVERLAY in link_target or '.dotfiles' in link_target:
+            if dry_run:
+                print(f"  Would remove symlink: {target_settings}")
+            else:
+                os.unlink(target_settings)
+                print(f'Removed: {target_settings}')
+            removed.append(target_settings)
+
+            # Restore backup if exists
+            backup = target_settings + '.backup'
+            if os.path.exists(backup):
+                if dry_run:
+                    print(f"  Would restore backup: {backup}")
+                else:
+                    shutil.move(backup, target_settings)
+                    print(f'Restored: {target_settings}')
+
+    # Clean up empty directories
+    for dir_path in [target_hooks_dir, target_skills_dir]:
+        if os.path.isdir(dir_path) and not os.listdir(dir_path):
+            if dry_run:
+                print(f"  Would remove empty directory: {dir_path}")
+            else:
+                os.rmdir(dir_path)
+                print(f'Removed empty directory: {dir_path}')
+
+    if dry_run:
+        print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
+        return True
+
+    if removed:
+        print('')
+        print(colors.OK + f'✓ Removed {len(removed)} item(s)' + colors.END)
+    else:
+        print_hint('No dotfiles symlinks found to remove')
+
+    return True
+
+
 def show_claude_security_log():
     """Show blocked access log from security hooks."""
     print_title('Claude Security Blocks Log')
@@ -1805,6 +2131,9 @@ Examples:
   python3 setup.py --all              # Install everything (dotfiles + git + mozilla + dev-tools + claude-security)
   python3 setup.py --show-claude-hooks # Show installed hooks
   python3 setup.py --remove-claude-security # Remove security hooks
+  python3 setup.py --install-firefox-claude # Install Firefox Claude settings (prompts for path)
+  python3 setup.py --install-firefox-claude ~/Work/gecko # Install to specific path
+  python3 setup.py --uninstall-firefox-claude # Remove Firefox Claude settings
         '''
     )
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -1825,6 +2154,10 @@ Examples:
                         help='Show log of blocked access attempts')
     parser.add_argument('--all', action='store_true',
                         help='Install all components (dotfiles + git + mozilla + dev-tools + claude-security)')
+    parser.add_argument('--install-firefox-claude', nargs='?', const='', metavar='PATH',
+                        help='Install Firefox Claude settings (hooks, skills) to a project. Prompts for path if not provided.')
+    parser.add_argument('--uninstall-firefox-claude', nargs='?', const='', metavar='PATH',
+                        help='Remove Firefox Claude settings from a project. Prompts for path if not provided.')
     args = parser.parse_args(argv[1:])
 
     # Set global flags
@@ -1853,6 +2186,15 @@ Examples:
     # Handle removal command (don't need tracker)
     if args.remove_claude_security:
         return 0 if claude_security_remove(DRY_RUN) else 1
+
+    # Handle Firefox Claude install/uninstall (standalone commands)
+    if args.install_firefox_claude is not None:
+        target = args.install_firefox_claude if args.install_firefox_claude else None
+        return 0 if install_firefox_claude(target, DRY_RUN) else 1
+
+    if args.uninstall_firefox_claude is not None:
+        target = args.uninstall_firefox_claude if args.uninstall_firefox_claude else None
+        return 0 if uninstall_firefox_claude(target, DRY_RUN) else 1
 
     # Handle --all flag
     if args.all:
