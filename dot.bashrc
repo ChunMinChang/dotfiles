@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 DOTFILES=~/.dotfiles
 
 # Show colors for ls
@@ -15,7 +16,7 @@ export LSCOLORS="gxfxcxdxcxegedabagacad"
 PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
 SETTINGS_PREFIX=$HOME/.settings_
 SETTINGS_PLATFORM=$SETTINGS_PREFIX$PLATFORM
-[ -r $SETTINGS_PLATFORM ] && . $SETTINGS_PLATFORM
+[ -r "$SETTINGS_PLATFORM" ] && . "$SETTINGS_PLATFORM"
 
 # Common paths (after platform settings load config.sh)
 # ====================================================================
