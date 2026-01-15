@@ -17,8 +17,8 @@ SETTINGS_PREFIX=$HOME/.settings_
 SETTINGS_PLATFORM=$SETTINGS_PREFIX$PLATFORM
 [ -r $SETTINGS_PLATFORM ] && . $SETTINGS_PLATFORM
 
-# Optional settings (settings might be appended by setup.py)
+# Optional settings
 # ====================================================================
-[ -r /Users/cm/dotfiles/mozilla/firefox/alias.sh ] && . /Users/cm/dotfiles/mozilla/firefox/alias.sh
-[ -r /Users/cm/dotfiles/mozilla/firefox/tools.sh ] && . /Users/cm/dotfiles/mozilla/firefox/tools.sh
-[ -r /Users/cm/.cargo/env ] && . /Users/cm/.cargo/env
+# This is a template file. Machine-specific settings (e.g., Mozilla tools)
+# are appended to ~/.bashrc by setup.py, not to this template.
+# This keeps the template clean and platform-agnostic for version control.

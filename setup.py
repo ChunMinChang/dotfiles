@@ -533,9 +533,25 @@ def bash_link(tracker=None):
                 print('  3. Keep existing file (skip)')
                 skipped.append(f)
         else:
-            result = link(src, target, tracker)
-            if not result:
-                errors.append('Failed to link {}'.format(f))
+            # Special case: bashrc/zshrc should be real files that source templates
+            # This allows machine-specific customization (e.g., by mozilla_init)
+            if f == 'dot.bashrc' or f == 'dot.zshrc':
+                print('Creating {} with source command to load {}'.format(target, src))
+                try:
+                    if DRY_RUN:
+                        print_dry_run('Would create {} with source command'.format(target))
+                    else:
+                        with open(target, 'w') as tf:
+                            tf.write(bash_load_command(src) + '\n')
+                        print('{} created'.format(target))
+                except IOError as e:
+                    print_error('Failed to create {}: {}'.format(target, str(e)))
+                    errors.append('Failed to create {}'.format(f))
+            else:
+                # For all other files (settings_*), create symlinks as usual
+                result = link(src, target, tracker)
+                if not result:
+                    errors.append('Failed to link {}'.format(f))
 
     # Return True only if no errors (skipped files are user choice, not errors)
     success = len(errors) == 0
@@ -649,7 +665,7 @@ def gecko_init(tracker=None):
         if not link(path, machrc, tracker):
             return False
 
-    bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
+    bashrc = os.path.join(HOME_DIR, '.bashrc')
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return False
@@ -662,7 +678,7 @@ def gecko_init(tracker=None):
 def tools_init(tracker=None):
     print_installing_title('tools settings')
 
-    bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
+    bashrc = os.path.join(HOME_DIR, '.bashrc')
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return False
@@ -676,7 +692,7 @@ def rust_init(tracker=None):
     print_installing_title('rust settings')
     error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.']
 
-    bashrc = os.path.join(BASE_DIR, 'dot.bashrc')
+    bashrc = os.path.join(HOME_DIR, '.bashrc')
     if not os.path.isfile(bashrc):
         print_fail('{} does not exist! Abort!'.format(bashrc))
         return False
