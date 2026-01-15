@@ -17,6 +17,13 @@ SETTINGS_PREFIX=$HOME/.settings_
 SETTINGS_PLATFORM=$SETTINGS_PREFIX$PLATFORM
 [ -r $SETTINGS_PLATFORM ] && . $SETTINGS_PLATFORM
 
+# Common paths (after platform settings load config.sh)
+# ====================================================================
+# Add local bin to PATH if it exists
+if [ -d "$DOTFILES_LOCAL_BIN_DIR" ]; then
+  export PATH="$DOTFILES_LOCAL_BIN_DIR:$PATH"
+fi
+
 # Optional settings
 # ====================================================================
 # This is a template file. Machine-specific settings (e.g., Mozilla tools)
