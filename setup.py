@@ -632,6 +632,7 @@ def mozilla_init(mozilla_arg, tracker=None):
         'gecko': gecko_init,
         'tools': tools_init,
         'rust': rust_init,
+        'pernosco': pernosco_init,
     }
 
     # Select which Mozilla tools to install
@@ -647,7 +648,8 @@ def mozilla_init(mozilla_arg, tracker=None):
     all_succeeded = True
     for k in options:
         result = funcs[k](tracker)
-        if not result:
+        # None = skipped (user choice), False = failed
+        if result is False:
             all_succeeded = False
 
     return all_succeeded
@@ -706,6 +708,133 @@ def rust_init(tracker=None):
 
     result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(cargo_env)], tracker)
     return result
+
+
+def pernosco_init(tracker=None):
+    """
+    Initialize pernosco-submit script (optional).
+
+    Asks user if they want to install pernosco-submit, and if so:
+    - Asks for Mozilla email and secret key
+    - Asks where to put the script
+    - Creates the script with credentials filled in
+    """
+    print_installing_title('pernosco-submit (optional)')
+
+    # Check platform - pernosco is Linux only
+    if platform.system() != 'Linux':
+        print_warning('pernosco-submit is Linux only, skipping')
+        return None  # Skipped, not failure
+
+    # Ask user if they want to install
+    print('\nPernosco is a time-travel debugging service for Firefox.')
+    print('If you don\'t use Pernosco, you can skip this.')
+
+    if not get_user_confirmation('Install pernosco-submit script? [y/N]: ', default_non_interactive=False):
+        print('Skipping pernosco-submit installation')
+        return None  # Skipped, not failure
+
+    # Ask for credentials
+    print('\nPlease provide your Pernosco credentials:')
+
+    mozilla_email = get_user_input('Mozilla email (e.g., user@mozilla.com): ', '')
+    if not mozilla_email or not mozilla_email.endswith('@mozilla.com'):
+        print_fail('Email must end with @mozilla.com. Aborting pernosco-submit installation.')
+        return False
+
+    secret_key = get_user_input('PERNOSCO_USER_SECRET_KEY (from Pernosco dashboard): ', '')
+    if not secret_key:
+        print_fail('Empty secret key. Aborting pernosco-submit installation.')
+        return False
+
+    # Get configuration
+    config = get_config()
+    local_bin = config['DOTFILES_LOCAL_BIN_DIR']
+    work_bin = config['DOTFILES_WORK_BIN_DIR']
+
+    # Ask where to install
+    print('\nWhere would you like to install pernosco-submit?')
+    print(f'  1. Local bin: {local_bin}')
+    print(f'  2. Work bin:  {work_bin}')
+    print('  3. Custom path')
+
+    choice = get_user_input('Choose [1/2/3]: ', '1')
+
+    if choice == '1':
+        target_dir = local_bin
+    elif choice == '2':
+        target_dir = work_bin
+    elif choice == '3':
+        target_dir = get_user_input('Enter custom directory path: ', local_bin)
+        target_dir = os.path.expanduser(target_dir)
+    else:
+        target_dir = local_bin
+
+    # Create directory if needed
+    if not os.path.isdir(target_dir):
+        if DRY_RUN:
+            print_dry_run(f'Would create directory: {target_dir}')
+        else:
+            try:
+                os.makedirs(target_dir, exist_ok=True)
+                print(f'Created directory: {target_dir}')
+                if tracker:
+                    tracker.record_create(target_dir, 'directory')
+            except OSError as e:
+                print_fail(f'Failed to create directory {target_dir}: {e}')
+                return False
+
+    # Read template
+    template_path = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'pernosco-submit_template')
+    target_path = os.path.join(target_dir, 'pernosco-submit')
+
+    if not os.path.isfile(template_path):
+        print_fail(f'Template not found: {template_path}')
+        return False
+
+    if os.path.exists(target_path):
+        print_warning(f'{target_path} already exists!')
+        if not get_user_confirmation('Overwrite? [y/N]: ', default_non_interactive=False):
+            print('Skipping - keeping existing file')
+            return None
+
+    # Read template and fill in credentials
+    try:
+        with open(template_path, 'r') as f:
+            script_content = f.read()
+    except IOError as e:
+        print_fail(f'Failed to read template: {e}')
+        return False
+
+    # Replace placeholders with actual values
+    script_content = script_content.replace('<user>@mozilla.com', mozilla_email)
+    script_content = script_content.replace(
+        'export PERNOSCO_USER_SECRET_KEY=',
+        f'export PERNOSCO_USER_SECRET_KEY={secret_key}'
+    )
+
+    # Write the script
+    if DRY_RUN:
+        print_dry_run(f'Would create {target_path} with credentials')
+        print_dry_run('Would make script executable')
+    else:
+        try:
+            with open(target_path, 'w') as f:
+                f.write(script_content)
+            os.chmod(target_path, 0o755)
+            print(f'Installed: {target_path}')
+            if tracker:
+                tracker.record_create(target_path, 'file')
+        except (IOError, OSError) as e:
+            print_fail(f'Failed to install pernosco-submit: {e}')
+            return False
+
+    # Remind user to set PERNOSCO_BIN path
+    print('')
+    print_hint('NOTE: Edit the script to set PERNOSCO_BIN to your pernosco-submit binary path:')
+    print(f'  {target_path}')
+
+    return True
 
 
 # Development Tools (Pre-commit Hooks)
@@ -2157,7 +2286,7 @@ Examples:
     parser.add_argument('--dry-run', action='store_true',
                         help='Show what would be done without making any changes')
     parser.add_argument('--mozilla', nargs='*',
-                        help='Install Mozilla toolkit for gecko development (gecko, tools, rust)')
+                        help='Install Mozilla toolkit for gecko development (gecko, tools, rust, pernosco)')
     parser.add_argument('--dev-tools', nargs='*',
                         help='Install development tools (shellcheck, ruff, black, markdownlint) and pre-commit hooks')
     parser.add_argument('--claude-security', action='store_true',
