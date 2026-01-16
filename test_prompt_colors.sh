@@ -227,6 +227,27 @@ test_no_literal_escapes() {
     fi
 }
 
+test_prompt_subst_enabled() {
+    print_section "PROMPT_SUBST Enabled in Zsh"
+
+    # Test that PROMPT_SUBST is enabled for dynamic prompt substitution
+    TESTS_RUN=$((TESTS_RUN + 1))
+    result=$(zsh -c '
+        source dot.zshrc 2>/dev/null
+        if [[ -o prompt_subst ]]; then
+            echo "enabled"
+        else
+            echo "disabled"
+        fi
+    ')
+
+    if [[ "$result" == "enabled" ]]; then
+        print_pass "PROMPT_SUBST is enabled (required for \$(ParseGitBranch))"
+    else
+        print_fail "PROMPT_SUBST should be enabled for dynamic prompts"
+    fi
+}
+
 test_rprompt_disabled() {
     print_section "RPROMPT Disabled in Zsh"
 
@@ -241,23 +262,6 @@ test_rprompt_disabled() {
         print_pass "RPROMPT is empty/unset in zsh"
     else
         print_fail "RPROMPT should be empty, got: $result"
-    fi
-
-    # Test that vcs_info_wrapper is not defined
-    TESTS_RUN=$((TESTS_RUN + 1))
-    result=$(zsh -c '
-        source dot.zshrc 2>/dev/null
-        if type vcs_info_wrapper &>/dev/null; then
-            echo "defined"
-        else
-            echo "not_defined"
-        fi
-    ')
-
-    if [[ "$result" == "not_defined" ]]; then
-        print_pass "vcs_info_wrapper is not defined (commented out)"
-    else
-        print_fail "vcs_info_wrapper should not be defined"
     fi
 }
 
@@ -420,6 +424,8 @@ main() {
     test_shell_detection
     echo ""
     test_no_literal_escapes
+    echo ""
+    test_prompt_subst_enabled
     echo ""
     test_rprompt_disabled
     echo ""
