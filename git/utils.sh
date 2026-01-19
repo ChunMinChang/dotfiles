@@ -14,6 +14,7 @@ alias grb='git rebase'
 alias grt='git remote -v'
 alias gs='git status'
 alias gum='git add -u && git commit -m'
+alias grn='GitRenameBranch'
 
 # Typo
 # ------------------------------------------------
@@ -188,6 +189,76 @@ function CreateGitBranchForPullRequest {
 # ------------------------------------------------
 function ParseGitBranch {
   git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
+}
+
+# Rename a branch locally and on remote
+# ------------------------------------------------
+function GitRenameBranch {
+  if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+    PrintError "Usage: GitRenameBranch <old-name> <new-name> [remote]"
+    PrintError "  remote defaults to 'origin'"
+    return 1
+  fi
+
+  local old_name="$1"
+  local new_name="$2"
+  local remote="${3:-origin}"
+
+  # Validate remote exists
+  if ! git remote | grep -q "^${remote}$"; then
+    PrintError "Remote '$remote' does not exist"
+    PrintError "Available remotes:"
+    git remote -v
+    return 1
+  fi
+
+  # Check if old branch exists locally
+  if ! git show-ref --verify --quiet "refs/heads/$old_name"; then
+    PrintError "Local branch '$old_name' does not exist"
+    return 1
+  fi
+
+  # Check if new branch already exists locally
+  if git show-ref --verify --quiet "refs/heads/$new_name"; then
+    PrintError "Local branch '$new_name' already exists"
+    return 1
+  fi
+
+  # Check if old branch exists on remote
+  local remote_exists=false
+  if git ls-remote --exit-code --heads "$remote" "$old_name" &>/dev/null; then
+    remote_exists=true
+  fi
+
+  # Rename local branch
+  echo "Renaming local branch '$old_name' to '$new_name'..."
+  if ! git branch -m "$old_name" "$new_name"; then
+    PrintError "Failed to rename local branch"
+    return 1
+  fi
+
+  if [ "$remote_exists" = true ]; then
+    # Push new branch to remote
+    echo "Pushing '$new_name' to $remote..."
+    if ! git push "$remote" -u "$new_name"; then
+      PrintError "Failed to push new branch to remote"
+      PrintWarning "Local branch was renamed. You may need to manually fix remote."
+      return 1
+    fi
+
+    # Delete old branch from remote
+    echo "Deleting '$old_name' from $remote..."
+    if ! git push "$remote" --delete "$old_name"; then
+      PrintError "Failed to delete old branch from remote"
+      PrintWarning "New branch was pushed. You may need to manually delete '$old_name' from $remote."
+      return 1
+    fi
+
+    echo "Successfully renamed branch '$old_name' to '$new_name' (local and remote)"
+  else
+    echo "Successfully renamed local branch '$old_name' to '$new_name'"
+    PrintWarning "Branch did not exist on remote '$remote', only renamed locally"
+  fi
 }
 
 function BranchInPrompt {
