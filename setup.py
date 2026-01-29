@@ -7,7 +7,6 @@ import re
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 # Global variables
 # ------------------------------------------------------------------------------
@@ -996,7 +995,7 @@ def install_shellcheck(tracker=None):
             result = subprocess.run(['sudo', '-n', 'true'],
                                     capture_output=True, timeout=5)
             has_sudo = (result.returncode == 0)
-        except:
+        except Exception:
             has_sudo = False
 
     # Install based on platform
