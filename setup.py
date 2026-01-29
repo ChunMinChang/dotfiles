@@ -448,7 +448,7 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
 
     # Report entries already in .gitignore (repo default)
     if already_ignored:
-        print(f'Already in .gitignore (no action needed):')
+        print('Already in .gitignore (no action needed):')
         for entry in already_ignored:
             print(f'  {entry}')
 
@@ -2067,7 +2067,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
         src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'settings.local.json')
         if existing_settings:
             print(f"  {step}. Existing settings found: {target_settings}")
-            print(f"       (You will be prompted to merge or override when running without --dry-run)")
+            print("       (You will be prompted to merge or override when running without --dry-run)")
         else:
             print(f"  {step}. Symlink: {target_settings} -> {src_settings}")
             gitignore_entries.append('.claude/settings.local.json')
@@ -2182,7 +2182,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             print_hint(f'Backed up existing settings to: {backup}')
 
         os.symlink(src_settings, target_settings)
-        print(f'Linked: settings.local.json')
+        print('Linked: settings.local.json')
         gitignore_entries.append('.claude/settings.local.json')
 
     # Add our items to .gitignore (only what we added, not entire .claude/)
