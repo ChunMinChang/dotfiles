@@ -12,28 +12,31 @@ import sys
 # ------------------------------------------------------------------------------
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-HOME_DIR = os.environ['HOME']
+HOME_DIR = os.environ["HOME"]
 VERBOSE = False  # Set to True with -v/--verbose flag
 DRY_RUN = False  # Set to True with --dry-run flag
 
 # Configuration paths loaded from config.sh
 CONFIG = None  # Lazy-loaded config dictionary
 
+
 # Note: Python print functions kept separate from shell utils.sh
 # (Python can't source bash scripts - different language ecosystems)
 # Shell scripts use Print* functions from utils.sh
 class colors:
-    HEADER = '\033[94m'   # Blue
-    HINT = '\033[46m'     # Background Cyan
-    OK = '\033[92m'       # Green
-    WARNING = '\033[93m'  # Yellow
-    FAIL = '\033[91m'     # Red
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    END = '\033[0m'
+    HEADER = "\033[94m"  # Blue
+    HINT = "\033[46m"  # Background Cyan
+    OK = "\033[92m"  # Green
+    WARNING = "\033[93m"  # Yellow
+    FAIL = "\033[91m"  # Red
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+    END = "\033[0m"
+
 
 # Utils
 # ------------------------------------------------------------------------------
+
 
 def load_config():
     """Load configuration from config.sh.
@@ -41,51 +44,50 @@ def load_config():
     Returns a dictionary with all DOTFILES_* configuration variables.
     Falls back to default hardcoded values if config.sh cannot be loaded.
     """
-    config_path = os.path.join(BASE_DIR, 'config.sh')
+    config_path = os.path.join(BASE_DIR, "config.sh")
 
     # Default fallback values (same as previous hardcoded values)
     defaults = {
-        'DOTFILES_MOZBUILD_DIR': os.path.join(HOME_DIR, '.mozbuild'),
-        'DOTFILES_LOCAL_BIN_DIR': os.path.join(HOME_DIR, '.local', 'bin'),
-        'DOTFILES_WORK_BIN_DIR': os.path.join(HOME_DIR, 'Work', 'bin'),
-        'DOTFILES_CARGO_DIR': os.path.join(HOME_DIR, '.cargo'),
-        'DOTFILES_TRASH_DIR_LINUX': os.path.join(HOME_DIR, '.local', 'share', 'Trash', 'files'),
-        'DOTFILES_TRASH_DIR_DARWIN': os.path.join(HOME_DIR, '.Trash'),
-        'DOTFILES_MACHRC_PATH': os.path.join(HOME_DIR, '.mozbuild', 'machrc'),
-        'DOTFILES_CARGO_ENV_PATH': os.path.join(HOME_DIR, '.cargo', 'env'),
+        "DOTFILES_MOZBUILD_DIR": os.path.join(HOME_DIR, ".mozbuild"),
+        "DOTFILES_LOCAL_BIN_DIR": os.path.join(HOME_DIR, ".local", "bin"),
+        "DOTFILES_WORK_BIN_DIR": os.path.join(HOME_DIR, "Work", "bin"),
+        "DOTFILES_CARGO_DIR": os.path.join(HOME_DIR, ".cargo"),
+        "DOTFILES_TRASH_DIR_LINUX": os.path.join(
+            HOME_DIR, ".local", "share", "Trash", "files"
+        ),
+        "DOTFILES_TRASH_DIR_DARWIN": os.path.join(HOME_DIR, ".Trash"),
+        "DOTFILES_MACHRC_PATH": os.path.join(HOME_DIR, ".mozbuild", "machrc"),
+        "DOTFILES_CARGO_ENV_PATH": os.path.join(HOME_DIR, ".cargo", "env"),
     }
 
     # Try to load from config.sh
     if not os.path.exists(config_path):
-        print_verbose('config.sh not found, using default values')
+        print_verbose("config.sh not found, using default values")
         return defaults
 
     try:
         # Source config.sh and export all DOTFILES_* variables
         cmd = f'source "{config_path}" && env | grep "^DOTFILES_"'
         result = subprocess.run(
-            ['bash', '-c', cmd],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["bash", "-c", cmd], capture_output=True, text=True, timeout=5
         )
 
         if result.returncode != 0:
-            print_verbose('Failed to source config.sh, using defaults')
+            print_verbose("Failed to source config.sh, using defaults")
             return defaults
 
         # Parse the output to extract config values
         config = defaults.copy()
-        for line in result.stdout.strip().split('\n'):
-            if '=' in line:
-                key, value = line.split('=', 1)
+        for line in result.stdout.strip().split("\n"):
+            if "=" in line:
+                key, value = line.split("=", 1)
                 config[key] = value
 
-        print_verbose('Config loaded from config.sh')
+        print_verbose("Config loaded from config.sh")
         return config
 
     except (subprocess.TimeoutExpired, Exception) as e:
-        print_verbose('Error loading config.sh: {}'.format(e))
+        print_verbose("Error loading config.sh: {}".format(e))
         return defaults
 
 
@@ -99,6 +101,7 @@ def get_config():
 
 # Change Tracking & Rollback
 # ------------------------------------------------------------------------------
+
 
 class ChangeTracker:
     """Tracks all changes made during setup for potential rollback."""
@@ -114,13 +117,15 @@ class ChangeTracker:
             source: What the symlink points to
             old_target: If replacing existing symlink, what it pointed to before
         """
-        self.changes.append({
-            'type': 'symlink',
-            'target': target,
-            'source': source,
-            'old_target': old_target
-        })
-        print_verbose('ChangeTracker: Recorded symlink {} -> {}'.format(target, source))
+        self.changes.append(
+            {
+                "type": "symlink",
+                "target": target,
+                "source": source,
+                "old_target": old_target,
+            }
+        )
+        print_verbose("ChangeTracker: Recorded symlink {} -> {}".format(target, source))
 
     def record_lines_appended(self, file_path, lines):
         """Record that lines were appended to a file.
@@ -129,13 +134,12 @@ class ChangeTracker:
             file_path: Path to file that was modified
             lines: List of lines that were appended
         """
-        self.changes.append({
-            'type': 'append',
-            'file': file_path,
-            'lines': lines
-        })
-        print_verbose('ChangeTracker: Recorded {} line(s) appended to {}'.format(
-            len(lines), file_path))
+        self.changes.append({"type": "append", "file": file_path, "lines": lines})
+        print_verbose(
+            "ChangeTracker: Recorded {} line(s) appended to {}".format(
+                len(lines), file_path
+            )
+        )
 
     def record_git_config(self, key, value):
         """Record that a git config was set.
@@ -144,12 +148,8 @@ class ChangeTracker:
             key: Git config key that was set
             value: Value that was set
         """
-        self.changes.append({
-            'type': 'git_config',
-            'key': key,
-            'value': value
-        })
-        print_verbose('ChangeTracker: Recorded git config {} = {}'.format(key, value))
+        self.changes.append({"type": "git_config", "key": key, "value": value})
+        print_verbose("ChangeTracker: Recorded git config {} = {}".format(key, value))
 
     def has_changes(self):
         """Return True if any changes have been recorded."""
@@ -172,136 +172,144 @@ def rollback_changes(tracker):
         True if rollback succeeded, False if any errors occurred
     """
     if not tracker.has_changes():
-        print('No changes to rollback.')
+        print("No changes to rollback.")
         return True
 
-    print_title('Rolling Back Changes')
-    print('Undoing {} change(s)...'.format(tracker.get_change_count()))
+    print_title("Rolling Back Changes")
+    print("Undoing {} change(s)...".format(tracker.get_change_count()))
 
     errors = []
     # Process changes in reverse order (undo most recent first)
     for change in reversed(tracker.changes):
         try:
-            if change['type'] == 'symlink':
-                target = change['target']
-                old_target = change.get('old_target')
+            if change["type"] == "symlink":
+                target = change["target"]
+                old_target = change.get("old_target")
 
                 if os.path.islink(target):
-                    print('Removing symlink: {}'.format(target))
+                    print("Removing symlink: {}".format(target))
                     os.unlink(target)
 
                     # If we replaced an existing symlink, restore it
                     if old_target:
-                        print('Restoring previous symlink: {} -> {}'.format(target, old_target))
+                        print(
+                            "Restoring previous symlink: {} -> {}".format(
+                                target, old_target
+                            )
+                        )
                         os.symlink(old_target, target)
                 elif os.path.exists(target):
-                    print_warning('Not removing {} (not a symlink)'.format(target))
+                    print_warning("Not removing {} (not a symlink)".format(target))
                 else:
-                    print_verbose('Symlink {} already removed'.format(target))
+                    print_verbose("Symlink {} already removed".format(target))
 
-            elif change['type'] == 'append':
-                file_path = change['file']
-                lines = change['lines']
+            elif change["type"] == "append":
+                file_path = change["file"]
+                lines = change["lines"]
 
                 if not os.path.exists(file_path):
-                    print_verbose('File {} does not exist, skipping'.format(file_path))
+                    print_verbose("File {} does not exist, skipping".format(file_path))
                     continue
 
-                print('Removing {} line(s) from {}'.format(len(lines), file_path))
+                print("Removing {} line(s) from {}".format(len(lines), file_path))
 
                 # Read all lines
-                with open(file_path, 'r') as f:
+                with open(file_path, "r") as f:
                     all_lines = f.readlines()
 
                 # Remove the appended lines
-                lines_to_remove = set(line.rstrip('\n') for line in lines)
+                lines_to_remove = set(line.rstrip("\n") for line in lines)
                 filtered_lines = [
-                    line for line in all_lines
-                    if line.rstrip('\n') not in lines_to_remove
+                    line
+                    for line in all_lines
+                    if line.rstrip("\n") not in lines_to_remove
                 ]
 
                 # Write back filtered content
-                with open(file_path, 'w') as f:
+                with open(file_path, "w") as f:
                     f.writelines(filtered_lines)
 
-            elif change['type'] == 'git_config':
-                key = change['key']
-                print('Removing git config: {}'.format(key))
+            elif change["type"] == "git_config":
+                key = change["key"]
+                print("Removing git config: {}".format(key))
 
                 # Remove the git config setting
                 result = subprocess.run(
-                    ['git', 'config', '--global', '--unset', key],
+                    ["git", "config", "--global", "--unset", key],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
                 )
 
                 if result.returncode != 0:
                     # Non-zero could mean already unset, which is fine
-                    print_verbose('git config unset returned {}'.format(result.returncode))
+                    print_verbose(
+                        "git config unset returned {}".format(result.returncode)
+                    )
 
         except Exception as e:
-            error_msg = 'Error rolling back {}: {}'.format(change['type'], e)
+            error_msg = "Error rolling back {}: {}".format(change["type"], e)
             print_error(error_msg)
             errors.append(error_msg)
 
     if errors:
-        print_error('Rollback completed with {} error(s)'.format(len(errors)))
+        print_error("Rollback completed with {} error(s)".format(len(errors)))
         return False
     else:
-        print('Rollback completed successfully')
+        print("Rollback completed successfully")
         return True
 
 
 # Symbolically link source to target
 def link(source, target, tracker=None):
-    print_verbose('link() called: source={}, target={}'.format(source, target))
+    print_verbose("link() called: source={}, target={}".format(source, target))
 
     # Validate source exists before creating symlink
-    print_verbose('Checking if source exists: {}'.format(source))
+    print_verbose("Checking if source exists: {}".format(source))
     if not os.path.exists(source):
-        print_error('Cannot create symlink: source does not exist')
-        print_error('Source: {}'.format(source))
-        print_verbose('link() returning: False (source does not exist)')
+        print_error("Cannot create symlink: source does not exist")
+        print_error("Source: {}".format(source))
+        print_verbose("link() returning: False (source does not exist)")
         return False
 
-    print_verbose('Source exists: True')
-    print_verbose('Checking if target is a symlink: {}'.format(target))
+    print_verbose("Source exists: True")
+    print_verbose("Checking if target is a symlink: {}".format(target))
 
     old_target = None
     if os.path.islink(target):
-        print_verbose('Target is a symlink, unlinking')
+        print_verbose("Target is a symlink, unlinking")
         # Record what the old symlink pointed to
         old_target = os.readlink(target)
 
         if DRY_RUN:
-            print_dry_run('Would unlink {}'.format(target))
+            print_dry_run("Would unlink {}".format(target))
         else:
-            print('unlink {}'.format(target))
+            print("unlink {}".format(target))
             os.unlink(target)
     else:
-        print_verbose('Target is not a symlink or does not exist')
+        print_verbose("Target is not a symlink or does not exist")
 
     if DRY_RUN:
-        print_dry_run('Would link {} to {}'.format(source, target))
+        print_dry_run("Would link {} to {}".format(source, target))
     else:
-        print('link {} to {}'.format(source, target))
+        print("link {} to {}".format(source, target))
         os.symlink(source, target)
-        print_verbose('Symlink created successfully')
+        print_verbose("Symlink created successfully")
 
     # Record the change if tracker provided (even in dry-run for preview)
     if tracker and not DRY_RUN:
         tracker.record_symlink_created(target, source, old_target)
 
-    print_verbose('link() returning: True')
+    print_verbose("link() returning: True")
     return True
+
 
 # Check if `name` exists
 def is_tool(name):
     cmd = "where" if platform.system() == "Windows" else "which"
     try:
         r = subprocess.check_output([cmd, name], stderr=subprocess.DEVNULL)
-        print('{} is found in {}'.format(name, r.decode("utf-8")))
+        print("{} is found in {}".format(name, r.decode("utf-8")))
         return True
     except subprocess.CalledProcessError:
         # Command not found (expected when tool is not installed)
@@ -312,25 +320,25 @@ def is_tool(name):
         return False
     except Exception as e:
         # Unexpected error - log it for debugging
-        print_warning('Error checking for {}: {}'.format(name, str(e)))
+        print_warning("Error checking for {}: {}".format(name, str(e)))
         return False
 
 
-def append_to_next_line_after(name, pattern, value=''):
+def append_to_next_line_after(name, pattern, value=""):
     file = fileinput.input(name, inplace=True)
     for line in file:
-        replacement = line + ('\n' if '\n' not in line else '') + value
+        replacement = line + ("\n" if "\n" not in line else "") + value
         line = re.sub(pattern, replacement, line)
         sys.stdout.write(line)
     file.close()
 
 
 def bash_export_command(path):
-    return ''.join(['export PATH=', path, ':$PATH'])
+    return "".join(["export PATH=", path, ":$PATH"])
 
 
 def bash_load_command(path):
-    return ''.join(['[ -r ', path, ' ] && . ', path])
+    return "".join(["[ -r ", path, " ] && . ", path])
 
 
 def append_nonexistent_lines_to_file(file, lines, tracker=None):
@@ -351,32 +359,32 @@ def append_nonexistent_lines_to_file(file, lines, tracker=None):
     """
     # Validate file exists
     if not os.path.exists(file):
-        print_error('File does not exist: {}'.format(file))
+        print_error("File does not exist: {}".format(file))
         return False
 
     # Validate file is writable
     if not os.access(file, os.W_OK):
-        print_error('File is not writable: {}'.format(file))
+        print_error("File is not writable: {}".format(file))
         return False
 
     try:
         # Read existing lines
-        with open(file, 'r') as f:
-            existing_lines = [line.rstrip('\n') for line in f]
+        with open(file, "r") as f:
+            existing_lines = [line.rstrip("\n") for line in f]
 
         # Check if file ends with newline
         needs_newline = False
         if existing_lines and len(existing_lines) > 0:
-            with open(file, 'rb') as f:
+            with open(file, "rb") as f:
                 f.seek(-1, os.SEEK_END)
                 last_char = f.read(1)
-                needs_newline = (last_char != b'\n')
+                needs_newline = last_char != b"\n"
 
         # Determine which lines to append
         lines_to_append = []
         for line in lines:
             if line in existing_lines:
-                print_warning('{} is already in {}'.format(line, file))
+                print_warning("{} is already in {}".format(line, file))
             else:
                 lines_to_append.append(line)
 
@@ -384,18 +392,18 @@ def append_nonexistent_lines_to_file(file, lines, tracker=None):
         if lines_to_append:
             if DRY_RUN:
                 if needs_newline:
-                    print_dry_run('Would add newline at end of {}'.format(file))
+                    print_dry_run("Would add newline at end of {}".format(file))
                 for line in lines_to_append:
-                    print_dry_run('Would append into {}: {}'.format(file, line))
+                    print_dry_run("Would append into {}: {}".format(file, line))
             else:
-                with open(file, 'a') as f:
+                with open(file, "a") as f:
                     # Add newline to last line if needed
                     if needs_newline:
-                        f.write('\n')
+                        f.write("\n")
 
                     for line in lines_to_append:
-                        f.write(line + '\n')
-                        print('{} is appended into {}'.format(line, file))
+                        f.write(line + "\n")
+                        print("{} is appended into {}".format(line, file))
 
                 # Record the change if tracker provided
                 if tracker:
@@ -404,12 +412,11 @@ def append_nonexistent_lines_to_file(file, lines, tracker=None):
         return True
 
     except IOError as e:
-        print_error('Failed to modify {}: {}'.format(file, str(e)))
+        print_error("Failed to modify {}: {}".format(file, str(e)))
         return False
     except Exception as e:
-        print_error('Unexpected error modifying {}: {}'.format(file, str(e)))
+        print_error("Unexpected error modifying {}: {}".format(file, str(e)))
         return False
-
 
 
 def add_to_gitignore(repo_dir, entries, dry_run=False):
@@ -424,16 +431,16 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
     Returns:
         List of entries that were added (or would be added in dry-run)
     """
-    gitignore_path = os.path.join(repo_dir, '.gitignore')
+    gitignore_path = os.path.join(repo_dir, ".gitignore")
     added = []
 
     # Read existing entries
     existing_entries = set()
     if os.path.exists(gitignore_path):
-        with open(gitignore_path, 'r') as f:
+        with open(gitignore_path, "r") as f:
             for line in f:
                 stripped = line.strip()
-                if stripped and not stripped.startswith('#'):
+                if stripped and not stripped.startswith("#"):
                     existing_entries.add(stripped)
 
     # Determine which entries need to be added
@@ -447,9 +454,9 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
 
     # Report entries already in .gitignore (repo default)
     if already_ignored:
-        print('Already in .gitignore (no action needed):')
+        print("Already in .gitignore (no action needed):")
         for entry in already_ignored:
-            print(f'  {entry}')
+            print(f"  {entry}")
 
     if not entries_to_add:
         return added
@@ -465,45 +472,58 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
         # Check if file exists and ends with newline
         needs_newline = False
         if os.path.exists(gitignore_path):
-            with open(gitignore_path, 'rb') as f:
+            with open(gitignore_path, "rb") as f:
                 f.seek(0, os.SEEK_END)
                 if f.tell() > 0:
                     f.seek(-1, os.SEEK_END)
-                    needs_newline = f.read(1) != b'\n'
+                    needs_newline = f.read(1) != b"\n"
 
-        with open(gitignore_path, 'a') as f:
+        with open(gitignore_path, "a") as f:
             if needs_newline:
-                f.write('\n')
+                f.write("\n")
 
             # Add a comment header for our entries
-            f.write('\n# Added by dotfiles setup (Claude Code settings)\n')
+            f.write("\n# Added by dotfiles setup (Claude Code settings)\n")
             for entry in entries_to_add:
-                f.write(entry + '\n')
-                print(f'Added to .gitignore: {entry}')
+                f.write(entry + "\n")
+                print(f"Added to .gitignore: {entry}")
                 added.append(entry)
 
     except IOError as e:
-        print_error(f'Failed to update .gitignore: {e}')
+        print_error(f"Failed to update .gitignore: {e}")
 
     return added
 
 
 def print_installing_title(name, bold=False):
-    print(colors.HEADER + ''.join(['\n', name,
-                                   ('\n==============================' if bold
-                                    else '\n--------------------')]) + colors.END)
+    print(
+        colors.HEADER
+        + "".join(
+            [
+                "\n",
+                name,
+                (
+                    "\n=============================="
+                    if bold
+                    else "\n--------------------"
+                ),
+            ]
+        )
+        + colors.END
+    )
+
 
 # Python print functions (see note at line 15 for why separate from shell)
 def print_hint(message):
-    print(colors.HINT + message + colors.END + '\n')
+    print(colors.HINT + message + colors.END + "\n")
 
 
 def print_warning(message):
-    print(colors.WARNING + 'WARNING: ' + message + colors.END + '\n')
+    print(colors.WARNING + "WARNING: " + message + colors.END + "\n")
 
 
 def print_fail(message):
-    print(colors.FAIL + 'ERROR: ' + message + colors.END + '\n')
+    print(colors.FAIL + "ERROR: " + message + colors.END + "\n")
 
 
 # Alias for consistency
@@ -514,54 +534,49 @@ def print_error(message):
 def print_verbose(message):
     """Print verbose debugging information (only when VERBOSE=True)"""
     if VERBOSE:
-        print(colors.HEADER + '[VERBOSE] ' + colors.END + message)
+        print(colors.HEADER + "[VERBOSE] " + colors.END + message)
 
 
 def print_dry_run(message):
     """Print dry-run action (only when DRY_RUN=True)"""
     if DRY_RUN:
-        print(colors.HINT + '[DRY-RUN] ' + colors.END + message)
+        print(colors.HINT + "[DRY-RUN] " + colors.END + message)
 
 
 def print_title(message):
     """Print a section title"""
-    print('\n' + colors.HEADER + '=' * 50 + colors.END)
+    print("\n" + colors.HEADER + "=" * 50 + colors.END)
     print(colors.HEADER + message + colors.END)
-    print(colors.HEADER + '=' * 50 + colors.END)
+    print(colors.HEADER + "=" * 50 + colors.END)
 
 
 # Setup functions
 # ------------------------------------------------------------------------------
 
+
 # Link this dotfiles path to $HOME/.dotfiles
 def dotfiles_link(tracker=None):
-    print_installing_title('dotfile path')
-    print_verbose('dotfiles_link() starting')
-    result = link(BASE_DIR, os.path.join(HOME_DIR, '.dotfiles'), tracker)
-    print_verbose('dotfiles_link() returning: {}'.format(result))
+    print_installing_title("dotfile path")
+    print_verbose("dotfiles_link() starting")
+    result = link(BASE_DIR, os.path.join(HOME_DIR, ".dotfiles"), tracker)
+    print_verbose("dotfiles_link() returning: {}".format(result))
     return result
+
 
 # Link dot.* to ~/.*
 def bash_link(tracker=None):
-    print_installing_title('bash startup scripts')
-    print_verbose('bash_link() starting')
-    print_verbose('Platform: {}'.format(platform.system()))
+    print_installing_title("bash startup scripts")
+    print_verbose("bash_link() starting")
+    print_verbose("Platform: {}".format(platform.system()))
 
     platform_files = {
-        'Darwin': [
-            'dot.bashrc',
-            'dot.zshrc',
-            'dot.settings_darwin'
-        ],
-        'Linux': [
-            'dot.bashrc',
-            'dot.settings_linux'
-        ],
+        "Darwin": ["dot.bashrc", "dot.zshrc", "dot.settings_darwin"],
+        "Linux": ["dot.bashrc", "dot.settings_linux"],
     }
 
-    if platform.system() == 'Darwin':
+    if platform.system() == "Darwin":
         v, _, _ = platform.mac_ver()
-        version_parts = v.split('.')[:2]
+        version_parts = v.split(".")[:2]
         try:
             major = int(version_parts[0]) if version_parts else 0
             minor = int(version_parts[1]) if len(version_parts) > 1 else 0
@@ -570,118 +585,134 @@ def bash_link(tracker=None):
             major, minor = 11, 0
 
         platform_files[platform.system()].append(
-            'dot.zshrc' if (major, minor) >= (10, 15) else 'dot.bash_profile')
+            "dot.zshrc" if (major, minor) >= (10, 15) else "dot.bash_profile"
+        )
 
-    #files = filter(lambda f: f.startswith('dot.'), os.listdir(BASE_DIR))
+    # files = filter(lambda f: f.startswith('dot.'), os.listdir(BASE_DIR))
     files = platform_files[platform.system()]
-    print_verbose('Files to process: {}'.format(files))
+    print_verbose("Files to process: {}".format(files))
     errors = []
     skipped = []
 
     for f in files:
-        print_verbose('Processing file: {}'.format(f))
+        print_verbose("Processing file: {}".format(f))
         target = os.path.join(HOME_DIR, f[3:])  # Get name after dot
         src = os.path.join(BASE_DIR, f)
         if os.path.isfile(target):
             # Check if source exists before comparing
             if not os.path.exists(src):
-                print_error('Source file does not exist: {}'.format(src))
-                print_error('Repository may be incomplete or corrupted')
-                errors.append('Source file missing: {}'.format(f))
+                print_error("Source file does not exist: {}".format(src))
+                print_error("Repository may be incomplete or corrupted")
+                errors.append("Source file missing: {}".format(f))
                 continue
 
             if os.path.samefile(src, target):
-                print_warning('{} is already linked!'.format(target))
+                print_warning("{} is already linked!".format(target))
                 continue
-            print_warning('{} already exists!'.format(target))
-            if f == 'dot.bashrc' or f == 'dot.zshrc':
-                print('Append a command to load {} in {}'.format(src, target))
+            print_warning("{} already exists!".format(target))
+            if f == "dot.bashrc" or f == "dot.zshrc":
+                print("Append a command to load {} in {}".format(src, target))
                 result = append_nonexistent_lines_to_file(
-                    target, [bash_load_command(src)], tracker)
+                    target, [bash_load_command(src)], tracker
+                )
                 if not result:
-                    errors.append('Failed to append to {}'.format(target))
+                    errors.append("Failed to append to {}".format(target))
             else:
                 # File exists but isn't bashrc/zshrc - provide guidance
-                print('Options:')
-                print('  1. Remove {} and re-run setup'.format(target))
-                print('  2. Manually replace with symlink: ln -sf {} {}'.format(src, target))
-                print('  3. Keep existing file (skip)')
+                print("Options:")
+                print("  1. Remove {} and re-run setup".format(target))
+                print(
+                    "  2. Manually replace with symlink: ln -sf {} {}".format(
+                        src, target
+                    )
+                )
+                print("  3. Keep existing file (skip)")
                 skipped.append(f)
         else:
             # Special case: bashrc/zshrc should be real files that source templates
             # This allows machine-specific customization (e.g., by mozilla_init)
-            if f == 'dot.bashrc' or f == 'dot.zshrc':
-                print('Creating {} with source command to load {}'.format(target, src))
+            if f == "dot.bashrc" or f == "dot.zshrc":
+                print("Creating {} with source command to load {}".format(target, src))
                 try:
                     if DRY_RUN:
-                        print_dry_run('Would create {} with source command'.format(target))
+                        print_dry_run(
+                            "Would create {} with source command".format(target)
+                        )
                     else:
-                        with open(target, 'w') as tf:
-                            tf.write(bash_load_command(src) + '\n')
-                        print('{} created'.format(target))
+                        with open(target, "w") as tf:
+                            tf.write(bash_load_command(src) + "\n")
+                        print("{} created".format(target))
                 except IOError as e:
-                    print_error('Failed to create {}: {}'.format(target, str(e)))
-                    errors.append('Failed to create {}'.format(f))
+                    print_error("Failed to create {}: {}".format(target, str(e)))
+                    errors.append("Failed to create {}".format(f))
             else:
                 # For all other files (settings_*), create symlinks as usual
                 result = link(src, target, tracker)
                 if not result:
-                    errors.append('Failed to link {}'.format(f))
+                    errors.append("Failed to link {}".format(f))
 
     # Return True only if no errors (skipped files are user choice, not errors)
     success = len(errors) == 0
-    print_verbose('bash_link() completed: errors={}, skipped={}'.format(len(errors), len(skipped)))
-    print_verbose('bash_link() returning: {}'.format(success))
+    print_verbose(
+        "bash_link() completed: errors={}, skipped={}".format(len(errors), len(skipped))
+    )
+    print_verbose("bash_link() returning: {}".format(success))
     return success
+
 
 # Include git/config from ~/.giconfig
 def git_init(tracker=None):
-    print_installing_title('git settings')
-    if not is_tool('git'):
-        print_fail('Please install git first!')
+    print_installing_title("git settings")
+    if not is_tool("git"):
+        print_fail("Please install git first!")
         return False
 
-    git_config = os.path.join(HOME_DIR, '.gitconfig')
+    git_config = os.path.join(HOME_DIR, ".gitconfig")
     if not os.path.isfile(git_config):
         print_warning(
-            '{} does not exist! Create a new one with default settings!'.format(git_config))
+            "{} does not exist! Create a new one with default settings!".format(
+                git_config
+            )
+        )
         # Set global user name and email
-        subprocess.call(['git', 'config', '--global',
-                        'user.name', 'Chun-Min Chang'])
-        subprocess.call(['git', 'config', '--global',
-                        'user.email', 'chun.m.chang@gmail.com'])
+        subprocess.call(["git", "config", "--global", "user.name", "Chun-Min Chang"])
+        subprocess.call(
+            ["git", "config", "--global", "user.email", "chun.m.chang@gmail.com"]
+        )
 
     # Include git config here in global gitconfig file
-    path = os.path.join(BASE_DIR, 'git', 'config')
+    path = os.path.join(BASE_DIR, "git", "config")
     if not os.path.exists(path):
-        print_error('Git config file not found: {}'.format(path))
-        print_error('Cannot configure git include.path')
+        print_error("Git config file not found: {}".format(path))
+        print_error("Cannot configure git include.path")
         return False
 
     if DRY_RUN:
-        print_dry_run('Would run: git config --global include.path {}'.format(path))
+        print_dry_run("Would run: git config --global include.path {}".format(path))
     else:
-        subprocess.call(['git', 'config', '--global', 'include.path', path])
+        subprocess.call(["git", "config", "--global", "include.path", path])
 
         # Record the git config change
         if tracker:
-            tracker.record_git_config('include.path', path)
+            tracker.record_git_config("include.path", path)
 
     # Show the current file if it exists:
     if os.path.exists(git_config):
-        with open(git_config, 'r') as f:
+        with open(git_config, "r") as f:
             content = f.read()
-            print_hint('{}:'.format(git_config))
+            print_hint("{}:".format(git_config))
             print(content)
             f.close()
     else:
-        print_warning('Git config file not found: {}'.format(git_config))
-        print_warning('Git configuration may not be complete')
+        print_warning("Git config file not found: {}".format(git_config))
+        print_warning("Git configuration may not be complete")
 
     return True
 
+
 # mozilla stuff
 # ---------------------------------------
+
 
 def mozilla_init(mozilla_arg, tracker=None):
     """
@@ -694,31 +725,31 @@ def mozilla_init(mozilla_arg, tracker=None):
     Returns:
         None if skipped, True if all succeeded, False if any failed
     """
-    print_installing_title('mozilla settings', True)
+    print_installing_title("mozilla settings", True)
 
     if mozilla_arg is None:
-        print_warning('Skip installing mozilla toolkit')
-        print_verbose('mozilla_arg is None, skipping Mozilla tools')
+        print_warning("Skip installing mozilla toolkit")
+        print_verbose("mozilla_arg is None, skipping Mozilla tools")
         return None  # None = skipped, not failure
 
-    print_verbose('mozilla_arg: {}'.format(mozilla_arg))
+    print_verbose("mozilla_arg: {}".format(mozilla_arg))
 
     funcs = {
-        'gecko': gecko_init,
-        'tools': tools_init,
-        'rust': rust_init,
-        'pernosco': pernosco_init,
+        "gecko": gecko_init,
+        "tools": tools_init,
+        "rust": rust_init,
+        "pernosco": pernosco_init,
     }
 
     # Select which Mozilla tools to install
     if mozilla_arg:
         # User specified tools: filter to valid options only
         options = [k for k in mozilla_arg if k in funcs]
-        print_verbose('Selected Mozilla tools: {}'.format(options))
+        print_verbose("Selected Mozilla tools: {}".format(options))
     else:
         # No tools specified: install all
         options = list(funcs.keys())
-        print_verbose('No tools specified, installing all: {}'.format(options))
+        print_verbose("No tools specified, installing all: {}".format(options))
 
     all_succeeded = True
     for k in options:
@@ -731,57 +762,69 @@ def mozilla_init(mozilla_arg, tracker=None):
 
 
 def gecko_init(tracker=None):
-    print_installing_title('gecko alias and machrc')
+    print_installing_title("gecko alias and machrc")
     config = get_config()
-    machrc = config['DOTFILES_MACHRC_PATH']
+    machrc = config["DOTFILES_MACHRC_PATH"]
     if os.path.isfile(machrc):
-        print_fail(''.join(['{} exists! Abort!\n'.format(machrc),
-                            'Apply default settings for now.']))
+        print_fail(
+            "".join(
+                [
+                    "{} exists! Abort!\n".format(machrc),
+                    "Apply default settings for now.",
+                ]
+            )
+        )
     else:
-        path = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'machrc')
+        path = os.path.join(BASE_DIR, "mozilla", "firefox", "machrc")
         if not link(path, machrc, tracker):
             return False
 
-    bashrc = os.path.join(HOME_DIR, '.bashrc')
+    bashrc = os.path.join(HOME_DIR, ".bashrc")
     if not os.path.isfile(bashrc):
-        print_fail('{} does not exist! Abort!'.format(bashrc))
+        print_fail("{} does not exist! Abort!".format(bashrc))
         return False
 
-    path = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'alias.sh')
-    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)], tracker)
+    path = os.path.join(BASE_DIR, "mozilla", "firefox", "alias.sh")
+    result = append_nonexistent_lines_to_file(
+        bashrc, [bash_load_command(path)], tracker
+    )
     return result
 
 
 def tools_init(tracker=None):
-    print_installing_title('tools settings')
+    print_installing_title("tools settings")
 
-    bashrc = os.path.join(HOME_DIR, '.bashrc')
+    bashrc = os.path.join(HOME_DIR, ".bashrc")
     if not os.path.isfile(bashrc):
-        print_fail('{} does not exist! Abort!'.format(bashrc))
+        print_fail("{} does not exist! Abort!".format(bashrc))
         return False
 
-    path = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'tools.sh')
-    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(path)], tracker)
+    path = os.path.join(BASE_DIR, "mozilla", "firefox", "tools.sh")
+    result = append_nonexistent_lines_to_file(
+        bashrc, [bash_load_command(path)], tracker
+    )
     return result
 
 
 def rust_init(tracker=None):
-    print_installing_title('rust settings')
-    error_messages = ['\tRun ./mach bootstrap.py under gecko-dev to fix it.']
+    print_installing_title("rust settings")
+    error_messages = ["\tRun ./mach bootstrap.py under gecko-dev to fix it."]
 
-    bashrc = os.path.join(HOME_DIR, '.bashrc')
+    bashrc = os.path.join(HOME_DIR, ".bashrc")
     if not os.path.isfile(bashrc):
-        print_fail('{} does not exist! Abort!'.format(bashrc))
+        print_fail("{} does not exist! Abort!".format(bashrc))
         return False
 
     config = get_config()
-    cargo_env = config['DOTFILES_CARGO_ENV_PATH']
+    cargo_env = config["DOTFILES_CARGO_ENV_PATH"]
     if not os.path.isfile(cargo_env):
-        error_messages.insert(0, '{} does not exist! Abort!'.format(cargo_env))
-        print_fail(''.join(error_messages))
+        error_messages.insert(0, "{} does not exist! Abort!".format(cargo_env))
+        print_fail("".join(error_messages))
         return False
 
-    result = append_nonexistent_lines_to_file(bashrc, [bash_load_command(cargo_env)], tracker)
+    result = append_nonexistent_lines_to_file(
+        bashrc, [bash_load_command(cargo_env)], tracker
+    )
     return result
 
 
@@ -794,53 +837,59 @@ def pernosco_init(tracker=None):
     - Asks where to put the script
     - Creates the script with credentials filled in
     """
-    print_installing_title('pernosco-submit (optional)')
+    print_installing_title("pernosco-submit (optional)")
 
     # Check platform - pernosco is Linux only
-    if platform.system() != 'Linux':
-        print_warning('pernosco-submit is Linux only, skipping')
+    if platform.system() != "Linux":
+        print_warning("pernosco-submit is Linux only, skipping")
         return None  # Skipped, not failure
 
     # Ask user if they want to install
-    print('\nPernosco is a time-travel debugging service for Firefox.')
-    print('If you don\'t use Pernosco, you can skip this.')
+    print("\nPernosco is a time-travel debugging service for Firefox.")
+    print("If you don't use Pernosco, you can skip this.")
 
-    if not get_user_confirmation('Install pernosco-submit script? [y/N]: ', default_non_interactive=False):
-        print('Skipping pernosco-submit installation')
+    if not get_user_confirmation(
+        "Install pernosco-submit script? [y/N]: ", default_non_interactive=False
+    ):
+        print("Skipping pernosco-submit installation")
         return None  # Skipped, not failure
 
     # Ask for credentials
-    print('\nPlease provide your Pernosco credentials:')
+    print("\nPlease provide your Pernosco credentials:")
 
-    mozilla_email = get_user_input('Mozilla email (e.g., user@mozilla.com): ', '')
-    if not mozilla_email or not mozilla_email.endswith('@mozilla.com'):
-        print_fail('Email must end with @mozilla.com. Aborting pernosco-submit installation.')
+    mozilla_email = get_user_input("Mozilla email (e.g., user@mozilla.com): ", "")
+    if not mozilla_email or not mozilla_email.endswith("@mozilla.com"):
+        print_fail(
+            "Email must end with @mozilla.com. Aborting pernosco-submit installation."
+        )
         return False
 
-    secret_key = get_user_input('PERNOSCO_USER_SECRET_KEY (from Pernosco dashboard): ', '')
+    secret_key = get_user_input(
+        "PERNOSCO_USER_SECRET_KEY (from Pernosco dashboard): ", ""
+    )
     if not secret_key:
-        print_fail('Empty secret key. Aborting pernosco-submit installation.')
+        print_fail("Empty secret key. Aborting pernosco-submit installation.")
         return False
 
     # Get configuration
     config = get_config()
-    local_bin = config['DOTFILES_LOCAL_BIN_DIR']
-    work_bin = config['DOTFILES_WORK_BIN_DIR']
+    local_bin = config["DOTFILES_LOCAL_BIN_DIR"]
+    work_bin = config["DOTFILES_WORK_BIN_DIR"]
 
     # Ask where to install
-    print('\nWhere would you like to install pernosco-submit?')
-    print(f'  1. Local bin: {local_bin}')
-    print(f'  2. Work bin:  {work_bin}')
-    print('  3. Custom path')
+    print("\nWhere would you like to install pernosco-submit?")
+    print(f"  1. Local bin: {local_bin}")
+    print(f"  2. Work bin:  {work_bin}")
+    print("  3. Custom path")
 
-    choice = get_user_input('Choose [1/2/3]: ', '1')
+    choice = get_user_input("Choose [1/2/3]: ", "1")
 
-    if choice == '1':
+    if choice == "1":
         target_dir = local_bin
-    elif choice == '2':
+    elif choice == "2":
         target_dir = work_bin
-    elif choice == '3':
-        target_dir = get_user_input('Enter custom directory path: ', local_bin)
+    elif choice == "3":
+        target_dir = get_user_input("Enter custom directory path: ", local_bin)
         target_dir = os.path.expanduser(target_dir)
     else:
         target_dir = local_bin
@@ -848,66 +897,72 @@ def pernosco_init(tracker=None):
     # Create directory if needed
     if not os.path.isdir(target_dir):
         if DRY_RUN:
-            print_dry_run(f'Would create directory: {target_dir}')
+            print_dry_run(f"Would create directory: {target_dir}")
         else:
             try:
                 os.makedirs(target_dir, exist_ok=True)
-                print(f'Created directory: {target_dir}')
+                print(f"Created directory: {target_dir}")
                 if tracker:
-                    tracker.record_create(target_dir, 'directory')
+                    tracker.record_create(target_dir, "directory")
             except OSError as e:
-                print_fail(f'Failed to create directory {target_dir}: {e}')
+                print_fail(f"Failed to create directory {target_dir}: {e}")
                 return False
 
     # Read template
-    template_path = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'pernosco-submit_template')
-    target_path = os.path.join(target_dir, 'pernosco-submit')
+    template_path = os.path.join(
+        BASE_DIR, "mozilla", "firefox", "pernosco-submit_template"
+    )
+    target_path = os.path.join(target_dir, "pernosco-submit")
 
     if not os.path.isfile(template_path):
-        print_fail(f'Template not found: {template_path}')
+        print_fail(f"Template not found: {template_path}")
         return False
 
     if os.path.exists(target_path):
-        print_warning(f'{target_path} already exists!')
-        if not get_user_confirmation('Overwrite? [y/N]: ', default_non_interactive=False):
-            print('Skipping - keeping existing file')
+        print_warning(f"{target_path} already exists!")
+        if not get_user_confirmation(
+            "Overwrite? [y/N]: ", default_non_interactive=False
+        ):
+            print("Skipping - keeping existing file")
             return None
 
     # Read template and fill in credentials
     try:
-        with open(template_path, 'r') as f:
+        with open(template_path, "r") as f:
             script_content = f.read()
     except IOError as e:
-        print_fail(f'Failed to read template: {e}')
+        print_fail(f"Failed to read template: {e}")
         return False
 
     # Replace placeholders with actual values
-    script_content = script_content.replace('<user>@mozilla.com', mozilla_email)
+    script_content = script_content.replace("<user>@mozilla.com", mozilla_email)
     script_content = script_content.replace(
-        'export PERNOSCO_USER_SECRET_KEY=',
-        f'export PERNOSCO_USER_SECRET_KEY={secret_key}'
+        "export PERNOSCO_USER_SECRET_KEY=",
+        f"export PERNOSCO_USER_SECRET_KEY={secret_key}",
     )
 
     # Write the script
     if DRY_RUN:
-        print_dry_run(f'Would create {target_path} with credentials')
-        print_dry_run('Would make script executable')
+        print_dry_run(f"Would create {target_path} with credentials")
+        print_dry_run("Would make script executable")
     else:
         try:
-            with open(target_path, 'w') as f:
+            with open(target_path, "w") as f:
                 f.write(script_content)
             os.chmod(target_path, 0o755)
-            print(f'Installed: {target_path}')
+            print(f"Installed: {target_path}")
             if tracker:
-                tracker.record_create(target_path, 'file')
+                tracker.record_create(target_path, "file")
         except (IOError, OSError) as e:
-            print_fail(f'Failed to install pernosco-submit: {e}')
+            print_fail(f"Failed to install pernosco-submit: {e}")
             return False
 
     # Remind user to set PERNOSCO_BIN path
-    print('')
-    print_hint('NOTE: Edit the script to set PERNOSCO_BIN to your pernosco-submit binary path:')
-    print(f'  {target_path}')
+    print("")
+    print_hint(
+        "NOTE: Edit the script to set PERNOSCO_BIN to your pernosco-submit binary path:"
+    )
+    print(f"  {target_path}")
 
     return True
 
@@ -915,15 +970,16 @@ def pernosco_init(tracker=None):
 # Development Tools (Pre-commit Hooks)
 # ---------------------------------------
 
+
 def print_tool_prompt(tool_name, benefits, consequences):
     """Display information about a dev tool and prompt user for installation."""
-    print('\n' + colors.BOLD + tool_name + colors.END)
-    print(colors.OK + 'Benefits:' + colors.END)
+    print("\n" + colors.BOLD + tool_name + colors.END)
+    print(colors.OK + "Benefits:" + colors.END)
     for benefit in benefits:
-        print('  • {}'.format(benefit))
-    print(colors.WARNING + 'If you skip:' + colors.END)
+        print("  • {}".format(benefit))
+    print(colors.WARNING + "If you skip:" + colors.END)
     for consequence in consequences:
-        print('  • {}'.format(consequence))
+        print("  • {}".format(consequence))
 
 
 def is_interactive():
@@ -931,7 +987,9 @@ def is_interactive():
     return sys.stdin.isatty()
 
 
-def get_user_confirmation(prompt='Install this tool? [y/N]: ', default_non_interactive=False):
+def get_user_confirmation(
+    prompt="Install this tool? [y/N]: ", default_non_interactive=False
+):
     """Get yes/no confirmation from user.
 
     Args:
@@ -947,14 +1005,18 @@ def get_user_confirmation(prompt='Install this tool? [y/N]: ', default_non_inter
 
     # In non-interactive mode, use default
     if not is_interactive():
-        action = 'Installing' if default_non_interactive else 'Skipping'
-        print(colors.WARNING + f'Non-interactive mode detected: {action} (use default)' + colors.END)
+        action = "Installing" if default_non_interactive else "Skipping"
+        print(
+            colors.WARNING
+            + f"Non-interactive mode detected: {action} (use default)"
+            + colors.END
+        )
         return default_non_interactive
 
     # Interactive mode: prompt user
     try:
         response = input(prompt).strip().lower()
-        return response in ['y', 'yes']
+        return response in ["y", "yes"]
     except (EOFError, KeyboardInterrupt):
         print()  # New line after Ctrl+C
         return False
@@ -962,270 +1024,293 @@ def get_user_confirmation(prompt='Install this tool? [y/N]: ', default_non_inter
 
 def install_shellcheck(tracker=None):
     """Install shellcheck for bash script validation."""
-    print_installing_title('shellcheck (bash script linter)')
+    print_installing_title("shellcheck (bash script linter)")
 
     # Check if already installed
-    if is_tool('shellcheck'):
-        print('shellcheck is already installed')
+    if is_tool("shellcheck"):
+        print("shellcheck is already installed")
         return True
 
     # Display info and prompt user
     print_tool_prompt(
-        'ShellCheck',
+        "ShellCheck",
         [
-            'Catches common bash scripting errors before they cause issues',
-            'Enforces best practices for portability and safety',
-            'Detects syntax errors, unquoted variables, and unsafe patterns'
+            "Catches common bash scripting errors before they cause issues",
+            "Enforces best practices for portability and safety",
+            "Detects syntax errors, unquoted variables, and unsafe patterns",
         ],
         [
-            'Pre-commit hook will skip bash script validation',
-            'Bash errors may only be caught at runtime',
-            'You can manually install later with: sudo apt-get install shellcheck (Linux) or brew install shellcheck (macOS)'
-        ]
+            "Pre-commit hook will skip bash script validation",
+            "Bash errors may only be caught at runtime",
+            "You can manually install later with: sudo apt-get install shellcheck (Linux) or brew install shellcheck (macOS)",
+        ],
     )
 
     if not get_user_confirmation():
-        print('Skipping shellcheck installation')
+        print("Skipping shellcheck installation")
         return None  # Skipped
 
     # Check if sudo is available
     has_sudo = False
-    if platform.system() == 'Linux':
+    if platform.system() == "Linux":
         try:
-            result = subprocess.run(['sudo', '-n', 'true'],
-                                    capture_output=True, timeout=5)
-            has_sudo = (result.returncode == 0)
+            result = subprocess.run(
+                ["sudo", "-n", "true"], capture_output=True, timeout=5
+            )
+            has_sudo = result.returncode == 0
         except Exception:
             has_sudo = False
 
     # Install based on platform
     try:
-        if platform.system() == 'Linux':
+        if platform.system() == "Linux":
             if not has_sudo:
-                print_warning('Sudo access required for shellcheck on Linux')
-                print('Please install manually: sudo apt-get install shellcheck')
-                print('Or configure passwordless sudo for this session')
+                print_warning("Sudo access required for shellcheck on Linux")
+                print("Please install manually: sudo apt-get install shellcheck")
+                print("Or configure passwordless sudo for this session")
                 return None  # Skipped
 
-            print('Installing shellcheck via apt-get...')
-            result = subprocess.run(['sudo', 'apt-get', 'install', '-y', 'shellcheck'],
-                                    capture_output=True, text=True, timeout=300)
+            print("Installing shellcheck via apt-get...")
+            result = subprocess.run(
+                ["sudo", "apt-get", "install", "-y", "shellcheck"],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
             if result.returncode == 0:
-                print(colors.OK + '✓ shellcheck installed successfully' + colors.END)
+                print(colors.OK + "✓ shellcheck installed successfully" + colors.END)
                 return True
             else:
-                print_error('Failed to install shellcheck: {}'.format(result.stderr))
+                print_error("Failed to install shellcheck: {}".format(result.stderr))
                 return False
 
-        elif platform.system() == 'Darwin':
-            if not is_tool('brew'):
-                print_error('Homebrew not found. Please install from https://brew.sh')
-                print('Then install shellcheck: brew install shellcheck')
+        elif platform.system() == "Darwin":
+            if not is_tool("brew"):
+                print_error("Homebrew not found. Please install from https://brew.sh")
+                print("Then install shellcheck: brew install shellcheck")
                 return False
 
-            print('Installing shellcheck via homebrew...')
-            result = subprocess.run(['brew', 'install', 'shellcheck'],
-                                    capture_output=True, text=True, timeout=300)
+            print("Installing shellcheck via homebrew...")
+            result = subprocess.run(
+                ["brew", "install", "shellcheck"],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
             if result.returncode == 0:
-                print(colors.OK + '✓ shellcheck installed successfully' + colors.END)
+                print(colors.OK + "✓ shellcheck installed successfully" + colors.END)
                 return True
             else:
-                print_error('Failed to install shellcheck: {}'.format(result.stderr))
+                print_error("Failed to install shellcheck: {}".format(result.stderr))
                 return False
         else:
-            print_warning('Unsupported platform for automatic shellcheck installation')
-            print('Please install manually: https://github.com/koalaman/shellcheck#installing')
+            print_warning("Unsupported platform for automatic shellcheck installation")
+            print(
+                "Please install manually: https://github.com/koalaman/shellcheck#installing"
+            )
             return None  # Skipped
 
     except subprocess.TimeoutExpired:
-        print_error('Installation timed out')
+        print_error("Installation timed out")
         return False
     except Exception as e:
-        print_error('Installation failed: {}'.format(str(e)))
+        print_error("Installation failed: {}".format(str(e)))
         return False
 
 
 def install_ruff(tracker=None):
     """Install ruff for Python linting and formatting."""
-    print_installing_title('ruff (Python linter/formatter)')
+    print_installing_title("ruff (Python linter/formatter)")
 
     # Check if already installed
-    if is_tool('ruff'):
-        print('ruff is already installed')
+    if is_tool("ruff"):
+        print("ruff is already installed")
         return True
 
     # Display info and prompt user
     print_tool_prompt(
-        'Ruff',
+        "Ruff",
         [
-            'Fast Python linter (10-100x faster than pylint/flake8)',
-            'Catches Python errors, style issues, and code smells',
-            'Enforces PEP 8 and other Python best practices'
+            "Fast Python linter (10-100x faster than pylint/flake8)",
+            "Catches Python errors, style issues, and code smells",
+            "Enforces PEP 8 and other Python best practices",
         ],
         [
-            'Pre-commit hook will skip Python validation',
-            'Python code issues may only be caught during execution or review',
-            'You can manually install later with: pip3 install --user ruff'
-        ]
+            "Pre-commit hook will skip Python validation",
+            "Python code issues may only be caught during execution or review",
+            "You can manually install later with: pip3 install --user ruff",
+        ],
     )
 
     if not get_user_confirmation():
-        print('Skipping ruff installation')
+        print("Skipping ruff installation")
         return None  # Skipped
 
     # Install via pip
     try:
-        if not is_tool('pip3'):
-            print_error('pip3 not found. Please install Python 3 and pip first.')
+        if not is_tool("pip3"):
+            print_error("pip3 not found. Please install Python 3 and pip first.")
             return False
 
-        print('Installing ruff via pip...')
-        result = subprocess.run(['pip3', 'install', '--user', 'ruff'],
-                                capture_output=True, text=True, timeout=180)
+        print("Installing ruff via pip...")
+        result = subprocess.run(
+            ["pip3", "install", "--user", "ruff"],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
         if result.returncode == 0:
-            print(colors.OK + '✓ ruff installed successfully' + colors.END)
-            print_hint('You may need to add ~/.local/bin to your PATH')
+            print(colors.OK + "✓ ruff installed successfully" + colors.END)
+            print_hint("You may need to add ~/.local/bin to your PATH")
             return True
         else:
-            print_error('Failed to install ruff: {}'.format(result.stderr))
+            print_error("Failed to install ruff: {}".format(result.stderr))
             return False
 
     except subprocess.TimeoutExpired:
-        print_error('Installation timed out')
+        print_error("Installation timed out")
         return False
     except Exception as e:
-        print_error('Installation failed: {}'.format(str(e)))
+        print_error("Installation failed: {}".format(str(e)))
         return False
 
 
 def install_black(tracker=None):
     """Install black for Python code formatting."""
-    print_installing_title('black (Python code formatter)')
+    print_installing_title("black (Python code formatter)")
 
     # Check if already installed
-    if is_tool('black'):
-        print('black is already installed')
+    if is_tool("black"):
+        print("black is already installed")
         return True
 
     # Display info and prompt user
     print_tool_prompt(
-        'Black',
+        "Black",
         [
-            'Automatically formats Python code to a consistent style',
-            'Saves time on code style discussions and manual formatting',
-            'Widely adopted by the Python community (e.g., Django, pytest)'
+            "Automatically formats Python code to a consistent style",
+            "Saves time on code style discussions and manual formatting",
+            "Widely adopted by the Python community (e.g., Django, pytest)",
         ],
         [
-            'Pre-commit hook will skip Python auto-formatting checks',
-            'Code style may be inconsistent across commits',
-            'You can manually install later with: pip3 install --user black'
-        ]
+            "Pre-commit hook will skip Python auto-formatting checks",
+            "Code style may be inconsistent across commits",
+            "You can manually install later with: pip3 install --user black",
+        ],
     )
 
     if not get_user_confirmation():
-        print('Skipping black installation')
+        print("Skipping black installation")
         return None  # Skipped
 
     # Install via pip
     try:
-        if not is_tool('pip3'):
-            print_error('pip3 not found. Please install Python 3 and pip first.')
+        if not is_tool("pip3"):
+            print_error("pip3 not found. Please install Python 3 and pip first.")
             return False
 
-        print('Installing black via pip...')
-        result = subprocess.run(['pip3', 'install', '--user', 'black'],
-                                capture_output=True, text=True, timeout=180)
+        print("Installing black via pip...")
+        result = subprocess.run(
+            ["pip3", "install", "--user", "black"],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
         if result.returncode == 0:
-            print(colors.OK + '✓ black installed successfully' + colors.END)
-            print_hint('You may need to add ~/.local/bin to your PATH')
+            print(colors.OK + "✓ black installed successfully" + colors.END)
+            print_hint("You may need to add ~/.local/bin to your PATH")
             return True
         else:
-            print_error('Failed to install black: {}'.format(result.stderr))
+            print_error("Failed to install black: {}".format(result.stderr))
             return False
 
     except subprocess.TimeoutExpired:
-        print_error('Installation timed out')
+        print_error("Installation timed out")
         return False
     except Exception as e:
-        print_error('Installation failed: {}'.format(str(e)))
+        print_error("Installation failed: {}".format(str(e)))
         return False
 
 
 def install_markdownlint(tracker=None):
     """Install markdownlint-cli for markdown validation."""
-    print_installing_title('markdownlint (markdown linter)')
+    print_installing_title("markdownlint (markdown linter)")
 
     # Check if already installed
-    if is_tool('markdownlint'):
-        print('markdownlint is already installed')
+    if is_tool("markdownlint"):
+        print("markdownlint is already installed")
         return True
 
     # Display info and prompt user
     print_tool_prompt(
-        'Markdownlint',
+        "Markdownlint",
         [
-            'Validates markdown files for syntax and style consistency',
-            'Catches broken links, malformed tables, and formatting issues',
-            'Ensures documentation is properly formatted'
+            "Validates markdown files for syntax and style consistency",
+            "Catches broken links, malformed tables, and formatting issues",
+            "Ensures documentation is properly formatted",
         ],
         [
-            'Pre-commit hook will skip markdown validation',
-            'Documentation formatting issues may go unnoticed',
-            'You can manually install later with: npm install -g markdownlint-cli',
-            'Note: Requires Node.js and npm (heavier dependency)'
-        ]
+            "Pre-commit hook will skip markdown validation",
+            "Documentation formatting issues may go unnoticed",
+            "You can manually install later with: npm install -g markdownlint-cli",
+            "Note: Requires Node.js and npm (heavier dependency)",
+        ],
     )
 
     if not get_user_confirmation():
-        print('Skipping markdownlint installation')
+        print("Skipping markdownlint installation")
         return None  # Skipped
 
     # Install via npm
     try:
-        if not is_tool('npm'):
-            print_warning('npm not found. markdownlint requires Node.js and npm.')
-            print('Install Node.js from: https://nodejs.org/')
-            print('Then install markdownlint: npm install -g markdownlint-cli')
+        if not is_tool("npm"):
+            print_warning("npm not found. markdownlint requires Node.js and npm.")
+            print("Install Node.js from: https://nodejs.org/")
+            print("Then install markdownlint: npm install -g markdownlint-cli")
             return None  # Skipped
 
-        print('Installing markdownlint-cli via npm (may take a while)...')
-        result = subprocess.run(['npm', 'install', '-g', 'markdownlint-cli'],
-                                capture_output=True, text=True, timeout=300)
+        print("Installing markdownlint-cli via npm (may take a while)...")
+        result = subprocess.run(
+            ["npm", "install", "-g", "markdownlint-cli"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
         if result.returncode == 0:
-            print(colors.OK + '✓ markdownlint installed successfully' + colors.END)
+            print(colors.OK + "✓ markdownlint installed successfully" + colors.END)
             return True
         else:
-            print_error('Failed to install markdownlint: {}'.format(result.stderr))
+            print_error("Failed to install markdownlint: {}".format(result.stderr))
             return False
 
     except subprocess.TimeoutExpired:
-        print_error('Installation timed out')
+        print_error("Installation timed out")
         return False
     except Exception as e:
-        print_error('Installation failed: {}'.format(str(e)))
+        print_error("Installation failed: {}".format(str(e)))
         return False
 
 
 def setup_precommit_hooks(tracker=None):
     """Create project-local pre-commit hook with validation checks."""
-    print_installing_title('pre-commit hooks')
+    print_installing_title("pre-commit hooks")
 
     # Check if we're in a git repository
-    git_dir = os.path.join(BASE_DIR, '.git')
+    git_dir = os.path.join(BASE_DIR, ".git")
     if not os.path.isdir(git_dir):
-        print_error('Not in a git repository. Cannot install hooks.')
+        print_error("Not in a git repository. Cannot install hooks.")
         return False
 
-    hooks_dir = os.path.join(git_dir, 'hooks')
-    precommit_hook = os.path.join(hooks_dir, 'pre-commit')
+    hooks_dir = os.path.join(git_dir, "hooks")
+    precommit_hook = os.path.join(hooks_dir, "pre-commit")
 
     # Create hooks directory if it doesn't exist
     if not os.path.exists(hooks_dir):
-        print('Creating hooks directory: {}'.format(hooks_dir))
+        print("Creating hooks directory: {}".format(hooks_dir))
         os.makedirs(hooks_dir, exist_ok=True)
 
     # Create pre-commit hook script
-    hook_content = '''#!/bin/bash
+    hook_content = """#!/bin/bash
 # Pre-commit hook for dotfiles repository
 # This hook runs validation checks on staged files before allowing commit.
 # It warns about issues but allows commits to proceed (non-blocking).
@@ -1328,46 +1413,52 @@ fi
 
 # Always allow commit (non-blocking)
 exit 0
-'''
+"""
 
     try:
         # Check if hook already exists
         if os.path.exists(precommit_hook):
             if DRY_RUN:
-                print_dry_run('Pre-commit hook already exists: {}'.format(precommit_hook))
-                print_dry_run('Would prompt to replace existing hook')
+                print_dry_run(
+                    "Pre-commit hook already exists: {}".format(precommit_hook)
+                )
+                print_dry_run("Would prompt to replace existing hook")
                 return True
             else:
-                print_warning('Pre-commit hook already exists: {}'.format(precommit_hook))
-                if not get_user_confirmation('Replace existing hook? [y/N]: ', default_non_interactive=False):
-                    print('Keeping existing hook')
+                print_warning(
+                    "Pre-commit hook already exists: {}".format(precommit_hook)
+                )
+                if not get_user_confirmation(
+                    "Replace existing hook? [y/N]: ", default_non_interactive=False
+                ):
+                    print("Keeping existing hook")
                     return True  # Not an error
 
         # Write hook script
         if DRY_RUN:
-            print_dry_run('Would create pre-commit hook: {}'.format(precommit_hook))
-            print_dry_run('Would make hook executable (chmod 755)')
-            print_hint('Hook would be project-local (only for this dotfiles repo)')
-            print_hint('Hook would warn about issues but allow commits to proceed')
+            print_dry_run("Would create pre-commit hook: {}".format(precommit_hook))
+            print_dry_run("Would make hook executable (chmod 755)")
+            print_hint("Hook would be project-local (only for this dotfiles repo)")
+            print_hint("Hook would warn about issues but allow commits to proceed")
         else:
-            print('Creating pre-commit hook: {}'.format(precommit_hook))
-            with open(precommit_hook, 'w') as f:
+            print("Creating pre-commit hook: {}".format(precommit_hook))
+            with open(precommit_hook, "w") as f:
                 f.write(hook_content)
 
             # Make executable
             os.chmod(precommit_hook, 0o755)
 
-            print(colors.OK + '✓ Pre-commit hook installed successfully' + colors.END)
-            print_hint('Hook is project-local (only for this dotfiles repo)')
-            print_hint('It will warn about issues but allow commits to proceed')
+            print(colors.OK + "✓ Pre-commit hook installed successfully" + colors.END)
+            print_hint("Hook is project-local (only for this dotfiles repo)")
+            print_hint("It will warn about issues but allow commits to proceed")
 
         return True
 
     except IOError as e:
-        print_error('Failed to create pre-commit hook: {}'.format(str(e)))
+        print_error("Failed to create pre-commit hook: {}".format(str(e)))
         return False
     except Exception as e:
-        print_error('Unexpected error: {}'.format(str(e)))
+        print_error("Unexpected error: {}".format(str(e)))
         return False
 
 
@@ -1382,27 +1473,32 @@ def dev_tools_init(dev_tools_arg, tracker=None):
     Returns:
         None if skipped, True if all succeeded, False if any failed
     """
-    print_installing_title('development tools', True)
+    print_installing_title("development tools", True)
 
     # If dev_tools_arg is None and not explicitly invoked, ask user (skip in dry-run)
     if dev_tools_arg is None:
         if DRY_RUN:
-            print_dry_run('Would prompt user to set up development tools')
-            print_dry_run('Skipping dev-tools in dry-run mode')
+            print_dry_run("Would prompt user to set up development tools")
+            print_dry_run("Skipping dev-tools in dry-run mode")
             return None
 
-        print('\nDevelopment tools include linters and formatters for bash, Python, and markdown.')
-        print('These tools help catch errors early via pre-commit hooks.')
-        print('')
-        print(colors.OK + 'Benefits:' + colors.END)
-        print('  • Catch syntax errors before they reach the repository')
-        print('  • Enforce consistent code style across all files')
-        print('  • Reduce code review time by automating basic checks')
-        print('  • Find bugs early (e.g., unquoted variables, unused imports)')
-        print('')
+        print(
+            "\nDevelopment tools include linters and formatters for bash, Python, and markdown."
+        )
+        print("These tools help catch errors early via pre-commit hooks.")
+        print("")
+        print(colors.OK + "Benefits:" + colors.END)
+        print("  • Catch syntax errors before they reach the repository")
+        print("  • Enforce consistent code style across all files")
+        print("  • Reduce code review time by automating basic checks")
+        print("  • Find bugs early (e.g., unquoted variables, unused imports)")
+        print("")
 
-        if not get_user_confirmation('Would you like to set up development tools? [y/N]: ', default_non_interactive=False):
-            print_warning('Skipping development tools setup')
+        if not get_user_confirmation(
+            "Would you like to set up development tools? [y/N]: ",
+            default_non_interactive=False,
+        ):
+            print_warning("Skipping development tools setup")
             return None  # None = skipped, not failure
 
         # User said yes, proceed with all tools
@@ -1410,33 +1506,35 @@ def dev_tools_init(dev_tools_arg, tracker=None):
 
     # In dry-run mode, just show what would be done
     if DRY_RUN and dev_tools_arg is not None:
-        print_dry_run('Would install development tools')
+        print_dry_run("Would install development tools")
         if dev_tools_arg:
-            print_dry_run('Specified tools: {}'.format(', '.join(dev_tools_arg)))
+            print_dry_run("Specified tools: {}".format(", ".join(dev_tools_arg)))
         else:
-            print_dry_run('Would install all tools: shellcheck, ruff, black, markdownlint')
-        print_dry_run('Would set up pre-commit hooks')
+            print_dry_run(
+                "Would install all tools: shellcheck, ruff, black, markdownlint"
+            )
+        print_dry_run("Would set up pre-commit hooks")
         return True
 
-    print_verbose('dev_tools_arg: {}'.format(dev_tools_arg))
+    print_verbose("dev_tools_arg: {}".format(dev_tools_arg))
 
     # Define available tools
     tools = {
-        'shellcheck': install_shellcheck,
-        'ruff': install_ruff,
-        'black': install_black,
-        'markdownlint': install_markdownlint,
+        "shellcheck": install_shellcheck,
+        "ruff": install_ruff,
+        "black": install_black,
+        "markdownlint": install_markdownlint,
     }
 
     # Select which tools to install
     if dev_tools_arg:
         # User specified specific tools
         options = [k for k in dev_tools_arg if k in tools]
-        print_verbose('Selected tools: {}'.format(options))
+        print_verbose("Selected tools: {}".format(options))
     else:
         # No tools specified: ask about all
         options = list(tools.keys())
-        print_verbose('No tools specified, asking about all: {}'.format(options))
+        print_verbose("No tools specified, asking about all: {}".format(options))
 
     # Install each tool
     results = {}
@@ -1445,44 +1543,57 @@ def dev_tools_init(dev_tools_arg, tracker=None):
         results[tool_name] = result
 
     # Set up pre-commit hooks
-    print('')
-    print('Pre-commit hooks will run the installed tools automatically before each commit.')
+    print("")
+    print(
+        "Pre-commit hooks will run the installed tools automatically before each commit."
+    )
     hook_result = setup_precommit_hooks(tracker)
-    results['pre-commit-hook'] = hook_result
+    results["pre-commit-hook"] = hook_result
 
     # Determine overall success
     # None = skipped (ok), False = failed, True = succeeded
     failures = [name for name, result in results.items() if result is False]
 
     if failures:
-        print('')
-        print(colors.WARNING + 'Some tools failed to install: {}'.format(', '.join(failures)) + colors.END)
+        print("")
+        print(
+            colors.WARNING
+            + "Some tools failed to install: {}".format(", ".join(failures))
+            + colors.END
+        )
         return False
     else:
-        print('')
-        print(colors.OK + '✓ Development tools setup complete' + colors.END)
+        print("")
+        print(colors.OK + "✓ Development tools setup complete" + colors.END)
         return True
 
 
 # Installation Verification
 # ------------------------------------------------------------------------------
 
+
 def verify_symlinks():
     """Verify all symlinks created during setup are valid."""
     symlinks_to_check = [
-        (os.path.join(HOME_DIR, '.dotfiles'), BASE_DIR, True),  # Must exist
+        (os.path.join(HOME_DIR, ".dotfiles"), BASE_DIR, True),  # Must exist
     ]
 
     # Add platform-specific symlinks
-    if platform.system() == 'Linux':
+    if platform.system() == "Linux":
         symlinks_to_check.append(
-            (os.path.join(HOME_DIR, '.settings_linux'),
-             os.path.join(BASE_DIR, 'dot.settings_linux'), False)  # Optional
+            (
+                os.path.join(HOME_DIR, ".settings_linux"),
+                os.path.join(BASE_DIR, "dot.settings_linux"),
+                False,
+            )  # Optional
         )
-    elif platform.system() == 'Darwin':
+    elif platform.system() == "Darwin":
         symlinks_to_check.append(
-            (os.path.join(HOME_DIR, '.settings_darwin'),
-             os.path.join(BASE_DIR, 'dot.settings_darwin'), False)  # Optional
+            (
+                os.path.join(HOME_DIR, ".settings_darwin"),
+                os.path.join(BASE_DIR, "dot.settings_darwin"),
+                False,
+            )  # Optional
         )
 
     issues = []
@@ -1490,7 +1601,7 @@ def verify_symlinks():
         # Check if exists
         if not os.path.lexists(target_path):
             if required:
-                issues.append('{} does not exist'.format(target_path))
+                issues.append("{} does not exist".format(target_path))
             continue
 
         # Check if it's a symlink
@@ -1498,11 +1609,14 @@ def verify_symlinks():
             # Check if broken (symlink exists but target doesn't)
             if not os.path.exists(target_path):
                 actual_source = os.readlink(target_path)
-                issues.append('{} is a broken symlink (points to {})'.format(
-                    target_path, actual_source))
+                issues.append(
+                    "{} is a broken symlink (points to {})".format(
+                        target_path, actual_source
+                    )
+                )
             # Check if readable
             elif not os.access(target_path, os.R_OK):
-                issues.append('{} exists but is not readable'.format(target_path))
+                issues.append("{} exists but is not readable".format(target_path))
 
     return issues
 
@@ -1510,49 +1624,49 @@ def verify_symlinks():
 def verify_file_readability():
     """Verify critical files are readable."""
     files_to_check = [
-        (os.path.join(BASE_DIR, 'dot.bashrc'), True),  # Required
-        (os.path.join(BASE_DIR, 'utils.sh'), True),  # Required
-        (os.path.join(BASE_DIR, 'git', 'utils.sh'), True),  # Required
-        (os.path.join(BASE_DIR, 'git', 'config'), True),  # Required
+        (os.path.join(BASE_DIR, "dot.bashrc"), True),  # Required
+        (os.path.join(BASE_DIR, "utils.sh"), True),  # Required
+        (os.path.join(BASE_DIR, "git", "utils.sh"), True),  # Required
+        (os.path.join(BASE_DIR, "git", "config"), True),  # Required
     ]
 
     # Add platform-specific files
-    if platform.system() == 'Linux':
+    if platform.system() == "Linux":
         files_to_check.append(
-            (os.path.join(BASE_DIR, 'dot.settings_linux'), False)  # Optional
+            (os.path.join(BASE_DIR, "dot.settings_linux"), False)  # Optional
         )
-    elif platform.system() == 'Darwin':
+    elif platform.system() == "Darwin":
         files_to_check.append(
-            (os.path.join(BASE_DIR, 'dot.settings_darwin'), False)  # Optional
+            (os.path.join(BASE_DIR, "dot.settings_darwin"), False)  # Optional
         )
 
     issues = []
     for filepath, required in files_to_check:
         if not os.path.exists(filepath):
             if required:
-                issues.append('{} is missing'.format(filepath))
+                issues.append("{} is missing".format(filepath))
         elif not os.access(filepath, os.R_OK):
-            issues.append('{} is not readable'.format(filepath))
+            issues.append("{} is not readable".format(filepath))
 
     return issues
 
 
 def verify_bash_syntax():
     """Verify bash files have valid syntax using bash -n."""
-    if not is_tool('bash'):
+    if not is_tool("bash"):
         return []  # Can't check without bash
 
     bash_files = [
-        os.path.join(BASE_DIR, 'dot.bashrc'),
-        os.path.join(BASE_DIR, 'utils.sh'),
-        os.path.join(BASE_DIR, 'git', 'utils.sh'),
+        os.path.join(BASE_DIR, "dot.bashrc"),
+        os.path.join(BASE_DIR, "utils.sh"),
+        os.path.join(BASE_DIR, "git", "utils.sh"),
     ]
 
     # Add platform-specific files
-    if platform.system() == 'Linux':
-        bash_files.append(os.path.join(BASE_DIR, 'dot.settings_linux'))
-    elif platform.system() == 'Darwin':
-        bash_files.append(os.path.join(BASE_DIR, 'dot.settings_darwin'))
+    if platform.system() == "Linux":
+        bash_files.append(os.path.join(BASE_DIR, "dot.settings_linux"))
+    elif platform.system() == "Darwin":
+        bash_files.append(os.path.join(BASE_DIR, "dot.settings_darwin"))
 
     issues = []
     for filepath in bash_files:
@@ -1562,57 +1676,57 @@ def verify_bash_syntax():
         try:
             # Use bash -n to check syntax without executing
             result = subprocess.run(
-                ['bash', '-n', filepath],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["bash", "-n", filepath], capture_output=True, text=True, timeout=5
             )
 
             if result.returncode != 0:
                 # Clean up error message (remove "bash: " prefix if present)
                 error_msg = result.stderr.strip()
-                if error_msg.startswith('bash: '):
+                if error_msg.startswith("bash: "):
                     error_msg = error_msg[6:]
-                issues.append('{} has syntax errors: {}'.format(
-                    os.path.basename(filepath), error_msg))
+                issues.append(
+                    "{} has syntax errors: {}".format(
+                        os.path.basename(filepath), error_msg
+                    )
+                )
         except subprocess.TimeoutExpired:
-            issues.append('{} syntax check timed out'.format(filepath))
+            issues.append("{} syntax check timed out".format(filepath))
         except Exception as e:
-            issues.append('{} syntax check failed: {}'.format(filepath, str(e)))
+            issues.append("{} syntax check failed: {}".format(filepath, str(e)))
 
     return issues
 
 
 def verify_git_config():
     """Verify git configuration is valid."""
-    if not is_tool('git'):
+    if not is_tool("git"):
         return []  # Can't check without git
 
     issues = []
 
     # Check git config file exists
-    git_config_path = os.path.join(BASE_DIR, 'git', 'config')
+    git_config_path = os.path.join(BASE_DIR, "git", "config")
     if not os.path.exists(git_config_path):
-        issues.append('git/config file missing')
+        issues.append("git/config file missing")
         return issues
 
     # Check if included in global config
     try:
         result = subprocess.run(
-            ['git', 'config', '--global', '--get', 'include.path'],
+            ["git", "config", "--global", "--get", "include.path"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
         )
 
         if result.returncode != 0:
-            issues.append('git include.path not configured')
+            issues.append("git include.path not configured")
         elif git_config_path not in result.stdout:
-            issues.append('git include.path not pointing to {}'.format(git_config_path))
+            issues.append("git include.path not pointing to {}".format(git_config_path))
     except subprocess.TimeoutExpired:
-        issues.append('git config check timed out')
+        issues.append("git config check timed out")
     except Exception as e:
-        issues.append('git config check failed: {}'.format(str(e)))
+        issues.append("git config check failed: {}".format(str(e)))
 
     return issues
 
@@ -1624,108 +1738,125 @@ def verify_installation():
     Returns:
         (bool, list): (success, list of issues)
     """
-    print_installing_title('Verifying Installation')
+    print_installing_title("Verifying Installation")
 
     all_issues = []
 
     # Phase 1: Symlinks
-    print('Checking symlinks...')
+    print("Checking symlinks...")
     issues = verify_symlinks()
     if issues:
         all_issues.extend(issues)
         for issue in issues:
             print_warning(issue)
     else:
-        print(colors.OK + '✓ All symlinks valid' + colors.END)
+        print(colors.OK + "✓ All symlinks valid" + colors.END)
 
     # Phase 2: File readability
-    print('Checking file readability...')
+    print("Checking file readability...")
     issues = verify_file_readability()
     if issues:
         all_issues.extend(issues)
         for issue in issues:
             print_error(issue)
     else:
-        print(colors.OK + '✓ All files readable' + colors.END)
+        print(colors.OK + "✓ All files readable" + colors.END)
 
     # Phase 3: Bash syntax
-    print('Checking bash syntax...')
+    print("Checking bash syntax...")
     issues = verify_bash_syntax()
     if issues:
         all_issues.extend(issues)
         for issue in issues:
             print_error(issue)
     else:
-        print(colors.OK + '✓ Bash files syntax valid' + colors.END)
+        print(colors.OK + "✓ Bash files syntax valid" + colors.END)
 
     # Phase 4: Git config
-    print('Checking git configuration...')
+    print("Checking git configuration...")
     issues = verify_git_config()
     if issues:
         all_issues.extend(issues)
         for issue in issues:
             print_warning(issue)
     else:
-        print(colors.OK + '✓ Git configuration valid' + colors.END)
+        print(colors.OK + "✓ Git configuration valid" + colors.END)
 
     # Summary
     if all_issues:
-        print('\n' + colors.FAIL + 'Verification found {} issue(s):'.format(len(all_issues)) + colors.END)
+        print(
+            "\n"
+            + colors.FAIL
+            + "Verification found {} issue(s):".format(len(all_issues))
+            + colors.END
+        )
         for issue in all_issues:
-            print('  - ' + issue)
+            print("  - " + issue)
         return False, all_issues
     else:
-        print('\n' + colors.OK + '✓ Installation verification passed!' + colors.END)
+        print("\n" + colors.OK + "✓ Installation verification passed!" + colors.END)
         return True, []
 
 
 def show_setup_summary(results):
     """Display a summary of setup results and provide guidance."""
-    print('\n' + '=' * 50)
-    print('Setup Summary')
-    print('=' * 50)
+    print("\n" + "=" * 50)
+    print("Setup Summary")
+    print("=" * 50)
 
-    status_symbols = {True: '✓', False: '✗', None: '⊘'}
-    status_labels = {True: 'SUCCESS', False: 'FAILED', None: 'SKIPPED'}
+    status_symbols = {True: "✓", False: "✗", None: "⊘"}
+    status_labels = {True: "SUCCESS", False: "FAILED", None: "SKIPPED"}
 
     for name, result in results.items():
-        symbol = status_symbols.get(result, '?')
-        label = status_labels.get(result, 'UNKNOWN')
-        print('{} {}: {}'.format(symbol, name.capitalize(), label))
+        symbol = status_symbols.get(result, "?")
+        label = status_labels.get(result, "UNKNOWN")
+        print("{} {}: {}".format(symbol, name.capitalize(), label))
 
     failures = [name for name, result in results.items() if result is False]
     if failures:
-        print('\n' + colors.FAIL + 'Action Required:' + colors.END)
+        print("\n" + colors.FAIL + "Action Required:" + colors.END)
         for name in failures:
-            if name == 'git':
-                print('  - Install git and re-run setup.py')
-            elif name == 'mozilla':
-                print('  - Check mozilla tools (cargo, etc.) and re-run setup.py --mozilla')
-            elif name == 'dev-tools':
-                print('  - Check tool installation errors above and re-run setup.py --dev-tools')
-                print('    Or install tools manually and run setup.py --dev-tools again')
+            if name == "git":
+                print("  - Install git and re-run setup.py")
+            elif name == "mozilla":
+                print(
+                    "  - Check mozilla tools (cargo, etc.) and re-run setup.py --mozilla"
+                )
+            elif name == "dev-tools":
+                print(
+                    "  - Check tool installation errors above and re-run setup.py --dev-tools"
+                )
+                print(
+                    "    Or install tools manually and run setup.py --dev-tools again"
+                )
             else:
-                print('  - Fix {} issues above and re-run setup.py'.format(name))
-        print('\n' + colors.FAIL + 'Setup completed with errors. Fix the issues above and re-run.' + colors.END)
+                print("  - Fix {} issues above and re-run setup.py".format(name))
+        print(
+            "\n"
+            + colors.FAIL
+            + "Setup completed with errors. Fix the issues above and re-run."
+            + colors.END
+        )
     else:
-        print('\n' + colors.OK + 'All steps completed successfully!' + colors.END)
+        print("\n" + colors.OK + "All steps completed successfully!" + colors.END)
 
 
 # ============================================================================
 # Claude Code Security Hooks
 # ============================================================================
 
+
 def claude_security_init(tracker, dry_run=False):
     """
     Install Claude Code security hooks (system-wide).
     Merges hooks into ~/.claude.json without overwriting existing hooks.
     """
-    print_title('Claude Code Security Hooks')
+    print_title("Claude Code Security Hooks")
 
-    hooks_dir = os.path.join(os.path.expanduser('~'), '.dotfiles-claude-hooks')
-    source_hook = os.path.join(BASE_DIR, '.claude', 'hooks', 'security-read-blocker.py')
-    dest_hook = os.path.join(hooks_dir, 'security-read-blocker.py')
-    claude_config = os.path.join(os.path.expanduser('~'), '.claude.json')
+    hooks_dir = os.path.join(os.path.expanduser("~"), ".dotfiles-claude-hooks")
+    source_hook = os.path.join(BASE_DIR, ".claude", "hooks", "security-read-blocker.py")
+    dest_hook = os.path.join(hooks_dir, "security-read-blocker.py")
+    claude_config = os.path.join(os.path.expanduser("~"), ".claude.json")
 
     if dry_run:
         print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
@@ -1734,7 +1865,9 @@ def claude_security_init(tracker, dry_run=False):
         print(f"  3. Make executable: {dest_hook}")
 
         if os.path.exists(claude_config):
-            print(f"  4. Backup: {claude_config} → {claude_config}.backup-claude-security")
+            print(
+                f"  4. Backup: {claude_config} → {claude_config}.backup-claude-security"
+            )
             print(f"  5. Merge security hooks into: {claude_config}")
         else:
             print(f"  4. Create: {claude_config} with security hooks")
@@ -1746,12 +1879,8 @@ def claude_security_init(tracker, dry_run=False):
                     {
                         "matcher": "Read|Bash|Grep|Glob",
                         "hooks": [
-                            {
-                                "type": "command",
-                                "command": str(dest_hook),
-                                "timeout": 5
-                            }
-                        ]
+                            {"type": "command", "command": str(dest_hook), "timeout": 5}
+                        ],
                     }
                 ]
             }
@@ -1762,88 +1891,84 @@ def claude_security_init(tracker, dry_run=False):
 
     # 1. Create hooks directory
     os.makedirs(hooks_dir, exist_ok=True)
-    print(f'Created directory: {hooks_dir}')
+    print(f"Created directory: {hooks_dir}")
 
     # 2. Copy hook script
     if not os.path.exists(source_hook):
-        print_error(f'Hook script not found: {source_hook}')
+        print_error(f"Hook script not found: {source_hook}")
         return False
 
     shutil.copy(source_hook, dest_hook)
     os.chmod(dest_hook, 0o755)  # Make executable
-    print(f'Installed hook script: {dest_hook}')
+    print(f"Installed hook script: {dest_hook}")
 
     # 3. Backup and update ~/.claude.json
     if os.path.exists(claude_config):
         # Backup
-        backup = os.path.dirname(claude_config) + '/.claude.json.backup-claude-security'
+        backup = os.path.dirname(claude_config) + "/.claude.json.backup-claude-security"
         shutil.copy(claude_config, backup)
-        print_hint(f'Backed up config to: {backup}')
+        print_hint(f"Backed up config to: {backup}")
 
         # Load existing config
-        with open(claude_config, 'r') as f:
+        with open(claude_config, "r") as f:
             config = json.load(f)
     else:
         config = {}
-        print_hint('Creating new ~/.claude.json')
+        print_hint("Creating new ~/.claude.json")
 
     # 4. Merge security hooks (non-destructive)
-    if 'hooks' not in config:
-        config['hooks'] = {}
+    if "hooks" not in config:
+        config["hooks"] = {}
 
     # Add PreToolUse hook
     security_hook = {
         "matcher": "Read|Bash|Grep|Glob",
-        "hooks": [
-            {
-                "type": "command",
-                "command": str(dest_hook),
-                "timeout": 5
-            }
-        ]
+        "hooks": [{"type": "command", "command": str(dest_hook), "timeout": 5}],
     }
 
-    if 'PreToolUse' not in config['hooks']:
-        config['hooks']['PreToolUse'] = []
+    if "PreToolUse" not in config["hooks"]:
+        config["hooks"]["PreToolUse"] = []
 
     # Check if already installed (avoid duplicates)
     already_installed = any(
-        'security-read-blocker.py' in str(h.get('hooks', [{}])[0].get('command', ''))
-        for h in config['hooks'].get('PreToolUse', [])
+        "security-read-blocker.py" in str(h.get("hooks", [{}])[0].get("command", ""))
+        for h in config["hooks"].get("PreToolUse", [])
     )
 
     if already_installed:
-        print_hint('Security hooks already installed')
+        print_hint("Security hooks already installed")
         return True
 
     # Append our hook
-    config['hooks']['PreToolUse'].append(security_hook)
+    config["hooks"]["PreToolUse"].append(security_hook)
 
     # 5. Write back atomically
-    temp_file = claude_config + '.tmp'
-    with open(temp_file, 'w') as f:
+    temp_file = claude_config + ".tmp"
+    with open(temp_file, "w") as f:
         json.dump(config, f, indent=2)
 
     os.rename(temp_file, claude_config)
 
-    print('✓ Claude Code security hooks installed')
-    print_hint(f'  Hook script: {dest_hook}')
-    print_hint(f'  Config file: {claude_config}')
-    print_hint(f'  Log file: {os.path.join(hooks_dir, "security-blocks.log")} (created on first block)')
-    print('')
-    print_warning('IMPORTANT: Restart Claude Code for hooks to take effect')
+    print("✓ Claude Code security hooks installed")
+    print_hint(f"  Hook script: {dest_hook}")
+    print_hint(f"  Config file: {claude_config}")
+    print_hint(
+        f'  Log file: {os.path.join(hooks_dir, "security-blocks.log")} (created on first block)'
+    )
+    print("")
+    print_warning("IMPORTANT: Restart Claude Code for hooks to take effect")
 
     return True
 
 
 def claude_security_remove(dry_run=False):
     """Remove Claude Code security hooks from ~/.claude.json."""
-    print_title('Remove Claude Security Hooks')
+    print_title("Remove Claude Security Hooks")
 
-    claude_config = os.path.join(os.path.expanduser('~'), '.claude.json')
+    claude_config = os.path.join(os.path.expanduser("~"), ".claude.json")
 
     if not os.path.exists(claude_config):
-        print_warning('No Claude config found at ~/.claude.json')
+        print_warning("No Claude config found at ~/.claude.json")
         return True
 
     if dry_run:
@@ -1854,92 +1979,93 @@ def claude_security_remove(dry_run=False):
         return True
 
     # Backup
-    backup = os.path.dirname(claude_config) + '/.claude.json.backup-before-removal'
+    backup = os.path.dirname(claude_config) + "/.claude.json.backup-before-removal"
     shutil.copy(claude_config, backup)
-    print_hint(f'Backed up config to: {backup}')
+    print_hint(f"Backed up config to: {backup}")
 
     # Load config
-    with open(claude_config, 'r') as f:
+    with open(claude_config, "r") as f:
         config = json.load(f)
 
     # Remove security hooks
-    if 'hooks' not in config or 'PreToolUse' not in config['hooks']:
-        print_hint('No hooks found in config')
+    if "hooks" not in config or "PreToolUse" not in config["hooks"]:
+        print_hint("No hooks found in config")
         return True
 
-    original_count = len(config['hooks']['PreToolUse'])
+    original_count = len(config["hooks"]["PreToolUse"])
 
     # Filter out security hooks
-    config['hooks']['PreToolUse'] = [
-        hook_entry for hook_entry in config['hooks']['PreToolUse']
+    config["hooks"]["PreToolUse"] = [
+        hook_entry
+        for hook_entry in config["hooks"]["PreToolUse"]
         if not any(
-            'security-read-blocker.py' in str(h.get('command', ''))
-            for h in hook_entry.get('hooks', [])
+            "security-read-blocker.py" in str(h.get("command", ""))
+            for h in hook_entry.get("hooks", [])
         )
     ]
 
-    removed_count = original_count - len(config['hooks']['PreToolUse'])
+    removed_count = original_count - len(config["hooks"]["PreToolUse"])
 
     if removed_count > 0:
         # Clean up empty arrays
-        if len(config['hooks']['PreToolUse']) == 0:
-            del config['hooks']['PreToolUse']
+        if len(config["hooks"]["PreToolUse"]) == 0:
+            del config["hooks"]["PreToolUse"]
 
-        if len(config['hooks']) == 0:
-            del config['hooks']
+        if len(config["hooks"]) == 0:
+            del config["hooks"]
 
         # Write back atomically
-        temp_file = claude_config + '.tmp'
-        with open(temp_file, 'w') as f:
+        temp_file = claude_config + ".tmp"
+        with open(temp_file, "w") as f:
             json.dump(config, f, indent=2)
 
         os.rename(temp_file, claude_config)
 
-        print(f'✓ Removed {removed_count} security hook(s)')
-        print_hint('Restart Claude Code for changes to take effect')
+        print(f"✓ Removed {removed_count} security hook(s)")
+        print_hint("Restart Claude Code for changes to take effect")
     else:
-        print_hint('No security hooks found to remove')
+        print_hint("No security hooks found to remove")
 
     return True
 
 
 def show_claude_hooks():
     """Show all hooks in ~/.claude.json with source identification."""
-    print_title('Current Claude Hooks')
+    print_title("Current Claude Hooks")
 
-    claude_config = os.path.join(os.path.expanduser('~'), '.claude.json')
+    claude_config = os.path.join(os.path.expanduser("~"), ".claude.json")
 
     if not os.path.exists(claude_config):
-        print_warning('No Claude config found at ~/.claude.json')
+        print_warning("No Claude config found at ~/.claude.json")
         return True
 
-    with open(claude_config, 'r') as f:
+    with open(claude_config, "r") as f:
         config = json.load(f)
 
-    if 'hooks' not in config or not config['hooks']:
-        print_hint('No hooks configured')
+    if "hooks" not in config or not config["hooks"]:
+        print_hint("No hooks configured")
         return True
 
     print(f"Hooks in {claude_config}:")
     print("=" * 60)
 
-    for event_name, hook_entries in config['hooks'].items():
+    for event_name, hook_entries in config["hooks"].items():
         print(f"\n{colors.HEADER}{event_name}:{colors.END}")
 
         for i, entry in enumerate(hook_entries):
-            matcher = entry.get('matcher', 'N/A')
+            matcher = entry.get("matcher", "N/A")
             print(f"  [{i+1}] Matcher: {colors.OK}{matcher}{colors.END}")
 
-            for j, hook in enumerate(entry.get('hooks', [])):
-                command = hook.get('command', '')
-                timeout = hook.get('timeout', 60)
-                hook_type = hook.get('type', 'command')
+            for j, hook in enumerate(entry.get("hooks", [])):
+                command = hook.get("command", "")
+                timeout = hook.get("timeout", 60)
+                hook_type = hook.get("type", "command")
 
                 # Identify source
                 source = "Unknown"
-                if 'security-read-blocker.py' in command:
+                if "security-read-blocker.py" in command:
                     source = f"{colors.WARNING}DOTFILES (security){colors.END}"
-                elif '.dotfiles-claude-hooks' in command:
+                elif ".dotfiles-claude-hooks" in command:
                     source = f"{colors.WARNING}DOTFILES{colors.END}"
 
                 print(f"      Hook {j+1}:")
@@ -1956,10 +2082,10 @@ def show_claude_hooks():
 # Firefox Claude Settings (Project-local)
 # ============================================================================
 
-FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, 'mozilla', 'firefox', 'dot.claude')
+FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, "mozilla", "firefox", "dot.claude")
 
 
-def get_user_input(prompt, default=''):
+def get_user_input(prompt, default=""):
     """Get text input from user with optional default."""
     if DRY_RUN:
         return default
@@ -1978,59 +2104,60 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     Install Firefox-specific Claude settings (hooks, skills) to a target project.
     Uses symlinks for easy management across multiple repos.
     """
-    print_title('Install Firefox Claude Settings')
+    print_title("Install Firefox Claude Settings")
 
     # Verify overlay exists
     if not os.path.isdir(FIREFOX_CLAUDE_OVERLAY):
-        print_error(f'Firefox Claude overlay not found: {FIREFOX_CLAUDE_OVERLAY}')
+        print_error(f"Firefox Claude overlay not found: {FIREFOX_CLAUDE_OVERLAY}")
         return False
 
     # Ask for target directory if not provided
     if not target_dir:
-        default_target = os.path.join(HOME_DIR, 'Work', 'firefox')
+        default_target = os.path.join(HOME_DIR, "Work", "firefox")
         target_dir = get_user_input(
-            f'Enter Firefox project path [{default_target}]: ',
-            default_target
+            f"Enter Firefox project path [{default_target}]: ", default_target
         )
 
     # Expand and validate target
     target_dir = os.path.expanduser(target_dir)
     if not os.path.isdir(target_dir):
-        print_error(f'Target directory does not exist: {target_dir}')
+        print_error(f"Target directory does not exist: {target_dir}")
         return False
 
     # Check for mach to confirm it's a Firefox repo
-    mach_path = os.path.join(target_dir, 'mach')
+    mach_path = os.path.join(target_dir, "mach")
     if not os.path.exists(mach_path):
         print_warning(f'No "mach" found in {target_dir}')
-        if not get_user_confirmation('Continue anyway? [y/N]: '):
-            print('Aborted.')
+        if not get_user_confirmation("Continue anyway? [y/N]: "):
+            print("Aborted.")
             return False
 
-    target_claude_dir = os.path.join(target_dir, '.claude')
-    target_hooks_dir = os.path.join(target_claude_dir, 'hooks')
-    target_skills_dir = os.path.join(target_claude_dir, 'skills')
-    target_settings = os.path.join(target_claude_dir, 'settings.local.json')
+    target_claude_dir = os.path.join(target_dir, ".claude")
+    target_hooks_dir = os.path.join(target_claude_dir, "hooks")
+    target_skills_dir = os.path.join(target_claude_dir, "skills")
+    target_settings = os.path.join(target_claude_dir, "settings.local.json")
 
     # Check for existing settings
     existing_settings = os.path.exists(target_settings)
     merge_mode = None
 
     if existing_settings and not dry_run:
-        print_warning(f'Existing settings found: {target_settings}')
-        print('Options:')
-        print('  [m] Merge - Keep existing settings and add new hooks/skills')
-        print('  [o] Override - Replace with dotfiles settings (creates symlink)')
-        print('  [c] Cancel - Abort installation')
-        choice = get_user_input('Choose [m/o/c]: ', 'c').lower()
-        if choice == 'c':
-            print('Aborted.')
+        print_warning(f"Existing settings found: {target_settings}")
+        print("Options:")
+        print("  [m] Merge - Keep existing settings and add new hooks/skills")
+        print("  [o] Override - Replace with dotfiles settings (creates symlink)")
+        print("  [c] Cancel - Abort installation")
+        choice = get_user_input("Choose [m/o/c]: ", "c").lower()
+        if choice == "c":
+            print("Aborted.")
             return False
-        merge_mode = choice == 'm'
+        merge_mode = choice == "m"
         if merge_mode:
-            print_warning('Merge creates a local file, not a symlink.')
-            print_warning('Future updates to dotfiles settings will NOT auto-propagate.')
-            print_warning('To get updates, re-run with override mode or manually edit.')
+            print_warning("Merge creates a local file, not a symlink.")
+            print_warning(
+                "Future updates to dotfiles settings will NOT auto-propagate."
+            )
+            print_warning("To get updates, re-run with override mode or manually edit.")
 
     if dry_run:
         print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
@@ -2043,33 +2170,35 @@ def install_firefox_claude(target_dir=None, dry_run=False):
 
         # List hooks to symlink
         step = 3
-        source_hooks = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'hooks')
+        source_hooks = os.path.join(FIREFOX_CLAUDE_OVERLAY, "hooks")
         if os.path.isdir(source_hooks):
             for hook in os.listdir(source_hooks):
                 src = os.path.join(source_hooks, hook)
                 dst = os.path.join(target_hooks_dir, hook)
                 print(f"  {step}. Symlink: {dst} -> {src}")
-                gitignore_entries.append(f'.claude/hooks/{hook}')
+                gitignore_entries.append(f".claude/hooks/{hook}")
                 step += 1
 
         # List skills to symlink
-        source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'skills')
+        source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, "skills")
         if os.path.isdir(source_skills):
             for skill in os.listdir(source_skills):
                 src = os.path.join(source_skills, skill)
                 dst = os.path.join(target_skills_dir, skill)
                 print(f"  {step}. Symlink: {dst} -> {src}")
-                gitignore_entries.append(f'.claude/skills/{skill}/')
+                gitignore_entries.append(f".claude/skills/{skill}/")
                 step += 1
 
         # Settings
-        src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'settings.local.json')
+        src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, "settings.local.json")
         if existing_settings:
             print(f"  {step}. Existing settings found: {target_settings}")
-            print("       (You will be prompted to merge or override when running without --dry-run)")
+            print(
+                "       (You will be prompted to merge or override when running without --dry-run)"
+            )
         else:
             print(f"  {step}. Symlink: {target_settings} -> {src_settings}")
-            gitignore_entries.append('.claude/settings.local.json')
+            gitignore_entries.append(".claude/settings.local.json")
         step += 1
 
         # .gitignore update for added items only
@@ -2083,14 +2212,14 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     # Create directories
     os.makedirs(target_hooks_dir, exist_ok=True)
     os.makedirs(target_skills_dir, exist_ok=True)
-    print(f'Created: {target_hooks_dir}')
-    print(f'Created: {target_skills_dir}')
+    print(f"Created: {target_hooks_dir}")
+    print(f"Created: {target_skills_dir}")
 
     # Track items to add to .gitignore (only our additions, not entire .claude/)
     gitignore_entries = []
 
     # Symlink hooks
-    source_hooks = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'hooks')
+    source_hooks = os.path.join(FIREFOX_CLAUDE_OVERLAY, "hooks")
     if os.path.isdir(source_hooks):
         for hook in os.listdir(source_hooks):
             src = os.path.join(source_hooks, hook)
@@ -2099,15 +2228,15 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             if os.path.islink(dst):
                 os.unlink(dst)
             elif os.path.exists(dst):
-                print_warning(f'Skipping existing file: {dst}')
+                print_warning(f"Skipping existing file: {dst}")
                 continue
 
             os.symlink(src, dst)
-            print(f'Linked: {hook}')
-            gitignore_entries.append(f'.claude/hooks/{hook}')
+            print(f"Linked: {hook}")
+            gitignore_entries.append(f".claude/hooks/{hook}")
 
     # Symlink skills
-    source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'skills')
+    source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, "skills")
     if os.path.isdir(source_skills):
         for skill in os.listdir(source_skills):
             src = os.path.join(source_skills, skill)
@@ -2116,86 +2245,86 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             if os.path.islink(dst):
                 os.unlink(dst)
             elif os.path.exists(dst):
-                print_warning(f'Skipping existing directory: {dst}')
+                print_warning(f"Skipping existing directory: {dst}")
                 continue
 
             os.symlink(src, dst)
-            print(f'Linked: {skill}')
-            gitignore_entries.append(f'.claude/skills/{skill}/')
+            print(f"Linked: {skill}")
+            gitignore_entries.append(f".claude/skills/{skill}/")
 
     # Handle settings.local.json
-    src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'settings.local.json')
+    src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, "settings.local.json")
 
     if merge_mode and existing_settings:
         # Merge settings
-        print('Merging settings...')
-        with open(target_settings, 'r') as f:
+        print("Merging settings...")
+        with open(target_settings, "r") as f:
             existing = json.load(f)
-        with open(src_settings, 'r') as f:
+        with open(src_settings, "r") as f:
             new_settings = json.load(f)
 
         # Merge permissions
-        if 'permissions' in new_settings:
-            if 'permissions' not in existing:
-                existing['permissions'] = {}
-            if 'allow' in new_settings['permissions']:
-                existing_allow = set(existing.get('permissions', {}).get('allow', []))
-                new_allow = set(new_settings['permissions']['allow'])
-                existing['permissions']['allow'] = list(existing_allow | new_allow)
+        if "permissions" in new_settings:
+            if "permissions" not in existing:
+                existing["permissions"] = {}
+            if "allow" in new_settings["permissions"]:
+                existing_allow = set(existing.get("permissions", {}).get("allow", []))
+                new_allow = set(new_settings["permissions"]["allow"])
+                existing["permissions"]["allow"] = list(existing_allow | new_allow)
 
         # Merge hooks
-        if 'hooks' in new_settings:
-            if 'hooks' not in existing:
-                existing['hooks'] = {}
-            for event, hooks in new_settings['hooks'].items():
-                if event not in existing['hooks']:
-                    existing['hooks'][event] = []
+        if "hooks" in new_settings:
+            if "hooks" not in existing:
+                existing["hooks"] = {}
+            for event, hooks in new_settings["hooks"].items():
+                if event not in existing["hooks"]:
+                    existing["hooks"][event] = []
                 # Add hooks that aren't already there
                 existing_cmds = set()
-                for h in existing['hooks'][event]:
-                    for hook in h.get('hooks', []):
-                        existing_cmds.add(hook.get('command', ''))
+                for h in existing["hooks"][event]:
+                    for hook in h.get("hooks", []):
+                        existing_cmds.add(hook.get("command", ""))
                 for new_hook in hooks:
-                    for hook in new_hook.get('hooks', []):
-                        if hook.get('command', '') not in existing_cmds:
-                            existing['hooks'][event].append(new_hook)
+                    for hook in new_hook.get("hooks", []):
+                        if hook.get("command", "") not in existing_cmds:
+                            existing["hooks"][event].append(new_hook)
                             break
 
         # Merge MCP servers
-        for key in ['enableAllProjectMcpServers', 'enabledMcpjsonServers']:
+        for key in ["enableAllProjectMcpServers", "enabledMcpjsonServers"]:
             if key in new_settings:
                 existing[key] = new_settings[key]
 
         # Write merged settings
-        with open(target_settings, 'w') as f:
+        with open(target_settings, "w") as f:
             json.dump(existing, f, indent=2)
-        print(f'Merged settings: {target_settings}')
+        print(f"Merged settings: {target_settings}")
 
     else:
         # Symlink settings
         if os.path.islink(target_settings):
             os.unlink(target_settings)
         elif os.path.exists(target_settings):
-            backup = target_settings + '.backup'
+            backup = target_settings + ".backup"
             shutil.move(target_settings, backup)
-            print_hint(f'Backed up existing settings to: {backup}')
+            print_hint(f"Backed up existing settings to: {backup}")
 
         os.symlink(src_settings, target_settings)
-        print('Linked: settings.local.json')
-        gitignore_entries.append('.claude/settings.local.json')
+        print("Linked: settings.local.json")
+        gitignore_entries.append(".claude/settings.local.json")
 
     # Add our items to .gitignore (only what we added, not entire .claude/)
     if gitignore_entries:
         add_to_gitignore(target_dir, gitignore_entries)
 
-    print('')
-    print(colors.OK + '✓ Firefox Claude settings installed' + colors.END)
-    print_hint(f'  Target: {target_dir}')
-    print_hint(f'  Hooks and skills are symlinked from: {FIREFOX_CLAUDE_OVERLAY}')
+    print("")
+    print(colors.OK + "✓ Firefox Claude settings installed" + colors.END)
+    print_hint(f"  Target: {target_dir}")
+    print_hint(f"  Hooks and skills are symlinked from: {FIREFOX_CLAUDE_OVERLAY}")
     if gitignore_entries:
-        print_hint(f'  Added {len(gitignore_entries)} entries to .gitignore')
-    print('')
-    print_warning('IMPORTANT: Restart Claude Code for changes to take effect')
+        print_hint(f"  Added {len(gitignore_entries)} entries to .gitignore")
+    print("")
+    print_warning("IMPORTANT: Restart Claude Code for changes to take effect")
 
     return True
 
@@ -2205,26 +2334,25 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
     Remove Firefox-specific Claude settings from a target project.
     Only removes symlinks that point to our overlay.
     """
-    print_title('Uninstall Firefox Claude Settings')
+    print_title("Uninstall Firefox Claude Settings")
 
     # Ask for target directory if not provided
     if not target_dir:
-        default_target = os.path.join(HOME_DIR, 'Work', 'firefox')
+        default_target = os.path.join(HOME_DIR, "Work", "firefox")
         target_dir = get_user_input(
-            f'Enter Firefox project path [{default_target}]: ',
-            default_target
+            f"Enter Firefox project path [{default_target}]: ", default_target
         )
 
     target_dir = os.path.expanduser(target_dir)
-    target_claude_dir = os.path.join(target_dir, '.claude')
+    target_claude_dir = os.path.join(target_dir, ".claude")
 
     if not os.path.isdir(target_claude_dir):
-        print_warning(f'No .claude directory found: {target_claude_dir}')
+        print_warning(f"No .claude directory found: {target_claude_dir}")
         return True
 
-    target_hooks_dir = os.path.join(target_claude_dir, 'hooks')
-    target_skills_dir = os.path.join(target_claude_dir, 'skills')
-    target_settings = os.path.join(target_claude_dir, 'settings.local.json')
+    target_hooks_dir = os.path.join(target_claude_dir, "hooks")
+    target_skills_dir = os.path.join(target_claude_dir, "skills")
+    target_settings = os.path.join(target_claude_dir, "settings.local.json")
 
     removed = []
 
@@ -2238,12 +2366,12 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
             hook_path = os.path.join(target_hooks_dir, hook)
             if os.path.islink(hook_path):
                 link_target = os.readlink(hook_path)
-                if FIREFOX_CLAUDE_OVERLAY in link_target or '.dotfiles' in link_target:
+                if FIREFOX_CLAUDE_OVERLAY in link_target or ".dotfiles" in link_target:
                     if dry_run:
                         print(f"  Would remove symlink: {hook_path}")
                     else:
                         os.unlink(hook_path)
-                        print(f'Removed: {hook_path}')
+                        print(f"Removed: {hook_path}")
                     removed.append(hook_path)
 
     # Remove skill symlinks
@@ -2252,33 +2380,33 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
             skill_path = os.path.join(target_skills_dir, skill)
             if os.path.islink(skill_path):
                 link_target = os.readlink(skill_path)
-                if FIREFOX_CLAUDE_OVERLAY in link_target or '.dotfiles' in link_target:
+                if FIREFOX_CLAUDE_OVERLAY in link_target or ".dotfiles" in link_target:
                     if dry_run:
                         print(f"  Would remove symlink: {skill_path}")
                     else:
                         os.unlink(skill_path)
-                        print(f'Removed: {skill_path}')
+                        print(f"Removed: {skill_path}")
                     removed.append(skill_path)
 
     # Remove settings symlink
     if os.path.islink(target_settings):
         link_target = os.readlink(target_settings)
-        if FIREFOX_CLAUDE_OVERLAY in link_target or '.dotfiles' in link_target:
+        if FIREFOX_CLAUDE_OVERLAY in link_target or ".dotfiles" in link_target:
             if dry_run:
                 print(f"  Would remove symlink: {target_settings}")
             else:
                 os.unlink(target_settings)
-                print(f'Removed: {target_settings}')
+                print(f"Removed: {target_settings}")
             removed.append(target_settings)
 
             # Restore backup if exists
-            backup = target_settings + '.backup'
+            backup = target_settings + ".backup"
             if os.path.exists(backup):
                 if dry_run:
                     print(f"  Would restore backup: {backup}")
                 else:
                     shutil.move(backup, target_settings)
-                    print(f'Restored: {target_settings}')
+                    print(f"Restored: {target_settings}")
 
     # Clean up empty directories
     for dir_path in [target_hooks_dir, target_skills_dir]:
@@ -2287,38 +2415,40 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
                 print(f"  Would remove empty directory: {dir_path}")
             else:
                 os.rmdir(dir_path)
-                print(f'Removed empty directory: {dir_path}')
+                print(f"Removed empty directory: {dir_path}")
 
     if dry_run:
         print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
         return True
 
     if removed:
-        print('')
-        print(colors.OK + f'✓ Removed {len(removed)} item(s)' + colors.END)
+        print("")
+        print(colors.OK + f"✓ Removed {len(removed)} item(s)" + colors.END)
     else:
-        print_hint('No dotfiles symlinks found to remove')
+        print_hint("No dotfiles symlinks found to remove")
 
     return True
 
 
 def show_claude_security_log():
     """Show blocked access log from security hooks."""
-    print_title('Claude Security Blocks Log')
+    print_title("Claude Security Blocks Log")
 
-    log_file = os.path.join(os.path.expanduser('~'), '.dotfiles-claude-hooks', 'security-blocks.log')
+    log_file = os.path.join(
+        os.path.expanduser("~"), ".dotfiles-claude-hooks", "security-blocks.log"
+    )
 
     if not os.path.exists(log_file):
-        print_hint(f'No log file found at: {log_file}')
-        print_hint('This means no access has been blocked yet')
+        print_hint(f"No log file found at: {log_file}")
+        print_hint("This means no access has been blocked yet")
         return True
 
     try:
-        with open(log_file, 'r') as f:
+        with open(log_file, "r") as f:
             lines = f.readlines()
 
         if not lines:
-            print_hint('Log file is empty - no blocks recorded')
+            print_hint("Log file is empty - no blocks recorded")
             return True
 
         print(f"Blocked access attempts: {len(lines)}")
@@ -2328,10 +2458,10 @@ def show_claude_security_log():
         for line in lines[-20:]:
             try:
                 entry = json.loads(line)
-                timestamp = entry.get('timestamp', 'Unknown')
-                tool = entry.get('tool_name', 'Unknown')
-                file_path = entry.get('file_path', 'Unknown')
-                reason = entry.get('reason', 'Unknown')
+                timestamp = entry.get("timestamp", "Unknown")
+                tool = entry.get("tool_name", "Unknown")
+                file_path = entry.get("file_path", "Unknown")
+                reason = entry.get("reason", "Unknown")
 
                 print(f"\n{colors.WARNING}Blocked:{colors.END} {timestamp}")
                 print(f"  Tool:   {tool}")
@@ -2341,17 +2471,18 @@ def show_claude_security_log():
                 continue
 
         if len(lines) > 20:
-            print(f"\n{colors.HINT}... showing last 20 of {len(lines)} entries{colors.END}")
+            print(
+                f"\n{colors.HINT}... showing last 20 of {len(lines)} entries{colors.END}"
+            )
 
         print("\n" + "=" * 60)
         print(f"Full log: {log_file}")
 
     except Exception as e:
-        print_error(f'Error reading log file: {e}')
+        print_error(f"Error reading log file: {e}")
         return False
 
     return True
-
 
 
 def main(argv):
@@ -2359,9 +2490,9 @@ def main(argv):
 
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
-        description='Setup dotfiles configuration for bash, git, and optional Mozilla tools',
+        description="Setup dotfiles configuration for bash, git, and optional Mozilla tools",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
+        epilog="""
 Examples:
   python3 setup.py                    # Install dotfiles and git config
   python3 setup.py --dry-run          # Show what would be done (no changes made)
@@ -2378,30 +2509,68 @@ Examples:
   python3 setup.py --install-firefox-claude # Install Firefox Claude settings (prompts for path)
   python3 setup.py --install-firefox-claude ~/Work/gecko # Install to specific path
   python3 setup.py --uninstall-firefox-claude # Remove Firefox Claude settings
-        '''
+        """,
     )
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Show detailed operations for debugging')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='Show what would be done without making any changes')
-    parser.add_argument('--mozilla', nargs='*',
-                        help='Install Mozilla toolkit for gecko development (gecko, tools, rust, pernosco)')
-    parser.add_argument('--dev-tools', nargs='*',
-                        help='Install development tools (shellcheck, ruff, black, markdownlint) and pre-commit hooks')
-    parser.add_argument('--claude-security', action='store_true',
-                        help='Install Claude Code security hooks (system-wide, blocks access to credentials)')
-    parser.add_argument('--remove-claude-security', action='store_true',
-                        help='Remove Claude Code security hooks')
-    parser.add_argument('--show-claude-hooks', action='store_true',
-                        help='Show all installed Claude Code hooks')
-    parser.add_argument('--show-claude-security-log', action='store_true',
-                        help='Show log of blocked access attempts')
-    parser.add_argument('--all', action='store_true',
-                        help='Install all components (dotfiles + git + mozilla + dev-tools + claude-security)')
-    parser.add_argument('--install-firefox-claude', nargs='?', const='', metavar='PATH',
-                        help='Install Firefox Claude settings (hooks, skills) to a project. Prompts for path if not provided.')
-    parser.add_argument('--uninstall-firefox-claude', nargs='?', const='', metavar='PATH',
-                        help='Remove Firefox Claude settings from a project. Prompts for path if not provided.')
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show detailed operations for debugging",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without making any changes",
+    )
+    parser.add_argument(
+        "--mozilla",
+        nargs="*",
+        help="Install Mozilla toolkit for gecko development (gecko, tools, rust, pernosco)",
+    )
+    parser.add_argument(
+        "--dev-tools",
+        nargs="*",
+        help="Install development tools (shellcheck, ruff, black, markdownlint) and pre-commit hooks",
+    )
+    parser.add_argument(
+        "--claude-security",
+        action="store_true",
+        help="Install Claude Code security hooks (system-wide, blocks access to credentials)",
+    )
+    parser.add_argument(
+        "--remove-claude-security",
+        action="store_true",
+        help="Remove Claude Code security hooks",
+    )
+    parser.add_argument(
+        "--show-claude-hooks",
+        action="store_true",
+        help="Show all installed Claude Code hooks",
+    )
+    parser.add_argument(
+        "--show-claude-security-log",
+        action="store_true",
+        help="Show log of blocked access attempts",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Install all components (dotfiles + git + mozilla + dev-tools + claude-security)",
+    )
+    parser.add_argument(
+        "--install-firefox-claude",
+        nargs="?",
+        const="",
+        metavar="PATH",
+        help="Install Firefox Claude settings (hooks, skills) to a project. Prompts for path if not provided.",
+    )
+    parser.add_argument(
+        "--uninstall-firefox-claude",
+        nargs="?",
+        const="",
+        metavar="PATH",
+        help="Remove Firefox Claude settings from a project. Prompts for path if not provided.",
+    )
     args = parser.parse_args(argv[1:])
 
     # Set global flags
@@ -2411,14 +2580,21 @@ Examples:
 
     # Show dry-run banner
     if DRY_RUN:
-        print_title('DRY-RUN MODE - No changes will be made')
-        print(colors.HINT + 'This will show what would be done without making any actual changes.' + colors.END)
-        print('')
+        print_title("DRY-RUN MODE - No changes will be made")
+        print(
+            colors.HINT
+            + "This will show what would be done without making any actual changes."
+            + colors.END
+        )
+        print("")
 
-    print_verbose('Arguments parsed: verbose={}, dry_run={}, mozilla={}, dev_tools={}'.format(
-        args.verbose, args.dry_run, args.mozilla, args.dev_tools))
-    print_verbose('BASE_DIR: {}'.format(BASE_DIR))
-    print_verbose('HOME_DIR: {}'.format(HOME_DIR))
+    print_verbose(
+        "Arguments parsed: verbose={}, dry_run={}, mozilla={}, dev_tools={}".format(
+            args.verbose, args.dry_run, args.mozilla, args.dev_tools
+        )
+    )
+    print_verbose("BASE_DIR: {}".format(BASE_DIR))
+    print_verbose("HOME_DIR: {}".format(HOME_DIR))
 
     # Handle show commands (don't need tracker)
     if args.show_claude_hooks:
@@ -2437,7 +2613,9 @@ Examples:
         return 0 if install_firefox_claude(target, DRY_RUN) else 1
 
     if args.uninstall_firefox_claude is not None:
-        target = args.uninstall_firefox_claude if args.uninstall_firefox_claude else None
+        target = (
+            args.uninstall_firefox_claude if args.uninstall_firefox_claude else None
+        )
         return 0 if uninstall_firefox_claude(target, DRY_RUN) else 1
 
     # Handle --all flag
@@ -2448,25 +2626,31 @@ Examples:
 
     # Create change tracker for rollback capability
     tracker = ChangeTracker()
-    print_verbose('ChangeTracker created')
+    print_verbose("ChangeTracker created")
 
     results = {
-        'dotfiles': dotfiles_link(tracker),
-        'bash': bash_link(tracker),
-        'git': git_init(tracker),
-        'mozilla': mozilla_init(args.mozilla, tracker),
-        'dev-tools': dev_tools_init(args.dev_tools, tracker),
-        'claude-security': claude_security_init(tracker, DRY_RUN) if args.claude_security else None
+        "dotfiles": dotfiles_link(tracker),
+        "bash": bash_link(tracker),
+        "git": git_init(tracker),
+        "mozilla": mozilla_init(args.mozilla, tracker),
+        "dev-tools": dev_tools_init(args.dev_tools, tracker),
+        "claude-security": (
+            claude_security_init(tracker, DRY_RUN) if args.claude_security else None
+        ),
     }
 
     show_setup_summary(results)
 
     # In dry-run mode, skip verification and show final message
     if DRY_RUN:
-        print('')
-        print_title('DRY-RUN COMPLETE')
-        print(colors.HINT + 'No changes were made to your system.' + colors.END)
-        print(colors.OK + 'To actually apply these changes, run without --dry-run flag.' + colors.END)
+        print("")
+        print_title("DRY-RUN COMPLETE")
+        print(colors.HINT + "No changes were made to your system." + colors.END)
+        print(
+            colors.OK
+            + "To actually apply these changes, run without --dry-run flag."
+            + colors.END
+        )
         return 0
 
     # Only verify if setup succeeded
@@ -2476,18 +2660,25 @@ Examples:
 
         if verification_passed:
             # Both setup and verification successful
-            print_hint('Please run `$ source ~/.bashrc` to turn on the environment settings')
+            print_hint(
+                "Please run `$ source ~/.bashrc` to turn on the environment settings"
+            )
             return 0
         else:
             # Setup succeeded but verification failed
-            print_error('Installation verification failed!')
-            print_error('Fix the issues above and re-run setup.py')
+            print_error("Installation verification failed!")
+            print_error("Fix the issues above and re-run setup.py")
 
             # Offer rollback for verification failures
             if tracker.has_changes():
-                print_warning('Setup made {} change(s) before verification failed'.format(
-                    tracker.get_change_count()))
-                if get_user_confirmation('Rollback all changes? [y/N]: ', default_non_interactive=False):
+                print_warning(
+                    "Setup made {} change(s) before verification failed".format(
+                        tracker.get_change_count()
+                    )
+                )
+                if get_user_confirmation(
+                    "Rollback all changes? [y/N]: ", default_non_interactive=False
+                ):
                     rollback_changes(tracker)
 
             return 1
@@ -2495,20 +2686,25 @@ Examples:
         # Setup failed
         # Offer rollback
         if tracker.has_changes():
-            print_warning('Setup made {} change(s) before failing'.format(
-                tracker.get_change_count()))
-            if get_user_confirmation('Rollback all changes? [y/N]: ', default_non_interactive=False):
+            print_warning(
+                "Setup made {} change(s) before failing".format(
+                    tracker.get_change_count()
+                )
+            )
+            if get_user_confirmation(
+                "Rollback all changes? [y/N]: ", default_non_interactive=False
+            ):
                 rollback_changes(tracker)
             else:
-                print('Changes kept. You can re-run setup.py after fixing issues.')
+                print("Changes kept. You can re-run setup.py after fixing issues.")
 
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         exit_code = main(sys.argv)
         sys.exit(exit_code)
     except KeyboardInterrupt:
-        print('abort')
+        print("abort")
         sys.exit(130)  # Standard exit code for SIGINT
