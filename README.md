@@ -102,13 +102,6 @@ GitDeleteBranch -f <branch> [remote]   # Force delete unmerged branch
 GitRenameBranch <old> <new> [remote]   # Rename local and remote branch
 ```
 
-**Short aliases:**
-```bash
-gbd feature-branch             # Delete branch (origin)
-gbd -f feature-branch cmc      # Force delete from 'cmc' remote
-grn old-name new-name          # Rename branch
-```
-
 ### Shell Utilities
 
 ```bash
