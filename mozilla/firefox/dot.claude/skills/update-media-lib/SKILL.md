@@ -30,7 +30,8 @@ This skill helps update vendored third-party media libraries in Firefox. Each li
 | libjxl | media/libjxl | third_party/jpeg-xl/ | Simple vendor |
 | libnestegg | media/libnestegg | media/libnestegg/ | Simple vendor |
 | libopus | media/libopus | media/libopus/ | Script-based (update.sh) |
-| mp4parse-rust | media/mp4parse-rust | third_party/rust/mp4parse* | Rust crate (Cargo.toml) |
+| Rust crates (git) | (Cargo.toml) | third_party/rust/* | Git crate (update rev + cargo update + mach vendor rust) |
+| Rust crates (crates.io) | (Cargo.toml) | third_party/rust/* | Crates.io (update version + cargo update + mach vendor rust) |
 | libjpeg | media/libjpeg | media/libjpeg/ | Script-based (update-libjpeg.sh) |
 
 ### Manual Update Required (Cannot Auto-Update)
@@ -39,6 +40,10 @@ This skill helps update vendored third-party media libraries in Firefox. Each li
 |---------|------|--------|---------------|
 | ffvpx | media/ffvpx | Requires platform-specific config regeneration | Manual rsync + config generation |
 | libmkv | media/libmkv | No vendoring section, upstream abandoned | Cannot update |
+
+## Related Skills
+
+If you have **local changes** to a Rust crate that you want to test before they're merged upstream, use `/vendor-local` instead. This skill (`/update-media-lib`) is for pulling the **latest upstream release** from remote repositories.
 
 ## Process
 
@@ -166,36 +171,95 @@ Ask for optional Bugzilla bug number. If provided:
 If no bug number:
 - `Update libjpeg-turbo to <version>`
 
-### Rust crate (mp4parse-rust)
+### Rust crates
 
-mp4parse-rust is a Rust crate hosted at https://github.com/mozilla/mp4parse-rust and vendored into `/third_party/rust/`.
+Rust crates are defined in `/toolkit/library/rust/shared/Cargo.toml` and vendored into `/third_party/rust/`. There are two types:
+
+#### Git-based Rust crates
+
+Crates with a `git` URL and `rev` attribute pointing to a specific commit.
+
+**Examples:**
+- `mp4parse_capi` - MP4 parser (https://github.com/mozilla/mp4parse-rust)
+- `cubeb-coreaudio` - macOS audio backend (https://github.com/mozilla/cubeb-coreaudio-rs, default branch: `trailblazer`)
+- `cubeb-pulse` - PulseAudio backend (https://github.com/mozilla/cubeb-pulse-rs)
+- `audioipc2-client` / `audioipc2-server` - Audio IPC (https://github.com/mozilla/audioipc)
 
 **Update process:**
 
 1. Find the current revision in `/toolkit/library/rust/shared/Cargo.toml`:
    ```toml
-   mp4parse_capi = { git = "https://github.com/mozilla/mp4parse-rust", rev = "<current-rev>", ... }
+   <crate-name> = { git = "https://github.com/...", rev = "<current-rev>", ... }
    ```
 
 2. Get the new revision (commit hash or tag) from upstream repository
 
 3. Update the `rev` attribute in Cargo.toml to the new revision
 
-4. Run the vendor command:
+4. Update Cargo.lock to reflect the new revision:
+   ```bash
+   cargo update -p <crate-name>
+   ```
+
+5. Run the vendor command:
    ```bash
    ./mach vendor rust
-   # Use --force if needed (mp4parse's lib.rs is quite large)
+   # Use --force if needed for large files
    ./mach vendor rust --force
    ```
 
-5. Verify expected changes in `/third_party/rust/mp4parse*`
+6. Verify expected changes in `/third_party/rust/<crate-name>*`
 
 **Commit format:**
 Ask for optional Bugzilla bug number. If provided:
-- `Bug XXXXXX - Update mp4parse-rust to <revision>`
+- `Bug XXXXXX - Update <crate-name> to <revision>`
 
 If no bug number:
-- `Update mp4parse-rust to <revision>`
+- `Update <crate-name> to <revision>`
+
+#### Crates.io Rust crates
+
+Crates with a `version` attribute, pulled from crates.io.
+
+**Examples:**
+- `cubeb-sys` - Cubeb native bindings (bundles libcubeb C code)
+
+**Update process:**
+
+1. Find the current version in `/toolkit/library/rust/shared/Cargo.toml`:
+   ```toml
+   <crate-name> = { version = "<current-version>", ... }
+   ```
+
+2. Check available versions on crates.io:
+   ```bash
+   cargo search <crate-name> --limit 1
+   ```
+
+3. **Ask the user** what version they want to update to. Present the current version, latest available version, and ask for their preferred target version.
+
+4. Update the `version` attribute in Cargo.toml to the chosen version
+
+5. Update Cargo.lock to reflect the new version:
+   ```bash
+   cargo update -p <crate-name>
+   ```
+
+6. Run the vendor command:
+   ```bash
+   ./mach vendor rust
+   # Use --force if needed for large files
+   ./mach vendor rust --force
+   ```
+
+7. Verify expected changes in `/third_party/rust/<crate-name>*`
+
+**Commit format:**
+Ask for optional Bugzilla bug number. If provided:
+- `Bug XXXXXX - Update <crate-name> to <version>`
+
+If no bug number:
+- `Update <crate-name> to <version>`
 
 ## Limitations and Known Issues
 

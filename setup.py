@@ -413,6 +413,82 @@ def append_nonexistent_lines_to_file(file, lines, tracker=None):
 
 
 
+def add_to_gitignore(repo_dir, entries, dry_run=False):
+    """
+    Add entries to .gitignore if they don't already exist.
+
+    Args:
+        repo_dir: Path to the git repository root
+        entries: List of gitignore patterns to add
+        dry_run: If True, only print what would be done
+
+    Returns:
+        List of entries that were added (or would be added in dry-run)
+    """
+    gitignore_path = os.path.join(repo_dir, '.gitignore')
+    added = []
+
+    # Read existing entries
+    existing_entries = set()
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, 'r') as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith('#'):
+                    existing_entries.add(stripped)
+
+    # Determine which entries need to be added
+    entries_to_add = []
+    already_ignored = []
+    for entry in entries:
+        if entry not in existing_entries:
+            entries_to_add.append(entry)
+        else:
+            already_ignored.append(entry)
+
+    # Report entries already in .gitignore (repo default)
+    if already_ignored:
+        print(f'Already in .gitignore (no action needed):')
+        for entry in already_ignored:
+            print(f'  {entry}')
+
+    if not entries_to_add:
+        return added
+
+    if dry_run:
+        for entry in entries_to_add:
+            print(f"  Would add to .gitignore: {entry}")
+            added.append(entry)
+        return added
+
+    # Add entries to .gitignore
+    try:
+        # Check if file exists and ends with newline
+        needs_newline = False
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, 'rb') as f:
+                f.seek(0, os.SEEK_END)
+                if f.tell() > 0:
+                    f.seek(-1, os.SEEK_END)
+                    needs_newline = f.read(1) != b'\n'
+
+        with open(gitignore_path, 'a') as f:
+            if needs_newline:
+                f.write('\n')
+
+            # Add a comment header for our entries
+            f.write('\n# Added by dotfiles setup (Claude Code settings)\n')
+            for entry in entries_to_add:
+                f.write(entry + '\n')
+                print(f'Added to .gitignore: {entry}')
+                added.append(entry)
+
+    except IOError as e:
+        print_error(f'Failed to update .gitignore: {e}')
+
+    return added
+
+
 def print_installing_title(name, bold=False):
     print(colors.HEADER + ''.join(['\n', name,
                                    ('\n==============================' if bold
@@ -1963,6 +2039,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
         print(f"  1. Create directory: {target_hooks_dir}")
         print(f"  2. Create directory: {target_skills_dir}")
 
+        # Track items to add to .gitignore (only our additions, not entire .claude/)
+        gitignore_entries = []
+
         # List hooks to symlink
         step = 3
         source_hooks = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'hooks')
@@ -1971,6 +2050,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 src = os.path.join(source_hooks, hook)
                 dst = os.path.join(target_hooks_dir, hook)
                 print(f"  {step}. Symlink: {dst} -> {src}")
+                gitignore_entries.append(f'.claude/hooks/{hook}')
                 step += 1
 
         # List skills to symlink
@@ -1980,6 +2060,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 src = os.path.join(source_skills, skill)
                 dst = os.path.join(target_skills_dir, skill)
                 print(f"  {step}. Symlink: {dst} -> {src}")
+                gitignore_entries.append(f'.claude/skills/{skill}/')
                 step += 1
 
         # Settings
@@ -1989,6 +2070,13 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             print(f"       (You will be prompted to merge or override when running without --dry-run)")
         else:
             print(f"  {step}. Symlink: {target_settings} -> {src_settings}")
+            gitignore_entries.append('.claude/settings.local.json')
+        step += 1
+
+        # .gitignore update for added items only
+        if gitignore_entries:
+            print(f"  {step}. Check/update .gitignore:")
+            add_to_gitignore(target_dir, gitignore_entries, dry_run=True)
 
         print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
         return True
@@ -1998,6 +2086,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     os.makedirs(target_skills_dir, exist_ok=True)
     print(f'Created: {target_hooks_dir}')
     print(f'Created: {target_skills_dir}')
+
+    # Track items to add to .gitignore (only our additions, not entire .claude/)
+    gitignore_entries = []
 
     # Symlink hooks
     source_hooks = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'hooks')
@@ -2014,6 +2105,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
 
             os.symlink(src, dst)
             print(f'Linked: {hook}')
+            gitignore_entries.append(f'.claude/hooks/{hook}')
 
     # Symlink skills
     source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'skills')
@@ -2030,6 +2122,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
 
             os.symlink(src, dst)
             print(f'Linked: {skill}')
+            gitignore_entries.append(f'.claude/skills/{skill}/')
 
     # Handle settings.local.json
     src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, 'settings.local.json')
@@ -2090,11 +2183,18 @@ def install_firefox_claude(target_dir=None, dry_run=False):
 
         os.symlink(src_settings, target_settings)
         print(f'Linked: settings.local.json')
+        gitignore_entries.append('.claude/settings.local.json')
+
+    # Add our items to .gitignore (only what we added, not entire .claude/)
+    if gitignore_entries:
+        add_to_gitignore(target_dir, gitignore_entries)
 
     print('')
     print(colors.OK + '✓ Firefox Claude settings installed' + colors.END)
     print_hint(f'  Target: {target_dir}')
     print_hint(f'  Hooks and skills are symlinked from: {FIREFOX_CLAUDE_OVERLAY}')
+    if gitignore_entries:
+        print_hint(f'  Added {len(gitignore_entries)} entries to .gitignore')
     print('')
     print_warning('IMPORTANT: Restart Claude Code for changes to take effect')
 
