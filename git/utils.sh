@@ -15,6 +15,7 @@ alias grt='git remote -v'
 alias gs='git status'
 alias gum='git add -u && git commit -m'
 alias grn='GitRenameBranch'
+alias gbd='GitDeleteBranch'
 
 # Typo
 # ------------------------------------------------
@@ -258,6 +259,78 @@ function GitRenameBranch {
   else
     echo "Successfully renamed local branch '$old_name' to '$new_name'"
     PrintWarning "Branch did not exist on remote '$remote', only renamed locally"
+  fi
+}
+
+# Delete a branch locally and on remote
+# ------------------------------------------------
+function GitDeleteBranch {
+  local force=false
+  local branch=""
+  local remote="origin"
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -f|--force)
+        force=true
+        shift
+        ;;
+      *)
+        if [ -z "$branch" ]; then
+          branch="$1"
+        else
+          remote="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$branch" ]; then
+    PrintError "Usage: GitDeleteBranch [-f|--force] <branch> [remote]"
+    PrintError "  remote defaults to 'origin'"
+    return 1
+  fi
+
+  # Validate remote exists
+  if ! git remote | grep -q "^${remote}$"; then
+    PrintError "Remote '$remote' does not exist"
+    PrintError "Available remotes:"
+    git remote -v
+    return 1
+  fi
+
+  # Check if branch exists locally
+  if ! git show-ref --verify --quiet "refs/heads/$branch"; then
+    PrintError "Local branch '$branch' does not exist"
+    return 1
+  fi
+
+  # Delete local branch
+  local flag="-d"
+  if [ "$force" = true ]; then
+    flag="-D"
+  fi
+
+  echo "Deleting local branch '$branch'..."
+  if ! git branch $flag "$branch"; then
+    PrintError "Failed to delete local branch"
+    PrintError "Use -f to force delete unmerged branch"
+    return 1
+  fi
+
+  # Check if remote branch exists and delete it
+  if git ls-remote --exit-code --heads "$remote" "$branch" &>/dev/null; then
+    echo "Deleting '$branch' from $remote..."
+    if ! git push "$remote" --delete "$branch"; then
+      PrintError "Failed to delete remote branch"
+      return 1
+    fi
+    echo "Successfully deleted branch '$branch' (local and remote)"
+  else
+    echo "Successfully deleted local branch '$branch'"
+    PrintWarning "Branch did not exist on remote '$remote'"
   fi
 }
 

@@ -97,6 +97,16 @@ GitLastCommit vim              # Open last commit files in vim
 GitUncommit code               # Open modified files in VS Code
 GitAddExcept -u file1 file2    # Add all updated except file1, file2
 CreateGitBranchForPullRequest upstream 123  # Create PR branch
+GitDeleteBranch <branch> [remote]      # Delete local and remote branch
+GitDeleteBranch -f <branch> [remote]   # Force delete unmerged branch
+GitRenameBranch <old> <new> [remote]   # Rename local and remote branch
+```
+
+**Short aliases:**
+```bash
+gbd feature-branch             # Delete branch (origin)
+gbd -f feature-branch cmc      # Force delete from 'cmc' remote
+grn old-name new-name          # Rename branch
 ```
 
 ### Shell Utilities
