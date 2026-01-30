@@ -210,6 +210,15 @@ Crates with a `git` URL and `rev` attribute pointing to a specific commit.
 
 6. Verify expected changes in `/third_party/rust/<crate-name>*`
 
+7. **Run cargo vet** to check for missing audits:
+   ```bash
+   ./mach cargo vet suggest 2>&1 | head -20
+   ```
+
+8. **Add required audits** if any crates need certification (see crates.io section below for examples)
+
+9. Include `supply-chain/audits.toml` in the commit if audits were added
+
 **Commit format:**
 Ask for optional Bugzilla bug number. If provided:
 - `Bug XXXXXX - Update <crate-name> to <revision>`
@@ -253,6 +262,26 @@ Crates with a `version` attribute, pulled from crates.io.
    ```
 
 7. Verify expected changes in `/third_party/rust/<crate-name>*`
+
+8. **Run cargo vet** to check for missing audits:
+   ```bash
+   ./mach cargo vet suggest 2>&1 | head -20
+   ```
+
+9. **Add required audits** for each crate that needs certification:
+   ```bash
+   ./mach cargo vet certify <crate-name> <old-version> <new-version> --criteria safe-to-deploy --accept-all
+   ```
+
+   For example, when updating cubeb crates from 0.30.1 to 0.32.0:
+   ```bash
+   ./mach cargo vet certify cubeb 0.30.1 0.32.0 --criteria safe-to-deploy --accept-all
+   ./mach cargo vet certify cubeb-backend 0.30.1 0.32.0 --criteria safe-to-deploy --accept-all
+   ./mach cargo vet certify cubeb-core 0.30.1 0.32.0 --criteria safe-to-deploy --accept-all
+   ./mach cargo vet certify cubeb-sys 0.30.1 0.32.0 --criteria safe-to-deploy --accept-all
+   ```
+
+10. Include `supply-chain/audits.toml` in the commit
 
 **Commit format:**
 Ask for optional Bugzilla bug number. If provided:
@@ -301,7 +330,8 @@ Some libraries store source in `third_party/`:
 1. **Build**: `./mach build`
 2. **Lint**: `./mach lint`
 3. **Format**: `./mach format`
-4. **Test**: `./mach test --auto`
+4. **Cargo vet** (for Rust crate updates): `./mach cargo vet suggest` - add any required audits
+5. **Test**: `./mach test --auto`
 
 ## Troubleshooting
 
@@ -311,3 +341,4 @@ Some libraries store source in `third_party/`:
 - **nasm version errors**: May need to update minimum nasm version in toolchain
 - **python3-venv missing**: Install with `apt install python3-venv` (for libaom)
 - **Uncommitted changes error**: Use `--ignore-modified` flag for step 2, or commit between steps
+- **Cargo vet missing audit error**: Run `./mach cargo vet certify <crate> <old> <new> --criteria safe-to-deploy --accept-all` for each crate, then include `supply-chain/audits.toml` in the commit
