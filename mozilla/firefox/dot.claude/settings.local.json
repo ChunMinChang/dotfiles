@@ -6,7 +6,6 @@
       "Bash(./mach help:*)",
       "Bash(searchfox-cli:*)",
       "Bash(./.claude/hooks/should-format-lint.sh:*)",
-      "Bash(echo:*)",
       "Bash(./mach vendor:*)"
     ]
   },
