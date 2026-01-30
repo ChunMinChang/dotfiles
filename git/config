@@ -15,6 +15,7 @@
   st = status
   type = cat-file -t
   dump = cat-file -p
+  wtree = worktree
 
   # git commit --amend --date="$(date -R)"
   updateTime = "!f() { git commit --amend --date=now; }; f"
