@@ -49,12 +49,19 @@ You are helping create a commit or patch file for a Firefox bug fix or feature.
      - References previous commits if this is a follow-up
      - Includes only essential technical details
      - Removes any redundant or obvious information
+   - **Show the message to user for review** (see step 4a below)
 
    **If user writes it themselves**:
    - Ask the user to provide the title and summary (use text input or let them type it)
    - After receiving their message, ask: "Would you like me to polish/improve this message?"
-     - If yes: Review and improve for clarity, conciseness, and Mozilla conventions. Remove verbosity, strengthen weak phrasing, ensure technical accuracy
-     - If no: Use their message as-is
+     - If yes: Review and improve for clarity, conciseness, and Mozilla conventions. Remove verbosity, strengthen weak phrasing, ensure technical accuracy. Then **show the message to user for review** (see step 4a below)
+     - If no: Use their message as-is (skip step 4a)
+
+4a. **Review loop** (when Claude generates or polishes):
+   - Display the proposed title and summary to the user
+   - Ask: "Would you like to: (1) Use this message, (2) Edit it, (3) Start over"
+   - If user chooses to edit: let them type changes, then polish again and repeat this step
+   - Continue until user approves the message
 
 5. **Create commit or patch**:
 
@@ -65,8 +72,6 @@ You are helping create a commit or patch file for a Firefox bug fix or feature.
      Bug <number> - <title>
 
      <detailed summary>
-
-     Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
      ```
    - Show commit hash and explain: `git format-patch -1 HEAD` to export later
 
@@ -82,7 +87,7 @@ You are helping create a commit or patch file for a Firefox bug fix or feature.
 - **Body**: Explain what and why, not how. Be direct and specific
 - **Context**: Reference related commits or bugs only when it adds value
 - **Details**: Include only essential technical specifics that reviewers need
-- **Co-authored**: Always add Claude co-authorship line
+- **No Co-authored-by**: Do NOT include Claude co-authorship line
 - **Avoid**: Obvious statements, unnecessary adjectives, verbose explanations
 
 ## Example
@@ -99,8 +104,6 @@ reproduces the fuzzer-found issue with large numberOfFrames values.
 
 The fix ensures overflow is detected and a proper RangeError is thrown
 instead of crashing.
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
 ## Important
