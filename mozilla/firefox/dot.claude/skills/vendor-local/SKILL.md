@@ -171,7 +171,38 @@ This approach embeds the code directly in Firefox using path dependencies. **No 
    ```
    Note: The path is relative to the Cargo.toml location (`toolkit/library/rust/shared/`)
 
-4. Update Cargo.lock:
+4. **CRITICAL**: Remove vendored Cargo.lock files and generate `.cargo-checksum.json`:
+
+   Path dependencies in Firefox still require `.cargo-checksum.json` files. Without them, you'll get "failed to load source for dependency" errors.
+
+   ```bash
+   # Remove vendored Cargo.lock files (not needed for path deps)
+   rm -f <firefox>/third_party/rust/<crate-name>/Cargo.lock
+   rm -f <firefox>/third_party/rust/<nested-crate-name>/Cargo.lock
+
+   # Generate .cargo-checksum.json for main crate
+   cd <firefox>/third_party/rust/<crate-name>
+   python3 << 'EOF'
+import hashlib, json, os
+files = {}
+for root, dirs, filenames in os.walk('.'):
+    dirs[:] = [d for d in dirs if not d.startswith('.')]
+    for filename in filenames:
+        if filename.startswith('.'): continue
+        filepath = os.path.join(root, filename)
+        relpath = os.path.relpath(filepath, '.')
+        with open(filepath, 'rb') as f:
+            files[relpath] = hashlib.sha256(f.read()).hexdigest()
+with open('.cargo-checksum.json', 'w') as f:
+    json.dump({"files": files, "package": ""}, f)
+EOF
+
+   # Repeat for nested crates
+   cd <firefox>/third_party/rust/<nested-crate-name>
+   # ... run same Python script ...
+   ```
+
+6. Update Cargo.lock:
    ```bash
    cargo update -p <crate-name>
    ```
@@ -180,7 +211,7 @@ This approach embeds the code directly in Firefox using path dependencies. **No 
    cargo update -p <crate-name> -p <nested-crate-name>
    ```
 
-5. Build to verify:
+7. Build to verify:
    ```bash
    ./mach build
    ```
