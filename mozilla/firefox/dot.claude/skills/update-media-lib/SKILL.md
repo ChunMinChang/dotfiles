@@ -45,7 +45,44 @@ This skill helps update vendored third-party media libraries in Firefox. Each li
 
 If you have **local changes** to a Rust crate that you want to test before they're merged upstream, use `/vendor-local` instead. This skill (`/update-media-lib`) is for pulling the **latest upstream release** from remote repositories.
 
-## Process
+## Initial Question: Update Type
+
+**IMPORTANT:** Before starting any work, determine what kind of update the user needs. If the user's request clearly indicates one type (e.g., they provide a commit URL to cherry-pick, or say "update to latest"), skip the question and proceed directly. Otherwise, use AskUserQuestion:
+
+> "What type of update do you need?"
+> - **Full library update** - Update the vendored library to a new upstream version
+> - **Cherry-pick a specific commit** - Apply a single upstream commit to the current vendored source
+
+If the user provides a URL to a specific commit or mentions "cherry-pick", go directly to the **Cherry-pick Process** section.
+If the user asks to update to a version/tag or to latest, go to the **Full Update Process** section.
+
+## Cherry-pick Process
+
+Cherry-picking applies a single upstream commit directly to the vendored source without running `mach vendor`. This is useful for backporting security fixes or targeted bug fixes.
+
+1. **Identify the library and commit** - Confirm the library and the upstream commit hash/URL
+2. **Read moz.yaml** - Check `media/<lib>/moz.yaml` for the current vendored revision and upstream URL
+3. **Fetch the upstream diff** - Use WebFetch to get the commit diff (e.g., from Googlesource `?format=TEXT` for base64-encoded diffs, or from GitHub)
+4. **Verify the diff applies cleanly** - Read the affected files in the vendored source and confirm the pre-image (context lines) matches
+5. **Ask for Bugzilla number** - Use AskUserQuestion to get an optional bug number
+6. **Apply the changes** - Use Edit to apply each hunk from the diff to the corresponding vendored file (e.g., `media/<lib>/libvpx/path/to/file.c`)
+7. **Build and test** - Run `./mach build` to verify
+
+**Commit format for cherry-picks:**
+If bug number provided:
+- `Bug XXXXXX - Cherry-pick upstream <library> commit <short-hash>. <commit-subject>`
+
+If no bug number:
+- `Cherry-pick upstream <library> commit <short-hash>. <commit-subject>`
+
+**Verifying compatibility across branches:**
+When the user asks whether a cherry-pick applies cleanly on a specific Firefox release (e.g., Firefox 147):
+1. Find the Firefox release date (use WebSearch)
+2. Find which libvpx version was vendored at that time: `git log --oneline --before="<date>" -1 -- media/<lib>/moz.yaml`
+3. Read the file at that commit: `git show <commit>:media/<lib>/path/to/file.c`
+4. Compare the pre-image lines from the diff against the file content at that revision
+
+## Full Update Process
 
 1. **Identify the library** - Confirm which library needs updating
 2. **Check limitations** - Verify the library can be auto-updated (see table above)
