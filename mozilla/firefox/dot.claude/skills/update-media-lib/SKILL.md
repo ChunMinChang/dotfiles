@@ -370,6 +370,118 @@ Some libraries store source in `third_party/`:
 4. **Cargo vet** (for Rust crate updates): `./mach cargo vet suggest` - add any required audits
 5. **Test**: `./mach test --auto`
 
+## Backporting Rust Crate Updates to ESR/Beta/Release
+
+When a Rust crate update on central needs to be uplifted to older branches (ESR, beta, release), the process differs from a normal update because each branch may pin a different base revision of the crate.
+
+### Overview
+
+1. Identify the base revision on each target branch
+2. Create backport branches upstream if needed
+3. Vendor the backported revision on each Firefox branch
+4. Clean up vendoring noise
+5. Push to try and verify builds
+
+### Step 1: Identify Base Revisions
+
+Check what revision each branch uses:
+
+```bash
+# For each branch (esr140, beta, release)
+git show origin/<branch>:toolkit/library/rust/shared/Cargo.toml | grep <crate-name>
+```
+
+Branches often share the same base revision (e.g., beta and release), so you may only need one or two backport branches.
+
+### Step 2: Create Backport Branches (if needed)
+
+If the upstream commit doesn't apply cleanly to a branch's base revision, create a backport branch on the upstream repo:
+
+```bash
+git clone <upstream-repo-url> /tmp/<repo>
+cd /tmp/<repo>
+
+# Create backport branch from the branch's base revision
+git checkout -b backport-<branch> <base-revision>
+
+# Cherry-pick the commit(s) from central's update
+git cherry-pick <commit-hash>
+
+# Push the backport branch
+git push origin backport-<branch>
+```
+
+Note the resulting commit hash — this becomes the new `rev` for that Firefox branch.
+
+### Step 3: Vendor on the Target Branch
+
+```bash
+# Check out the target branch
+git checkout -b <branch>-uplift upstream/<branch>
+
+# Edit Cargo.toml with the backport revision
+# In toolkit/library/rust/shared/Cargo.toml, update the rev for the crate
+
+# Update Cargo.lock
+cargo update -p <crate-name>
+
+# Vendor
+./mach vendor rust
+```
+
+**ESR branches may fail with cargo-vet errors** (policy drift from central). In this case, use `--force`:
+
+```bash
+./mach vendor rust --force
+```
+
+### Step 4: Clean Up `--force` Noise
+
+`--force` re-vendors ALL crates, adding `.cargo_vcs_info.json`, `.github/`, `.travis.yml` and other files to every crate. This produces 1000+ changed files. Only the target crate's changes should be kept.
+
+```bash
+# Unstage everything
+git reset HEAD
+
+# Restore all modified files EXCEPT the ones we want to keep
+git diff --name-only | grep -v -E '^(\.cargo/config\.toml\.in|Cargo\.lock|toolkit/library/rust/shared/Cargo\.toml|third_party/rust/<crate-name>/)' | xargs git checkout --
+
+# Remove all untracked noise files, keeping only the target crate
+git ls-files --others --exclude-standard | grep -v 'third_party/rust/<crate-name>/' | xargs rm -f
+
+# Clean up empty directories
+find third_party/rust -type d -empty -delete 2>/dev/null
+
+# Verify only target files remain
+git status --short
+```
+
+Expected files after cleanup:
+- `.cargo/config.toml.in` — rev update
+- `Cargo.lock` — lockfile update
+- `toolkit/library/rust/shared/Cargo.toml` — rev update
+- `third_party/rust/<crate-name>/.cargo-checksum.json` — updated checksums
+- `third_party/rust/<crate-name>/src/...` — actual code changes
+
+### Step 5: Push to Try
+
+`mach try auto` may fail on older branches with bugbug timeout errors (the bugbug service can't classify tasks for non-central revisions). Use `mach try fuzzy` as a reliable alternative:
+
+```bash
+# Build-only (fastest verification)
+./mach try fuzzy -q "'build"
+
+# If mach try auto works on the branch, that's also fine
+./mach try auto
+```
+
+### Notes
+
+- **Security bugs:** Use a generic commit message like "test" with no bug number or details when pushing to try
+- **Beta and release often share the same base revision**, so one backport branch may cover both
+- **ESR branches** are more likely to have cargo-vet drift requiring `--force`
+- The `--force` cleanup step is critical — without it you'll have 1000+ noise files in your patch
+
 ## Troubleshooting
 
 - **Build failures after update**: Check for new source files not added to moz.build
