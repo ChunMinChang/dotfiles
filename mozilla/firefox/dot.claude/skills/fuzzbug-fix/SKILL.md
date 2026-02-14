@@ -24,12 +24,16 @@ bug mentioned using `bmo-to-md`, that is a special CLI program to pull bug
 details. Do not do it any other way because they don't work (they are likely to
 be private bugs).
 
-Attachment link format: https://bugzilla.mozilla.org/attachment.cgi?id=9536479,
-or use bmo-to-md to download them. If that tool fails, stop everything and
-report to the user, there is no other way to acquire this information. Download
-the files in the current Firefox source directory to avoid having to ask
-permission. Do not use /tmp because that will require permission and user
-interaction. There is no need to change directory.
+Before fetching the bug, ask the user if they want to download bug details and
+attachments to markdown files for persistent access throughout the conversation.
+If yes, ask if they already have a folder to use (e.g., `bug-md/`) or if we
+should create one. Then use: `bmo-to-md -o <folder> -a <bug_id>`.
+
+If the user prefers not to download, use `bmo-to-md` without the `-o` flag to
+fetch bug information directly without saving files.
+
+If that tool fails, stop everything and report to the user, there is no other
+way to acquire this information. Do not use /tmp or temporary locations.
 
 Verify this tree is a debug build (check `mozconfig` at the root of the repo).
 `--enabled-fuzzing` is unrelated and not needed.
@@ -40,9 +44,11 @@ terms of time.
 
 To fix the bug follow those steps:
 
-- Fetch the bug details using bmo-to-md. If there seem to be a patch already,
-  exit and report this to the user, printing the bug URL.
-- Fetch the test-case using bmo-to-md, it will be decompressed for you
+- Fetch the bug details using bmo-to-md (after asking the user about download
+  preferences as described above). If there seem to be a patch already, exit
+  and report this to the user, printing the bug URL.
+- The test-case will be downloaded/fetched automatically by bmo-to-md and
+  decompressed for you
 - Turn the attachment into a crash-test, in the right directory (oftentimes
   names crashtest(s) near the responsible code). Add `class="reftest-wait"` as
   needed for async tests (sometimes not needed), and add any support files next
@@ -77,7 +83,9 @@ To fix the bug follow those steps:
 
 You can find the reviewer by inspecting blame around the fixed code.
 
-- Lastly, clean the temporary files (bug summary, description, etc.)
+- Lastly, if bug files were downloaded to a folder, ask the user if they want
+  to keep them (for reference) or clean them up. If not downloaded, no cleanup
+  is needed.
 
 If running as a sub-agent, exist the sub-agent. If not, just stop, if you're
 stuck, say so
