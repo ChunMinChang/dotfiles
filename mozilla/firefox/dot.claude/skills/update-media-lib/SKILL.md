@@ -1,6 +1,7 @@
 ---
 name: update-media-lib
 description: Update third-party media libraries (libvpx, libdav1d, libaom, libopus, libcubeb, etc.) in the Firefox media/ directory. Use when updating codecs, decoders, or vendored media packages.
+context: fork
 ---
 
 # Update Media Libraries

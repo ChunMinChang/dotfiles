@@ -2,6 +2,7 @@
 name: try-branches
 description: Push a commit to try on multiple Firefox branches (beta, release, ESR). Use when testing if a patch builds/works on older Firefox versions for uplift.
 argument-hint: <commit> <branch1> [branch2] ...
+context: fork
 ---
 
 # Try Branches

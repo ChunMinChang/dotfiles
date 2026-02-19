@@ -1,6 +1,7 @@
 ---
 name: vendor-local
 description: Vendor code from a local repository into Firefox's third_party/rust directory.
+context: fork
 ---
 
 ## Related Skills
