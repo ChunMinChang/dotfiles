@@ -148,7 +148,9 @@ UpdateCrate <crate>      # Update Rust crate
 W3CSpec input.bs out.html  # Generate W3C spec
 ```
 
-## Claude Code Security (Optional)
+## Claude Code (Optional)
+
+### Security Hooks
 
 Run `python setup.py --claude-security` to install **system-wide security hooks** that protect sensitive files across all Claude Code sessions.
 
@@ -188,7 +190,7 @@ export DOTFILES_CLAUDE_SECURITY_DISABLED=true
 
 See [CLAUDE_SECURITY.md](CLAUDE_SECURITY.md) for detailed documentation, troubleshooting, and advanced usage.
 
-## Firefox Claude Settings (Optional)
+### Firefox Project Settings
 
 Install Firefox-specific Claude hooks and skills to any Firefox/Gecko project. Uses symlinks for easy management across multiple repos.
 
