@@ -11,6 +11,9 @@ fuzzing cluster.
 
 ## General Principles
 
+- **Before starting work, create a plan** with one item per step below (Steps
+  1–6, including sub-steps). Present the plan to the user and get approval before
+  proceeding.
 - Work headless (`--headless` on integration tests; not needed for gtest/xpcshell).
 - When stuck, need clarification, or need the user to manually check something,
   **stop and discuss** with the user rather than guessing.
