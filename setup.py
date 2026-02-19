@@ -2552,7 +2552,7 @@ Examples:
   python3 setup.py --show-claude-hooks # Show installed hooks
   python3 setup.py --remove-claude-security # Remove security hooks
   python3 setup.py --install-firefox-claude # Install Firefox Claude settings (prompts for path)
-  python3 setup.py --install-firefox-claude ~/Work/gecko # Install to specific path
+  python3 setup.py --install-firefox-claude /path/to/firefox # Install to specific path
   python3 setup.py --uninstall-firefox-claude # Remove Firefox Claude settings
         """,
     )

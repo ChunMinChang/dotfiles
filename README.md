@@ -5,104 +5,48 @@ Cross-platform shell configuration for Linux and macOS with enhanced git workflo
 ## Quick Start
 
 ```bash
-# Install
 python setup.py                    # Basic setup
-python setup.py --dry-run          # Preview changes first
 python setup.py --mozilla          # Add Mozilla dev tools
-python setup.py --dev-tools        # Add pre-commit hooks
 python setup.py --claude-security  # Add Claude Code security hooks
 python setup.py --all              # Install everything
+python setup.py --dry-run          # Preview changes first
 
 # Firefox Claude settings (per-project)
-python setup.py --install-firefox-claude ~/Work/firefox
+python setup.py --install-firefox-claude /path/to/firefox
 
-# Uninstall
-bash uninstall.sh --dry-run        # Preview removal
 bash uninstall.sh                  # Remove dotfiles
 ```
 
-## What You Get
+## What Gets Installed
 
-### All Platforms
+**Symlinks:** `~/.dotfiles`, `~/.bashrc`, `~/.settings_{platform}` (+ `~/.zshrc` on macOS)
 
-**Symlinks created:**
-- `~/.dotfiles` → this repository
-- `~/.bashrc` → `dot.bashrc` (or loader appended if exists)
-- `~/.settings_{linux|darwin}` → platform-specific settings
+**Git config:** `git/config` included via `~/.gitconfig`
 
-**Git configuration:**
-- `git/config` included in `~/.gitconfig`
+**Mozilla (optional):** Mach aliases, machrc, pernosco-submit, Rust/Cargo environment
 
-### Linux Specific
+## Key Commands
 
-**Symlinks:**
-- `~/.settings_linux` → `dot.settings_linux`
-
-**Features:**
-- Git branch in shell prompt
-- Trash directory: `~/.local/share/Trash/files`
-- `OpenWithWayland` command for running GUI apps
-
-### macOS Specific
-
-**Symlinks:**
-- `~/.zshrc` → `dot.zshrc` (macOS ≥10.15)
-- `~/.bash_profile` → `dot.bash_profile` (macOS ≤10.14)
-- `~/.settings_darwin` → `dot.settings_darwin`
-
-**Features:**
-- Trash directory: `~/.Trash`
-- zsh entry point that loads bash configuration
-
-### Mozilla Development (Optional)
-
-Run `python setup.py --mozilla` to add:
-- Mach aliases and machrc
-- pernosco-submit setup
-- Rust/Cargo environment
-
-## Available Commands
-
-### Git Aliases (Short)
+### Git
 
 ```bash
-git st          # status
-git br          # branch -v
-git co          # checkout
-git ci          # commit
-git df          # diff --patience
-git pl          # pull
-git ps          # push
-git rb          # rebase
-git cp          # cherry-pick
+git st / br / co / ci / df / pl / ps / rb / cp   # status, branch, checkout, commit, diff, pull, push, rebase, cherry-pick
+git l / la / lg / ll / lll                        # Log views (one-line, all branches, graph variants)
+git search "text"                                 # Search commit messages
+git file-log <file>                               # File history
 ```
 
-### Git Aliases (Log)
+### Git Workflow
 
 ```bash
-git l           # Last 10 commits (one-line)
-git la          # Last 20 commits, all branches
-git lg          # Graph view (compact)
-git ll          # Graph view (detailed with dates)
-git lll         # Graph view (very detailed, 2-line)
-git search "text"    # Search commit messages
-git file-log <file>  # File history (one-line)
-git file-history <file>  # File history with patches
+GitLastCommit vim              # Open last commit files in editor
+GitUncommit code               # Open modified files in editor
+GitAddExcept -u file1 file2    # Add all updated except listed files
+GitDeleteBranch <branch>       # Delete local and remote branch
+GitRenameBranch <old> <new>    # Rename local and remote branch
 ```
 
-### Git Workflow Functions
-
-```bash
-GitLastCommit vim              # Open last commit files in vim
-GitUncommit code               # Open modified files in VS Code
-GitAddExcept -u file1 file2    # Add all updated except file1, file2
-CreateGitBranchForPullRequest upstream 123  # Create PR branch
-GitDeleteBranch <branch> [remote]      # Delete local and remote branch
-GitDeleteBranch -f <branch> [remote]   # Force delete unmerged branch
-GitRenameBranch <old> <new> [remote]   # Rename local and remote branch
-```
-
-### Shell Utilities
+### Shell
 
 ```bash
 RecursivelyFind "*.sh"         # Find files recursively
@@ -111,170 +55,66 @@ Trash file1 file2              # Move files to trash
 HostHTTP                       # Start local HTTP server
 ```
 
-### Mozilla Gecko Development
+### Mozilla Gecko
 
-**Build & Run:**
 ```bash
-mb              # ./mach build
-mr              # ./mach run
-mc              # ./mach clobber
-mfb             # Format then build
-```
-
-**Code Quality:**
-```bash
-mfmt            # Format all files
-mfmtfor <path>  # Format specific path
-mfmtuc          # Format uncommitted files
-manal <file>    # Static analysis check
-MozCheckDiff    # Check diff formatting
-```
-
-**Testing:**
-```bash
-mm              # mochitest
-mg              # gtest
-mw              # wpt
-mt              # try server
-vf1-vf11        # WebCodecs VideoFrame tests
-vd1-vd7         # WebCodecs VideoDecoder tests
-ve1-ve10        # WebCodecs VideoEncoder tests
-wcf             # Full-cycle WebCodecs test
-```
-
-**Utilities:**
-```bash
-UpdateCrate <crate>      # Update Rust crate
-W3CSpec input.bs out.html  # Generate W3C spec
+mb / mr / mc / mfb             # Build, run, clobber, format+build
+mfmt / mfmtfor / mfmtuc       # Format: all, path, uncommitted
+mm / mg / mw / mt              # Test: mochitest, gtest, wpt, try
+UpdateCrate <crate>            # Update Rust crate
 ```
 
 ## Claude Code (Optional)
 
 ### Security Hooks
 
-Run `python setup.py --claude-security` to install **system-wide security hooks** that protect sensitive files across all Claude Code sessions.
+System-wide hooks that protect sensitive files (SSH keys, cloud credentials, API tokens, password managers) across all Claude Code sessions.
 
-**What it protects:**
-- SSH keys (`~/.ssh/id_*`)
-- Cloud credentials (AWS, GCP, Azure, DigitalOcean)
-- Mozilla credentials (`~/.arcrc`, pernosco-submit scripts)
-- API tokens (GitHub, npm, PyPI)
-- Password managers (KeePass, 1Password, LastPass)
-- Sensitive .env files (only those with API_KEY, SECRET, TOKEN keywords)
-
-**What it allows:**
-- All source code and project files
-- Build artifacts (`~/.mozbuild/*`, `node_modules/`)
-- Non-sensitive config files
-- Safe .env files without secrets
-
-**Commands:**
 ```bash
-python setup.py --claude-security           # Install hooks
+python setup.py --claude-security           # Install
 python setup.py --show-claude-hooks         # Show installed hooks
-python setup.py --show-claude-security-log  # View blocked attempts log
-python setup.py --remove-claude-security    # Uninstall hooks
-
-# Emergency override (temporary)
-export DOTFILES_CLAUDE_SECURITY_DISABLED=true
+python setup.py --show-claude-security-log  # View blocked attempts
+python setup.py --remove-claude-security    # Uninstall
 ```
 
-**How it works:**
-- Installs `~/.dotfiles-claude-hooks/security-read-blocker.py`
-- Registers PreToolUse hook in `~/.claude.json` (system-wide)
-- Blocks Read/Bash/Grep/Glob tools from accessing sensitive files
-- Logs all blocked attempts to `~/.dotfiles-claude-hooks/security-blocks.log`
-- Uses content-based filtering for .env files (not all .env blocked)
-
-**Important:** Restart Claude Code after installation for hooks to take effect.
-
-See [CLAUDE_SECURITY.md](CLAUDE_SECURITY.md) for detailed documentation, troubleshooting, and advanced usage.
+See [CLAUDE_SECURITY.md](CLAUDE_SECURITY.md) for details.
 
 ### Firefox Project Settings
 
-Install Firefox-specific Claude hooks and skills to any Firefox/Gecko project. Uses symlinks for easy management across multiple repos.
+Install Firefox-specific Claude hooks and skills (auto-format, auto-lint, skills) to any Gecko project. Uses symlinks so updates propagate to all linked projects.
 
-**What's included:**
-- `post-edit-format.sh` - Auto-formats files after edits (`./mach format`)
-- `post-edit-lint.sh` - Auto-lints files after edits (`./mach lint --fix`)
-- `should-format-lint.sh` - File extension filter for format/lint hooks
-- `update-media-lib` skill - Guide for updating vendored media libraries
-
-**Commands:**
 ```bash
-# Install (prompts for Firefox project path)
-python setup.py --install-firefox-claude
-
-# Install to specific path
-python setup.py --install-firefox-claude ~/Work/gecko
-
-# Preview what would be installed
-python setup.py --install-firefox-claude ~/Work/firefox --dry-run
-
-# Uninstall
-python setup.py --uninstall-firefox-claude ~/Work/firefox
+python setup.py --install-firefox-claude                    # Install (prompts for path)
+python setup.py --install-firefox-claude /path/to/firefox   # Install to specific path
+python setup.py --uninstall-firefox-claude /path/to/firefox # Uninstall
 ```
 
-**How it works:**
-- Symlinks hooks/skills from `mozilla/firefox/dot.claude/` to target project
-- Creates/updates `settings.local.json` (local-only, not committed)
-- If existing settings found, prompts to merge or override
-- Uninstall only removes dotfiles symlinks (preserves other settings)
-
-**Why symlinks?**
-- Single source of truth in dotfiles
-- Updates to hooks/skills propagate to all linked projects
-- Easy to manage multiple Firefox repos
-- Sync across machines via git
-
-**Important:** Restart Claude Code after installation for changes to take effect.
+Restart Claude Code after installation for changes to take effect.
 
 ## Testing
 
-Run tests to verify the installation works correctly:
-
 ```bash
-# Run all test suites (90 tests total)
-bash test_all.sh
+bash test_all.sh                   # Run all test suites (90 tests)
 
-# Or run individually:
-python3 test_setup.py              # 26 tests - setup infrastructure + Claude security integration
-bash test_shell_utils.sh           # 19 tests - shell utilities
-python3 test_claude_security.py    # 23 tests - security hooks behavior
-bash test_prompt_colors.sh         # 22 tests - prompt colors
+python3 test_setup.py              # Setup infrastructure + Claude security
+bash test_shell_utils.sh           # Shell utilities
+python3 test_claude_security.py    # Security hooks behavior
+bash test_prompt_colors.sh         # Prompt colors
 ```
 
-**When to run:**
-- After installation to verify everything works
-- After modifying setup.py or shell scripts
-- Before committing changes
-
-**What they test:**
-- `test_setup.py`: Symlink creation, file operations, configuration loading, setup flow, Claude security flags
-- `test_shell_utils.sh`: All shell functions (CommandExists, Print functions, Git utils, RecursivelyFind, etc.)
-- `test_claude_security.py`: Claude security hook functionality, installation, logging, cross-platform compatibility
-- `test_prompt_colors.sh`: Prompt color formatting across bash and zsh
-
-**See [TESTING.md](TESTING.md) for detailed testing documentation.**
+See [TESTING.md](TESTING.md) for details.
 
 ## Configuration
 
-Customize paths without modifying code. Create `~/.dotfiles_config`:
+Customize paths via `~/.dotfiles_config`:
 
 ```bash
-# Example ~/.dotfiles_config
 DOTFILES_MOZBUILD_DIR="$HOME/my-mozbuild"
 DOTFILES_LOCAL_BIN_DIR="$HOME/bin"
 DOTFILES_TRASH_DIR_LINUX="$HOME/.trash"
 ```
 
-**Available variables:**
-- `DOTFILES_MOZBUILD_DIR` - Mozilla build directory (default: `~/.mozbuild`)
-- `DOTFILES_LOCAL_BIN_DIR` - Local binaries (default: `~/.local/bin`)
-- `DOTFILES_WORK_BIN_DIR` - Work binaries (default: `~/Work/bin`)
-- `DOTFILES_CARGO_DIR` - Rust cargo (default: `~/.cargo`)
-- `DOTFILES_TRASH_DIR_LINUX` - Linux trash (default: `~/.local/share/Trash/files`)
-- `DOTFILES_TRASH_DIR_DARWIN` - macOS trash (default: `~/.Trash`)
+Available: `DOTFILES_MOZBUILD_DIR`, `DOTFILES_LOCAL_BIN_DIR`, `DOTFILES_WORK_BIN_DIR`, `DOTFILES_CARGO_DIR`, `DOTFILES_TRASH_DIR_LINUX`, `DOTFILES_TRASH_DIR_DARWIN`
 
 ---
 
