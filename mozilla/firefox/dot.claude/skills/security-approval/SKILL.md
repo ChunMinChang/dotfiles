@@ -182,6 +182,26 @@ Rate as:
 - **Moderate**: Some risk, needs test run on affected platforms
 - **High**: Significant change, needs thorough testing including edge cases
 
+### Q7: Landing Readiness
+
+**Question**: "Is the patch ready to land after security approval is given?"
+
+Answer Yes or No. Consider whether:
+- The patch has been reviewed (r+ on Phabricator)
+- CI/try results are green
+- Any blockers remain
+
+### Q8: Android Affected
+
+**Question**: "Is Android affected?"
+
+Answer Yes, No, or Unknown. Check whether:
+- The affected code paths are shared with Android (GeckoView)
+- The code is desktop-only (e.g., Windows-specific compositing, macOS-only
+  widget code) or cross-platform
+- If the code is in `gfx/`, `dom/media/`, or other shared directories, it is
+  likely Android-affected
+
 ---
 
 ## Step 4: Flag Potential Issues
@@ -237,6 +257,12 @@ Generate the complete text to paste into the Bugzilla comment when requesting
 6. How likely is this patch to cause regressions; how much testing does
    it need?
    <answer>
+
+7. Is the patch ready to land after security approval is given?
+   <Yes/No>
+
+8. Is Android affected?
+   <Yes/No/Unknown>
 ```
 
 Keep answers factual, specific, and concise. Do not reveal more about the
@@ -294,6 +320,12 @@ no markdown list syntax). Format as follows:
 
 6. How likely is this patch to cause regressions; how much testing does it need?
 <answer as a single flowing paragraph>
+
+7. Is the patch ready to land after security approval is given?
+<Yes/No>
+
+8. Is Android affected?
+<Yes/No/Unknown>
 
 Checklist:
 [x/blank] Commit message is not security-revealing
