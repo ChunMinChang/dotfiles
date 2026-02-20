@@ -10,6 +10,7 @@ allowed-tools:
   - Grep
   - Glob
   - AskUserQuestion
+  - Write
 ---
 
 # Security Approval Skill
@@ -260,6 +261,49 @@ Present to the user:
    - [ ] Bug is filed as restricted/sec-* on Bugzilla
 
 Ask the user if they want to revise any answer before finalizing.
+
+---
+
+## Step 7: Generate Markdown File
+
+After the user confirms they are satisfied with the questionnaire answers,
+generate a markdown file at the repository root named
+`sec-approval-bug-<bug_id>.md` (e.g., `sec-approval-bug-1234567.md`).
+If no bug ID is available, use `sec-approval.md`.
+
+The file should be plain text (no markdown headings, no indented answers,
+no markdown list syntax). Format as follows:
+
+```
+[Requesting sec-approval]
+
+1. How easily can the security issue be deduced from the patch?
+<answer as a single flowing paragraph>
+
+2. Do comments in the patch, the check-in comment, or tests included in the patch paint a bulls-eye on the security problem?
+<answer as a single flowing paragraph>
+
+3. Which older supported branches are affected by this flaw?
+<answer as a single flowing paragraph>
+
+4. If not all supported branches, which bug introduced the flaw?
+<answer as a single flowing paragraph>
+
+5. Do you have backports for the affected branches? If not, how different, hard to create, and risky will they be?
+<answer as a single flowing paragraph>
+
+6. How likely is this patch to cause regressions; how much testing does it need?
+<answer as a single flowing paragraph>
+
+Checklist:
+[x/blank] Commit message is not security-revealing
+[x/blank] No security-revealing inline comments in the patch
+[x/blank] Tests don't paint a bulls-eye
+[x/blank] Not pushed to Try with bug number / security tests
+[x/blank] Bug is filed as restricted/sec-* on Bugzilla
+```
+
+Use the Write tool to create this file, then inform the user of the file path.
 
 ---
 
