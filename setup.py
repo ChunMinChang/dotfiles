@@ -468,7 +468,14 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
         return added
 
     # Add entries to .gitignore
+    COMMENT_HEADER = "# Added by dotfiles setup (Claude Code settings)"
     try:
+        # Check if comment header already exists
+        has_header = False
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, "r") as f:
+                has_header = COMMENT_HEADER in f.read()
+
         # Check if file exists and ends with newline
         needs_newline = False
         if os.path.exists(gitignore_path):
@@ -482,8 +489,10 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
             if needs_newline:
                 f.write("\n")
 
-            # Add a comment header for our entries
-            f.write("\n# Added by dotfiles setup (Claude Code settings)\n")
+            # Only add comment header if it doesn't already exist
+            if not has_header:
+                f.write("\n" + COMMENT_HEADER + "\n")
+
             for entry in entries_to_add:
                 f.write(entry + "\n")
                 print(f"Added to .gitignore: {entry}")
@@ -2320,23 +2329,18 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     # Offer to set up tech-docs index reference in CLAUDE.local.md
     print("")
     target_claude_local = os.path.join(target_dir, "CLAUDE.local.md")
-    print("Do you have a tech-docs index file (e.g. INDEX.md) with reference")
-    print("documents that Claude should consult on demand?")
-    print("")
-    print("Options:")
-    print("  [p] Enter path - Provide the path to your index file")
-    print("  [n] No / Skip  - Don't set up a tech-docs reference")
-    choice = get_user_input("Choose [p/n]: ", "n").lower()
+    print("Tech-docs index file for Claude to consult on demand (e.g. INDEX.md).")
+    print("Press Enter to skip.")
+    index_path = get_user_input("Path to index file: ", "")
+    index_path = index_path.strip()
 
-    if choice == "p":
-        index_path = get_user_input("Enter path to tech-docs index file: ", "")
-        index_path = os.path.expanduser(index_path.strip())
-        if index_path and os.path.isfile(index_path):
-            ref_line = (
-                "For technical reference documents, read the index at "
-                f"{index_path} and then read the relevant document as needed."
-            )
-            # Check if CLAUDE.local.md already has this reference
+    if index_path:
+        index_path = os.path.expanduser(index_path)
+        if not os.path.isfile(index_path):
+            print_warning(f"File not found: {index_path}")
+            print_hint("You can set this up manually later.")
+        else:
+            # Check if CLAUDE.local.md already references this file
             existing_content = ""
             if os.path.isfile(target_claude_local):
                 with open(target_claude_local, "r") as f:
@@ -2345,22 +2349,13 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             if index_path in existing_content:
                 print_hint("CLAUDE.local.md already references this index file.")
             else:
-                print("")
-                print("Add this line to your CLAUDE.local.md:")
-                print(f"  {ref_line}")
-                print("")
-                add_choice = get_user_input(
-                    "Add it automatically? [y/N]: ", "n"
-                ).lower()
-                if add_choice == "y":
-                    with open(target_claude_local, "a") as f:
-                        f.write(ref_line + "\n")
-                    print(f"Updated: {target_claude_local}")
-                else:
-                    print_hint("You can add it manually later.")
-        elif index_path:
-            print_warning(f"File not found: {index_path}")
-            print_hint("You can set this up manually later.")
+                ref_line = (
+                    "For technical reference documents, read the index at "
+                    f"{index_path} and then read the relevant document as needed."
+                )
+                with open(target_claude_local, "a") as f:
+                    f.write(ref_line + "\n")
+                print(f"Updated: {target_claude_local}")
 
     print("")
     print(colors.OK + "✓ Firefox Claude settings installed" + colors.END)
