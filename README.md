@@ -89,6 +89,22 @@ python setup.py --install-firefox-claude /path/to/firefox   # Install to specifi
 python setup.py --uninstall-firefox-claude /path/to/firefox # Uninstall
 ```
 
+During installation you can provide a path to a **tech-docs index file**. This is a markdown file that lists generated technical documents so Claude can look up relevant references on demand. If `CLAUDE.local.md` already references the file, the prompt is skipped on re-runs.
+
+Example `INDEX.md`:
+
+```markdown
+# Tech Docs Index
+
+| Domain | Document | Description |
+|--------|----------|-------------|
+| WebCodecs | [webcodecs.md](webcodecs.md) | Architecture, codec pipeline, process model |
+| Media Playback | [media-playback.md](media-playback.md) | HTMLMediaElement, decoder lifecycle |
+| MSE | [mse.md](mse.md) | Media Source Extensions, SourceBuffer management |
+```
+
+Generate these documents with the `/tech-doc` skill after installation.
+
 Restart Claude Code after installation for changes to take effect.
 
 ## Testing
