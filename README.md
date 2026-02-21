@@ -114,7 +114,7 @@ Example `INDEX.md`:
 # Tech Docs Index
 
 | Domain | Document | Description |
-|--------|----------|-------------|
+| ------ | -------- | ----------- |
 | WebCodecs | webcodecs.md | Codec pipeline |
 | Media | media-playback.md | Decoder lifecycle |
 | MSE | mse.md | SourceBuffer management |
