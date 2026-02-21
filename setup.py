@@ -744,7 +744,7 @@ def mozilla_init(mozilla_arg, tracker=None):
     print_verbose("mozilla_arg: {}".format(mozilla_arg))
 
     funcs = {
-        "gecko": gecko_init,
+        "firefox": firefox_init,
         "tools": tools_init,
         "rust": rust_init,
         "pernosco": pernosco_init,
@@ -770,8 +770,8 @@ def mozilla_init(mozilla_arg, tracker=None):
     return all_succeeded
 
 
-def gecko_init(tracker=None):
-    print_installing_title("gecko alias and machrc")
+def firefox_init(tracker=None):
+    print_installing_title("firefox alias and machrc")
     config = get_config()
     machrc = config["DOTFILES_MACHRC_PATH"]
     if os.path.isfile(machrc):
@@ -817,7 +817,7 @@ def tools_init(tracker=None):
 
 def rust_init(tracker=None):
     print_installing_title("rust settings")
-    error_messages = ["\tRun ./mach bootstrap.py under gecko-dev to fix it."]
+    error_messages = ["\tRun ./mach bootstrap.py under firefox to fix it."]
 
     bashrc = os.path.join(HOME_DIR, ".bashrc")
     if not os.path.isfile(bashrc):
@@ -2538,7 +2538,7 @@ Examples:
   python3 setup.py --dry-run          # Show what would be done (no changes made)
   python3 setup.py -v                 # Verbose mode (show detailed operations)
   python3 setup.py --mozilla          # Install all Mozilla tools
-  python3 setup.py --mozilla gecko tools # Install specific Mozilla tools
+  python3 setup.py --mozilla firefox tools # Install specific Mozilla tools
   python3 setup.py --dev-tools        # Install all dev tools (shellcheck, ruff, black, markdownlint)
   python3 setup.py --dev-tools ruff black # Install specific dev tools
   python3 setup.py --dry-run --mozilla --dev-tools # Preview full setup
@@ -2565,7 +2565,7 @@ Examples:
     parser.add_argument(
         "--mozilla",
         nargs="*",
-        help="Install Mozilla toolkit for gecko development (gecko, tools, rust, pernosco)",
+        help="Install Mozilla toolkit for firefox development (firefox, tools, rust, pernosco)",
     )
     parser.add_argument(
         "--dev-tools",

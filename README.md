@@ -1,7 +1,7 @@
 # Personal Dotfiles
 
 Cross-platform shell configuration for Linux and macOS
-with enhanced git workflows and Mozilla Gecko development tools.
+with enhanced git workflows and Mozilla Firefox development tools.
 
 ## Quick Start
 
@@ -60,7 +60,7 @@ Trash file1 file2              # Move files to trash
 HostHTTP                       # Start local HTTP server
 ```
 
-### Mozilla Gecko
+### Mozilla Firefox
 
 ```bash
 mb / mr / mc / mfb             # Build, run, clobber, fmt+build
@@ -89,7 +89,7 @@ See [CLAUDE_SECURITY.md](CLAUDE_SECURITY.md) for details.
 ### Firefox Project Settings
 
 Install Firefox-specific Claude hooks and skills
-(auto-format, auto-lint, skills) to any Gecko project.
+(auto-format, auto-lint, skills) to any Firefox project.
 Uses symlinks so updates propagate to all linked projects.
 
 ```bash

@@ -377,12 +377,12 @@ class TestMainFunction(unittest.TestCase):
         mock_mozilla.return_value = True
         mock_devtools.return_value = None
 
-        exit_code = setup.main(['setup.py', '--mozilla', 'gecko'])
+        exit_code = setup.main(['setup.py', '--mozilla', 'firefox'])
 
         # Should have called mozilla_init with argument and tracker
-        # Check that first argument is ['gecko'] and second is a ChangeTracker
+        # Check that first argument is ['firefox'] and second is a ChangeTracker
         self.assertEqual(len(mock_mozilla.call_args[0]), 2)
-        self.assertEqual(mock_mozilla.call_args[0][0], ['gecko'])
+        self.assertEqual(mock_mozilla.call_args[0][0], ['firefox'])
         self.assertIsInstance(mock_mozilla.call_args[0][1], setup.ChangeTracker)
 
 

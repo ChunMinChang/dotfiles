@@ -81,7 +81,7 @@ function MozCheckDiff() {
   done
 }
 
-# Update a crate under <path-to>/<gecko>/toolkit/library/rust/shared/Cargo.toml
+# Update a crate under <path-to>/<firefox>/toolkit/library/rust/shared/Cargo.toml
 function UpdateCrate() {
   local crate="$1"
   cargo update -p "$crate" && ./mach vendor rust --ignore-modified
