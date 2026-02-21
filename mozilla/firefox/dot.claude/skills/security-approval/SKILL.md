@@ -6,6 +6,7 @@ allowed-tools:
   - Bash(git:*)
   - Bash(jj:*)
   - Bash(searchfox-cli:*)
+  - Bash(bmo-to-md:*)
   - Read
   - Grep
   - Glob
@@ -28,10 +29,24 @@ Reference: https://firefox-source-docs.mozilla.org/bug-mgmt/processes/security-a
 
 ### Retrieve the bug (if ID provided)
 
-If a bug ID was given, fetch it via the MCP tool `mcp__moz__get_bugzilla_bug`
-to understand the vulnerability type, severity, and any existing comments.
-Note the `sec-*` keyword (sec-critical, sec-high, sec-moderate, sec-low) and
-the `status-firefox*` flags.
+Security bugs are private and **cannot** be fetched via the MCP tool
+`mcp__moz__get_bugzilla_bug` — it will always fail for sec-* bugs. Instead:
+
+1. **Ask the user for bug data**: ask whether they already have a local bug
+   report (markdown files from `bmo-to-md`), and if so, where the files are
+   located. If they provide a path, read the summary file there.
+2. **If no local data exists**, use the `bmo-to-md` command:
+   - Check that `bmo-to-md` is installed: run `bmo-to-md --help`. If not
+     found, ask the user to install it: `cargo install bmo-to-md`
+     (see https://github.com/padenot/bmo-to-md).
+   - Check that a Bugzilla API key is configured: run `echo $BMO_API_KEY`.
+     If empty, ask the user to set it up.
+   - Ask the user where to save the files, then download:
+     `bmo-to-md -o <folder> -a <bug_id>`
+   - If `bmo-to-md` fails, **stop and report** to the user.
+3. Read the summary to understand the vulnerability type, severity, and any
+   existing comments. Note the `sec-*` keyword (sec-critical, sec-high,
+   sec-moderate, sec-low) and the `status-firefox*` flags.
 
 ### Inspect the local changes
 

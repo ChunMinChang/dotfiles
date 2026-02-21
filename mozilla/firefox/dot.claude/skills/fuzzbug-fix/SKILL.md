@@ -23,17 +23,19 @@ fuzzing cluster.
 
 ## Step 1: Fetch Bug Details
 
-### Determine if the bug is private
+Most fuzz bugs are private and **cannot** be fetched via the MCP tool
+`mcp__moz__get_bugzilla_bug`. Use local files or `bmo-to-md` instead.
 
-1. First, try fetching the bug via the MCP tool `mcp__moz__get_bugzilla_bug`.
-   This works for public bugs and provides metadata quickly.
-2. If the MCP tool returns limited info or an access error, the bug is private.
-   Proceed with `bmo-to-md` (see below).
-3. If the MCP tool succeeds with full details, you can use that data. You will
-   still need `bmo-to-md` if there are binary attachments or test cases to
-   download.
+### Ask the user for bug data
 
-### Using bmo-to-md for private bugs (most fuzz bugs)
+Ask the user whether they already have a local bug report (markdown files from
+`bmo-to-md`), and if so, where the files are located. If they provide a path,
+read the summary file there and skip to
+[Check for existing patches](#check-for-existing-patches).
+
+### Fetch bug data with bmo-to-md
+
+If the user does not have local bug data:
 
 1. Check that `bmo-to-md` is installed: run `bmo-to-md --help`. If not found,
    ask the user to install it: `cargo install bmo-to-md`
@@ -46,13 +48,8 @@ fuzzing cluster.
 If either prerequisite is missing, **stop and report to the user**. Do not
 proceed without both.
 
-### Downloading bug data
-
-Ask the user if they want to download bug details and attachments to markdown
-files for persistent access throughout the conversation.
-- If yes: ask if they already have a folder (e.g., `bug-md/`) or create one.
-  Use: `bmo-to-md -o <folder> -a <bug_id>`.
-- If no: use `bmo-to-md` without `-o` to fetch directly.
+3. Ask the user where to save the files, then download:
+   `bmo-to-md -o <folder> -a <bug_id>`
 
 If `bmo-to-md` fails, **stop and report** — there is no alternative for private
 bugs. Do not use /tmp or temporary locations.
