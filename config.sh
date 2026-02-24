@@ -18,9 +18,6 @@
 # Local bin directory (for user-installed tools)
 : "${DOTFILES_LOCAL_BIN_DIR:=$HOME/.local/bin}"
 
-# Work bin directory (for pernosco-submit and other work tools)
-: "${DOTFILES_WORK_BIN_DIR:=$HOME/Work/bin}"
-
 # Cargo/Rust directory
 : "${DOTFILES_CARGO_DIR:=$HOME/.cargo}"
 
@@ -55,7 +52,7 @@ export DOTFILES_MACHRC_PATH="$DOTFILES_MOZBUILD_DIR/machrc"
 export DOTFILES_CARGO_ENV_PATH="$DOTFILES_CARGO_DIR/env"
 
 # Pernosco-submit path
-export DOTFILES_PERNOSCO_SUBMIT_PATH="$DOTFILES_WORK_BIN_DIR/pernosco-submit"
+export DOTFILES_PERNOSCO_SUBMIT_PATH="$DOTFILES_LOCAL_BIN_DIR/pernosco-submit"
 
 # Platform-specific trash directory
 case "$(uname -s | tr '[:upper:]' '[:lower:]')" in

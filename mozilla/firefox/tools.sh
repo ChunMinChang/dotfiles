@@ -9,7 +9,7 @@ fi
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   if ! command -v pernosco-submit &> /dev/null; then
     if [ -r "$DOTFILES_PERNOSCO_SUBMIT_PATH" ]; then
-      export PATH="$DOTFILES_WORK_BIN_DIR:$PATH"
+      export PATH="$DOTFILES_LOCAL_BIN_DIR:$PATH"
     fi
   fi
 fi

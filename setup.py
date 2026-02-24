@@ -50,7 +50,6 @@ def load_config():
     defaults = {
         "DOTFILES_MOZBUILD_DIR": os.path.join(HOME_DIR, ".mozbuild"),
         "DOTFILES_LOCAL_BIN_DIR": os.path.join(HOME_DIR, ".local", "bin"),
-        "DOTFILES_WORK_BIN_DIR": os.path.join(HOME_DIR, "Work", "bin"),
         "DOTFILES_CARGO_DIR": os.path.join(HOME_DIR, ".cargo"),
         "DOTFILES_TRASH_DIR_LINUX": os.path.join(
             HOME_DIR, ".local", "share", "Trash", "files"
@@ -883,21 +882,17 @@ def pernosco_init(tracker=None):
     # Get configuration
     config = get_config()
     local_bin = config["DOTFILES_LOCAL_BIN_DIR"]
-    work_bin = config["DOTFILES_WORK_BIN_DIR"]
 
     # Ask where to install
     print("\nWhere would you like to install pernosco-submit?")
     print(f"  1. Local bin: {local_bin}")
-    print(f"  2. Work bin:  {work_bin}")
-    print("  3. Custom path")
+    print("  2. Custom path")
 
-    choice = get_user_input("Choose [1/2/3]: ", "1")
+    choice = get_user_input("Choose [1/2]: ", "1")
 
     if choice == "1":
         target_dir = local_bin
     elif choice == "2":
-        target_dir = work_bin
-    elif choice == "3":
         target_dir = get_user_input("Enter custom directory path: ", local_bin)
         target_dir = os.path.expanduser(target_dir)
     else:
@@ -2122,10 +2117,10 @@ def install_firefox_claude(target_dir=None, dry_run=False):
 
     # Ask for target directory if not provided
     if not target_dir:
-        default_target = os.path.join(HOME_DIR, "Work", "firefox")
-        target_dir = get_user_input(
-            f"Enter Firefox project path [{default_target}]: ", default_target
-        )
+        target_dir = get_user_input("Enter Firefox project path: ")
+        if not target_dir:
+            print_error("No target directory provided.")
+            return False
 
     # Expand and validate target
     target_dir = os.path.expanduser(target_dir)
@@ -2378,10 +2373,10 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
 
     # Ask for target directory if not provided
     if not target_dir:
-        default_target = os.path.join(HOME_DIR, "Work", "firefox")
-        target_dir = get_user_input(
-            f"Enter Firefox project path [{default_target}]: ", default_target
-        )
+        target_dir = get_user_input("Enter Firefox project path: ")
+        if not target_dir:
+            print_error("No target directory provided.")
+            return False
 
     target_dir = os.path.expanduser(target_dir)
     target_claude_dir = os.path.join(target_dir, ".claude")
