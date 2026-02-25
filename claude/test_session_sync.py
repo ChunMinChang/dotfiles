@@ -695,6 +695,92 @@ class TestExportCurrentAutodetect(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Test: resolve_dest / env var fallback
+# ---------------------------------------------------------------------------
+
+
+class TestResolveDest(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        # Save and clear env var
+        self.orig_env = os.environ.get(session_sync.TRANSCRIPT_DIR_ENV)
+        os.environ.pop(session_sync.TRANSCRIPT_DIR_ENV, None)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+        # Restore env var
+        if self.orig_env is not None:
+            os.environ[session_sync.TRANSCRIPT_DIR_ENV] = self.orig_env
+        else:
+            os.environ.pop(session_sync.TRANSCRIPT_DIR_ENV, None)
+
+    def test_args_dest_takes_priority(self):
+        os.environ[session_sync.TRANSCRIPT_DIR_ENV] = "/from/env"
+
+        class Args:
+            dest = self.tmpdir
+
+        result = session_sync.resolve_dest(Args())
+        self.assertEqual(result, os.path.abspath(self.tmpdir))
+
+    def test_env_var_fallback(self):
+        os.environ[session_sync.TRANSCRIPT_DIR_ENV] = self.tmpdir
+
+        class Args:
+            dest = None
+
+        result = session_sync.resolve_dest(Args())
+        self.assertEqual(result, os.path.abspath(self.tmpdir))
+
+    def test_neither_returns_none(self):
+        class Args:
+            dest = None
+
+        result = session_sync.resolve_dest(Args())
+        self.assertIsNone(result)
+
+    def test_env_var_with_export_subprocess(self):
+        """Integration: env var works via subprocess."""
+        script = os.path.join(os.path.dirname(__file__), "session_sync.py")
+        jsonl = make_synthetic_jsonl(
+            [make_user_message("hello")],
+            os.path.join(self.tmpdir, "test.jsonl"),
+        )
+        dest = os.path.join(self.tmpdir, "output")
+        env = os.environ.copy()
+        env[session_sync.TRANSCRIPT_DIR_ENV] = dest
+
+        result = subprocess.run(
+            [sys.executable, script, "export", jsonl],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Exported:", result.stdout)
+        self.assertTrue(os.path.isdir(os.path.join(dest, "project")))
+
+    def test_missing_dest_error(self):
+        """No dest arg and no env var gives a clear error."""
+        script = os.path.join(os.path.dirname(__file__), "session_sync.py")
+        jsonl = make_synthetic_jsonl(
+            [make_user_message("hello")],
+            os.path.join(self.tmpdir, "test.jsonl"),
+        )
+        env = os.environ.copy()
+        env.pop(session_sync.TRANSCRIPT_DIR_ENV, None)
+
+        result = subprocess.run(
+            [sys.executable, script, "export", jsonl],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("CLAUDE_TRANSCRIPT_DIR", result.stderr)
+
+
+# ---------------------------------------------------------------------------
 # Test: Integration (subprocess)
 # ---------------------------------------------------------------------------
 

@@ -100,39 +100,48 @@ python setup.py --claude-session-sync   # Install
 This symlinks `claude-session-sync` into `~/.local/bin`
 and appends session-sync instructions to `~/.claude/CLAUDE.md`.
 
+Set `CLAUDE_TRANSCRIPT_DIR` to avoid repeating the destination:
+
+```bash
+export CLAUDE_TRANSCRIPT_DIR=~/transcripts   # add to .bashrc
+```
+
+When set, all commands use it as the default `<dest>`.
+An explicit `<dest>` argument still takes priority.
+
 #### Commands
 
 **Export a single session:**
 
 ```bash
-claude-session-sync export ~/.claude/projects/-home-cm-proj/abc123.jsonl ~/transcripts
-claude-session-sync export <session.jsonl> <dest> --format raw    # Copy JSONL as-is
-claude-session-sync export <session.jsonl> <dest> --force          # Re-export even if unchanged
-claude-session-sync export <session.jsonl> <dest> --include-subagents  # Include subagent messages
+claude-session-sync export <session.jsonl>                          # uses $CLAUDE_TRANSCRIPT_DIR
+claude-session-sync export <session.jsonl> ~/transcripts            # explicit dest
+claude-session-sync export <session.jsonl> --format raw             # Copy JSONL as-is
+claude-session-sync export <session.jsonl> --force                  # Re-export even if unchanged
+claude-session-sync export <session.jsonl> --include-subagents      # Include subagent messages
 ```
 
 **Batch sync all sessions:**
 
 ```bash
-claude-session-sync sync-all ~/transcripts
-claude-session-sync sync-all ~/transcripts --project-filter ~/Work   # Only projects under ~/Work
-claude-session-sync sync-all ~/transcripts --force                   # Re-export everything
-claude-session-sync sync-all ~/transcripts --include-subagents       # Include subagent messages
+claude-session-sync sync-all                                        # uses $CLAUDE_TRANSCRIPT_DIR
+claude-session-sync sync-all ~/transcripts --project-filter ~/Work  # Only projects under ~/Work
+claude-session-sync sync-all --force                                # Re-export everything
+claude-session-sync sync-all --include-subagents                    # Include subagent messages
 ```
 
 **Check sync status:**
 
 ```bash
-claude-session-sync status ~/transcripts
+claude-session-sync status                                          # uses $CLAUDE_TRANSCRIPT_DIR
 claude-session-sync status ~/transcripts --project-filter ~/Work
-claude-session-sync status                                          # Count all sessions (no manifest)
 ```
 
 **Export current session (auto-detect by cwd):**
 
 ```bash
-claude-session-sync export-current ~/transcripts                    # Match $PWD
-claude-session-sync export-current ~/transcripts --project-dir ~/Work/firefox
+claude-session-sync export-current                                  # uses $PWD + $CLAUDE_TRANSCRIPT_DIR
+claude-session-sync export-current --project-dir ~/Work/firefox
 ```
 
 #### Output Structure

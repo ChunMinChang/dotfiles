@@ -2,12 +2,14 @@
 
 This machine has `claude-session-sync` for archiving session transcripts.
 
+If `$CLAUDE_TRANSCRIPT_DIR` is set, commands use it as the default destination.
+
 ### At Session End
 Before ending a session (when the user says goodbye, thanks, or the task is clearly done), ask:
-> "Would you like me to sync this session transcript? Provide a destination directory and I'll run `claude-session-sync export-current <dest>`."
+> "Would you like me to sync this session transcript? I'll run `claude-session-sync export-current`."
 
-If the user declines or provides an invalid path, leave the session unsynced. Do not ask repeatedly.
+If `$CLAUDE_TRANSCRIPT_DIR` is not set, ask for a destination directory. If the user declines, leave the session unsynced. Do not ask repeatedly.
 
 ### At Session Start
-Run `claude-session-sync status --project-filter ~/Work` silently. If there are unsynced sessions, mention it once briefly:
-> "Note: N unsynced Claude sessions found. Run `claude-session-sync sync-all <dest>` to export them."
+Run `claude-session-sync status` silently. If there are unsynced sessions, mention it once briefly:
+> "Note: N unsynced Claude sessions found. Run `claude-session-sync sync-all` to export them."

@@ -2,10 +2,12 @@
 """claude-session-sync — Export Claude Code session transcripts to markdown or raw copies.
 
 Usage:
-    claude-session-sync export <session.jsonl> <dest> [--format markdown|raw] [--force]
-    claude-session-sync sync-all <dest> [--project-filter PATH] [--format ...] [--force]
+    claude-session-sync export <session.jsonl> [dest] [--format markdown|raw] [--force]
+    claude-session-sync sync-all [dest] [--project-filter PATH] [--format ...] [--force]
     claude-session-sync status [dest] [--project-filter PATH]
-    claude-session-sync export-current <dest> [--project-dir CWD] [--format ...]
+    claude-session-sync export-current [dest] [--project-dir CWD] [--format ...]
+
+Set $CLAUDE_TRANSCRIPT_DIR to avoid passing <dest> every time.
 """
 
 import argparse
@@ -21,6 +23,7 @@ import shutil
 
 MANIFEST_FILENAME = ".claude-sync-manifest.json"
 CLAUDE_PROJECTS_DIR = os.path.join(os.path.expanduser("~"), ".claude", "projects")
+TRANSCRIPT_DIR_ENV = "CLAUDE_TRANSCRIPT_DIR"
 
 # ---------------------------------------------------------------------------
 # Parsing layer
@@ -645,11 +648,32 @@ def export_session(
 # ---------------------------------------------------------------------------
 
 
+def resolve_dest(args):
+    """Resolve destination directory from args or $CLAUDE_TRANSCRIPT_DIR.
+
+    Returns absolute path, or None if neither is set.
+    """
+    dest = getattr(args, "dest", None)
+    if dest:
+        return os.path.abspath(dest)
+    env_dir = os.environ.get(TRANSCRIPT_DIR_ENV)
+    if env_dir:
+        return os.path.abspath(env_dir)
+    return None
+
+
 def cmd_export(args):
     """Single session export."""
     jsonl_path = os.path.abspath(args.session)
-    dest_dir = os.path.abspath(args.dest)
+    dest_dir = resolve_dest(args)
     fmt = args.format
+
+    if not dest_dir:
+        print(
+            f"Error: No destination. Pass <dest> or set ${TRANSCRIPT_DIR_ENV}.",
+            file=sys.stderr,
+        )
+        return 1
 
     if not os.path.isfile(jsonl_path):
         print(f"Error: File not found: {jsonl_path}", file=sys.stderr)
@@ -688,7 +712,13 @@ def cmd_export(args):
 
 def cmd_sync_all(args):
     """Batch sync all discovered sessions."""
-    dest_dir = os.path.abspath(args.dest)
+    dest_dir = resolve_dest(args)
+    if not dest_dir:
+        print(
+            f"Error: No destination. Pass <dest> or set ${TRANSCRIPT_DIR_ENV}.",
+            file=sys.stderr,
+        )
+        return 1
     fmt = args.format
     project_filter = args.project_filter
     force = args.force
@@ -749,7 +779,7 @@ def cmd_sync_all(args):
 
 def cmd_status(args):
     """Print synced/unsynced/modified counts."""
-    dest_dir = os.path.abspath(args.dest) if args.dest else None
+    dest_dir = resolve_dest(args)
     project_filter = args.project_filter
 
     sessions = discover_sessions(project_filter)
@@ -790,7 +820,13 @@ def cmd_status(args):
 
 def cmd_export_current(args):
     """Auto-detect most recent JSONL matching --project-dir."""
-    dest_dir = os.path.abspath(args.dest)
+    dest_dir = resolve_dest(args)
+    if not dest_dir:
+        print(
+            f"Error: No destination. Pass <dest> or set ${TRANSCRIPT_DIR_ENV}.",
+            file=sys.stderr,
+        )
+        return 1
     project_dir = os.path.abspath(args.project_dir)
     fmt = args.format
 
@@ -864,10 +900,14 @@ def main(argv=None):
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+    env_hint = f"(or ${TRANSCRIPT_DIR_ENV})"
+
     # export
     p_export = subparsers.add_parser("export", help="Export a single session")
     p_export.add_argument("session", help="Path to session JSONL file")
-    p_export.add_argument("dest", help="Destination directory")
+    p_export.add_argument(
+        "dest", nargs="?", default=None, help=f"Destination directory {env_hint}"
+    )
     p_export.add_argument(
         "--format",
         choices=["markdown", "raw"],
@@ -885,7 +925,9 @@ def main(argv=None):
 
     # sync-all
     p_sync = subparsers.add_parser("sync-all", help="Batch sync all sessions")
-    p_sync.add_argument("dest", help="Destination directory")
+    p_sync.add_argument(
+        "dest", nargs="?", default=None, help=f"Destination directory {env_hint}"
+    )
     p_sync.add_argument(
         "--project-filter", help="Only sync sessions whose cwd starts with PATH"
     )
@@ -904,7 +946,9 @@ def main(argv=None):
 
     # status
     p_status = subparsers.add_parser("status", help="Show sync status")
-    p_status.add_argument("dest", nargs="?", default=None, help="Destination directory")
+    p_status.add_argument(
+        "dest", nargs="?", default=None, help=f"Destination directory {env_hint}"
+    )
     p_status.add_argument(
         "--project-filter", help="Only check sessions whose cwd starts with PATH"
     )
@@ -913,7 +957,9 @@ def main(argv=None):
     p_current = subparsers.add_parser(
         "export-current", help="Export most recent session for a project"
     )
-    p_current.add_argument("dest", help="Destination directory")
+    p_current.add_argument(
+        "dest", nargs="?", default=None, help=f"Destination directory {env_hint}"
+    )
     p_current.add_argument(
         "--project-dir",
         default=os.getcwd(),
