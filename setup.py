@@ -2520,6 +2520,48 @@ def show_claude_security_log():
     return True
 
 
+def claude_session_sync_init(tracker, dry_run=False):
+    """Install claude-session-sync tool."""
+    print_title("Claude Session Sync")
+
+    source_script = os.path.join(BASE_DIR, "claude", "session_sync.py")
+    dest_bin = os.path.join(get_config()["DOTFILES_LOCAL_BIN_DIR"], "claude-session-sync")
+    template_file = os.path.join(BASE_DIR, "claude", "CLAUDE.md.template")
+    claude_md = os.path.join(os.path.expanduser("~"), ".claude", "CLAUDE.md")
+
+    if dry_run:
+        print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
+        print(f"  1. Make executable: {source_script}")
+        print(f"  2. Symlink: {dest_bin} -> {source_script}")
+        print(f"  3. Append template to: {claude_md}")
+        return True
+
+    # 1. chmod +x
+    os.chmod(source_script, 0o755)
+
+    # 2. Symlink
+    link(source_script, dest_bin, tracker)
+
+    # 3. Append CLAUDE.md.template to ~/.claude/CLAUDE.md
+    marker = "## Session Transcript Sync"
+    if os.path.exists(claude_md):
+        with open(claude_md) as f:
+            if marker in f.read():
+                print_hint("Session sync instructions already in CLAUDE.md")
+                return True
+
+    with open(template_file) as f:
+        template_content = f.read()
+
+    os.makedirs(os.path.dirname(claude_md), exist_ok=True)
+    with open(claude_md, "a") as f:
+        f.write("\n" + template_content)
+
+    tracker.record_lines_appended(claude_md, template_content.splitlines())
+    print("✓ Claude session sync installed")
+    return True
+
+
 def main(argv):
     global VERBOSE
 
@@ -2538,7 +2580,8 @@ Examples:
   python3 setup.py --dev-tools ruff black # Install specific dev tools
   python3 setup.py --dry-run --mozilla --dev-tools # Preview full setup
   python3 setup.py --claude-security  # Install Claude Code security hooks
-  python3 setup.py --all              # Install everything (dotfiles + git + mozilla + dev-tools + claude-security)
+  python3 setup.py --claude-session-sync  # Install claude-session-sync transcript export tool
+  python3 setup.py --all              # Install everything (dotfiles + git + mozilla + dev-tools + claude-security + claude-session-sync)
   python3 setup.py --show-claude-hooks # Show installed hooks
   python3 setup.py --remove-claude-security # Remove security hooks
   python3 setup.py --install-firefox-claude # Install Firefox Claude settings (prompts for path)
@@ -2573,6 +2616,11 @@ Examples:
         help="Install Claude Code security hooks (system-wide, blocks access to credentials)",
     )
     parser.add_argument(
+        "--claude-session-sync",
+        action="store_true",
+        help="Install claude-session-sync transcript export tool",
+    )
+    parser.add_argument(
         "--remove-claude-security",
         action="store_true",
         help="Remove Claude Code security hooks",
@@ -2590,7 +2638,7 @@ Examples:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Install all components (dotfiles + git + mozilla + dev-tools + claude-security)",
+        help="Install all components (dotfiles + git + mozilla + dev-tools + claude-security + claude-session-sync)",
     )
     parser.add_argument(
         "--install-firefox-claude",
@@ -2658,6 +2706,7 @@ Examples:
         args.mozilla = args.mozilla or []
         args.dev_tools = args.dev_tools or []
         args.claude_security = True
+        args.claude_session_sync = True
 
     # Create change tracker for rollback capability
     tracker = ChangeTracker()
@@ -2671,6 +2720,11 @@ Examples:
         "dev-tools": dev_tools_init(args.dev_tools, tracker),
         "claude-security": (
             claude_security_init(tracker, DRY_RUN) if args.claude_security else None
+        ),
+        "claude-session-sync": (
+            claude_session_sync_init(tracker, DRY_RUN)
+            if args.claude_session_sync
+            else None
         ),
     }
 
