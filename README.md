@@ -6,11 +6,12 @@ with enhanced git workflows and Mozilla Firefox development tools.
 ## Quick Start
 
 ```bash
-python setup.py                    # Basic setup
-python setup.py --mozilla          # Add Mozilla dev tools
-python setup.py --claude-security  # Add Claude Code security hooks
-python setup.py --all              # Install everything
-python setup.py --dry-run          # Preview changes first
+python setup.py                        # Basic setup
+python setup.py --mozilla              # Add Mozilla dev tools
+python setup.py --claude-security      # Add Claude Code security hooks
+python setup.py --claude-session-sync  # Add session transcript sync
+python setup.py --all                  # Install everything
+python setup.py --dry-run              # Preview changes first
 
 # Firefox Claude settings (per-project)
 python setup.py --install-firefox-claude /path/to/firefox
@@ -86,6 +87,69 @@ python setup.py --remove-claude-security    # Uninstall
 
 See [CLAUDE_SECURITY.md](CLAUDE_SECURITY.md) for details.
 
+### Session Sync
+
+Export Claude Code session transcripts (JSONL) to
+readable markdown or raw copies, with batch sync and
+manifest-based state tracking.
+
+```bash
+python setup.py --claude-session-sync   # Install
+```
+
+This symlinks `claude-session-sync` into `~/.local/bin`
+and appends session-sync instructions to `~/.claude/CLAUDE.md`.
+
+#### Commands
+
+**Export a single session:**
+
+```bash
+claude-session-sync export ~/.claude/projects/-home-cm-proj/abc123.jsonl ~/transcripts
+claude-session-sync export <session.jsonl> <dest> --format raw    # Copy JSONL as-is
+claude-session-sync export <session.jsonl> <dest> --force          # Re-export even if unchanged
+claude-session-sync export <session.jsonl> <dest> --include-subagents  # Include subagent messages
+```
+
+**Batch sync all sessions:**
+
+```bash
+claude-session-sync sync-all ~/transcripts
+claude-session-sync sync-all ~/transcripts --project-filter ~/Work   # Only projects under ~/Work
+claude-session-sync sync-all ~/transcripts --force                   # Re-export everything
+claude-session-sync sync-all ~/transcripts --include-subagents       # Include subagent messages
+```
+
+**Check sync status:**
+
+```bash
+claude-session-sync status ~/transcripts
+claude-session-sync status ~/transcripts --project-filter ~/Work
+claude-session-sync status                                          # Count all sessions (no manifest)
+```
+
+**Export current session (auto-detect by cwd):**
+
+```bash
+claude-session-sync export-current ~/transcripts                    # Match $PWD
+claude-session-sync export-current ~/transcripts --project-dir ~/Work/firefox
+```
+
+#### Output Structure
+
+```
+~/transcripts/
+  firefox/                          # Project name (from cwd)
+    2026-02-24_9191a42c.md          # Markdown transcript
+  worklog/
+    2026-02-24_abc12345.md
+  .claude-sync-manifest.json        # Tracks sync state (mtime-based)
+```
+
+When `sync-all` encounters projects with the same basename
+(e.g., `/Work/X/Z` and `/Work/Y/Z`), it automatically uses
+enough trailing path components to disambiguate (`X/Z/` vs `Y/Z/`).
+
 ### Firefox Project Settings
 
 Install Firefox-specific Claude hooks and skills
@@ -129,12 +193,13 @@ to take effect.
 ## Testing
 
 ```bash
-bash test_all.sh                   # All suites (90 tests)
+bash test_all.sh                           # All suites (90+ tests)
 
-python3 test_setup.py              # Setup + Claude security
-bash test_shell_utils.sh           # Shell utilities
-python3 test_claude_security.py    # Security hooks
-bash test_prompt_colors.sh         # Prompt colors
+python3 test_setup.py                      # Setup + Claude security
+bash test_shell_utils.sh                   # Shell utilities
+python3 test_claude_security.py            # Security hooks
+bash test_prompt_colors.sh                 # Prompt colors
+python3 claude/test_session_sync.py        # Session sync (51 tests)
 ```
 
 See [TESTING.md](TESTING.md) for details.
