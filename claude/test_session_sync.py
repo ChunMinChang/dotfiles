@@ -7,7 +7,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 
 # Import the module under test
@@ -18,6 +17,7 @@ import session_sync
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def make_synthetic_jsonl(messages, path=None):
     """Create a temp JSONL file from a list of dicts. Returns the file path."""
@@ -30,10 +30,15 @@ def make_synthetic_jsonl(messages, path=None):
     return path
 
 
-def make_user_message(text, session_id="abcd1234-5678-9abc-def0-123456789abc",
-                      cwd="/home/user/project", version="2.1.55",
-                      git_branch="main", timestamp="2026-02-24T10:00:00Z",
-                      sidechain=False):
+def make_user_message(
+    text,
+    session_id="abcd1234-5678-9abc-def0-123456789abc",
+    cwd="/home/user/project",
+    version="2.1.55",
+    git_branch="main",
+    timestamp="2026-02-24T10:00:00Z",
+    sidechain=False,
+):
     """Create a synthetic user message."""
     return {
         "type": "user",
@@ -105,8 +110,9 @@ def make_file_history_snapshot():
     }
 
 
-def make_progress_message(agent_id="agent123", prompt="Search codebase",
-                          nested_text="Found 5 results"):
+def make_progress_message(
+    agent_id="agent123", prompt="Search codebase", nested_text="Found 5 results"
+):
     """Create a progress (subagent) message."""
     return {
         "type": "progress",
@@ -130,6 +136,7 @@ def make_progress_message(agent_id="agent123", prompt="Search codebase",
 # ---------------------------------------------------------------------------
 # Test: extract_user_text
 # ---------------------------------------------------------------------------
+
 
 class TestExtractUserText(unittest.TestCase):
     def test_plain_string(self):
@@ -157,13 +164,18 @@ class TestExtractUserText(unittest.TestCase):
 # Test: is_tool_result_only
 # ---------------------------------------------------------------------------
 
+
 class TestIsToolResultOnly(unittest.TestCase):
     def test_tool_result_only(self):
         content = [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]
         self.assertTrue(session_sync.is_tool_result_only(content))
 
     def test_with_text_chars(self):
-        content = ["h", "i", {"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]
+        content = [
+            "h",
+            "i",
+            {"type": "tool_result", "tool_use_id": "t1", "content": "ok"},
+        ]
         self.assertFalse(session_sync.is_tool_result_only(content))
 
     def test_plain_string(self):
@@ -177,6 +189,7 @@ class TestIsToolResultOnly(unittest.TestCase):
 # Test: scan_metadata
 # ---------------------------------------------------------------------------
 
+
 class TestScanMetadata(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
@@ -185,10 +198,15 @@ class TestScanMetadata(unittest.TestCase):
         shutil.rmtree(self.tmpdir)
 
     def test_extracts_fields(self):
-        path = make_synthetic_jsonl([
-            make_file_history_snapshot(),
-            make_user_message("hello", session_id="sess-1234", cwd="/home/user/proj"),
-        ], os.path.join(self.tmpdir, "test.jsonl"))
+        path = make_synthetic_jsonl(
+            [
+                make_file_history_snapshot(),
+                make_user_message(
+                    "hello", session_id="sess-1234", cwd="/home/user/proj"
+                ),
+            ],
+            os.path.join(self.tmpdir, "test.jsonl"),
+        )
         meta = session_sync.scan_metadata(path)
         self.assertIsNotNone(meta)
         self.assertEqual(meta["sessionId"], "sess-1234")
@@ -197,17 +215,19 @@ class TestScanMetadata(unittest.TestCase):
         self.assertEqual(meta["gitBranch"], "main")
 
     def test_skips_snapshot(self):
-        path = make_synthetic_jsonl([
-            make_file_history_snapshot(),
-            make_user_message("hello"),
-        ], os.path.join(self.tmpdir, "test.jsonl"))
+        path = make_synthetic_jsonl(
+            [
+                make_file_history_snapshot(),
+                make_user_message("hello"),
+            ],
+            os.path.join(self.tmpdir, "test.jsonl"),
+        )
         meta = session_sync.scan_metadata(path)
         self.assertIsNotNone(meta)
 
     def test_empty_file(self):
         path = os.path.join(self.tmpdir, "empty.jsonl")
-        with open(path, "w") as f:
-            pass
+        open(path, "w").close()
         meta = session_sync.scan_metadata(path)
         self.assertIsNone(meta)
 
@@ -220,10 +240,13 @@ class TestScanMetadata(unittest.TestCase):
         self.assertIsNone(meta)
 
     def test_no_user_message(self):
-        path = make_synthetic_jsonl([
-            make_file_history_snapshot(),
-            make_assistant_message([{"type": "text", "text": "hi"}]),
-        ], os.path.join(self.tmpdir, "test.jsonl"))
+        path = make_synthetic_jsonl(
+            [
+                make_file_history_snapshot(),
+                make_assistant_message([{"type": "text", "text": "hi"}]),
+            ],
+            os.path.join(self.tmpdir, "test.jsonl"),
+        )
         meta = session_sync.scan_metadata(path)
         self.assertIsNone(meta)
 
@@ -232,29 +255,36 @@ class TestScanMetadata(unittest.TestCase):
 # Test: compute_project_paths
 # ---------------------------------------------------------------------------
 
+
 class TestComputeProjectPaths(unittest.TestCase):
     def test_no_collision(self):
-        result = session_sync.compute_project_paths([
-            "/home/user/Work/firefox",
-            "/home/user/Work/worklog",
-        ])
+        result = session_sync.compute_project_paths(
+            [
+                "/home/user/Work/firefox",
+                "/home/user/Work/worklog",
+            ]
+        )
         self.assertEqual(result["/home/user/Work/firefox"], "firefox")
         self.assertEqual(result["/home/user/Work/worklog"], "worklog")
 
     def test_two_way_collision(self):
-        result = session_sync.compute_project_paths([
-            "/home/user/Work/X/Z",
-            "/home/user/Work/Y/Z",
-        ])
+        result = session_sync.compute_project_paths(
+            [
+                "/home/user/Work/X/Z",
+                "/home/user/Work/Y/Z",
+            ]
+        )
         self.assertEqual(result["/home/user/Work/X/Z"], os.path.join("X", "Z"))
         self.assertEqual(result["/home/user/Work/Y/Z"], os.path.join("Y", "Z"))
 
     def test_mixed_collision(self):
-        result = session_sync.compute_project_paths([
-            "/home/user/Work/X/Z",
-            "/home/user/Work/Y/Z",
-            "/home/user/Work/firefox",
-        ])
+        result = session_sync.compute_project_paths(
+            [
+                "/home/user/Work/X/Z",
+                "/home/user/Work/Y/Z",
+                "/home/user/Work/firefox",
+            ]
+        )
         self.assertEqual(result["/home/user/Work/X/Z"], os.path.join("X", "Z"))
         self.assertEqual(result["/home/user/Work/Y/Z"], os.path.join("Y", "Z"))
         self.assertEqual(result["/home/user/Work/firefox"], "firefox")
@@ -268,10 +298,12 @@ class TestComputeProjectPaths(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_identical_paths(self):
-        result = session_sync.compute_project_paths([
-            "/home/user/project",
-            "/home/user/project",
-        ])
+        result = session_sync.compute_project_paths(
+            [
+                "/home/user/project",
+                "/home/user/project",
+            ]
+        )
         # Deduplicated to single entry
         self.assertIn("/home/user/project", result)
 
@@ -279,6 +311,7 @@ class TestComputeProjectPaths(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Test: Manifest
 # ---------------------------------------------------------------------------
+
 
 class TestManifest(unittest.TestCase):
     def setUp(self):
@@ -331,6 +364,7 @@ class TestManifest(unittest.TestCase):
 # Test: render_markdown
 # ---------------------------------------------------------------------------
 
+
 class TestRenderMarkdown(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
@@ -340,10 +374,15 @@ class TestRenderMarkdown(unittest.TestCase):
 
     def _render(self, messages, include_subagents=False):
         """Helper: write messages to JSONL, render to string."""
-        jsonl_path = make_synthetic_jsonl(messages, os.path.join(self.tmpdir, "session.jsonl"))
+        jsonl_path = make_synthetic_jsonl(
+            messages, os.path.join(self.tmpdir, "session.jsonl")
+        )
         from io import StringIO
+
         out = StringIO()
-        session_sync.render_markdown(jsonl_path, out, include_subagents=include_subagents)
+        session_sync.render_markdown(
+            jsonl_path, out, include_subagents=include_subagents
+        )
         return out.getvalue()
 
     def test_header(self):
@@ -356,19 +395,27 @@ class TestRenderMarkdown(unittest.TestCase):
         self.assertIn("**Claude Version:** 2.1.55", md)
 
     def test_user_text(self):
-        md = self._render([
-            make_user_message("hello world"),
-        ])
+        md = self._render(
+            [
+                make_user_message("hello world"),
+            ]
+        )
         self.assertIn("## User", md)
         self.assertIn("hello world", md)
 
     def test_tool_pairing(self):
         messages = [
             make_user_message("run ls"),
-            make_assistant_message([
-                {"type": "tool_use", "id": "tool1", "name": "Bash",
-                 "input": {"command": "ls", "description": "list files"}},
-            ]),
+            make_assistant_message(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "tool1",
+                        "name": "Bash",
+                        "input": {"command": "ls", "description": "list files"},
+                    },
+                ]
+            ),
             make_tool_result_message("tool1", "file1\nfile2"),
         ]
         md = self._render(messages)
@@ -381,10 +428,12 @@ class TestRenderMarkdown(unittest.TestCase):
     def test_thinking_in_details(self):
         messages = [
             make_user_message("think about this"),
-            make_assistant_message([
-                {"type": "thinking", "thinking": "Let me consider..."},
-                {"type": "text", "text": "Here's my answer"},
-            ]),
+            make_assistant_message(
+                [
+                    {"type": "thinking", "thinking": "Let me consider..."},
+                    {"type": "text", "text": "Here's my answer"},
+                ]
+            ),
         ]
         md = self._render(messages)
         self.assertIn("<details><summary>Thinking</summary>", md)
@@ -394,10 +443,16 @@ class TestRenderMarkdown(unittest.TestCase):
     def test_bash_fenced_block(self):
         messages = [
             make_user_message("run it"),
-            make_assistant_message([
-                {"type": "tool_use", "id": "t1", "name": "Bash",
-                 "input": {"command": "echo hello"}},
-            ]),
+            make_assistant_message(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "t1",
+                        "name": "Bash",
+                        "input": {"command": "echo hello"},
+                    },
+                ]
+            ),
         ]
         md = self._render(messages)
         self.assertIn("```bash\necho hello\n```", md)
@@ -405,7 +460,9 @@ class TestRenderMarkdown(unittest.TestCase):
     def test_local_command_skipped(self):
         messages = [
             make_user_message("hi"),
-            make_system_message("Switching to claude-sonnet-4-5", subtype="local_command"),
+            make_system_message(
+                "Switching to claude-sonnet-4-5", subtype="local_command"
+            ),
         ]
         md = self._render(messages)
         self.assertNotIn("## System", md)
@@ -422,10 +479,16 @@ class TestRenderMarkdown(unittest.TestCase):
     def test_is_error_marker(self):
         messages = [
             make_user_message("try this"),
-            make_assistant_message([
-                {"type": "tool_use", "id": "t1", "name": "Bash",
-                 "input": {"command": "bad_cmd"}},
-            ]),
+            make_assistant_message(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "t1",
+                        "name": "Bash",
+                        "input": {"command": "bad_cmd"},
+                    },
+                ]
+            ),
             make_tool_result_message("t1", "command not found", is_error=True),
         ]
         md = self._render(messages)
@@ -471,9 +534,14 @@ class TestRenderMarkdown(unittest.TestCase):
     def test_signature_stripped(self):
         messages = [
             make_user_message("hello"),
-            make_assistant_message([
-                {"type": "text", "text": "Answer\n\nCo-Authored-By: Claude <noreply@anthropic.com>"},
-            ]),
+            make_assistant_message(
+                [
+                    {
+                        "type": "text",
+                        "text": "Answer\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
+                    },
+                ]
+            ),
         ]
         md = self._render(messages)
         self.assertNotIn("Co-Authored-By:", md)
@@ -483,6 +551,7 @@ class TestRenderMarkdown(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Test: discover_sessions
 # ---------------------------------------------------------------------------
+
 
 class TestDiscoverSessions(unittest.TestCase):
     def setUp(self):
@@ -506,9 +575,12 @@ class TestDiscoverSessions(unittest.TestCase):
         return paths
 
     def test_finds_jsonl(self):
-        self._make_project("-home-user-project", [
-            ("sess1.jsonl", "/home/user/project"),
-        ])
+        self._make_project(
+            "-home-user-project",
+            [
+                ("sess1.jsonl", "/home/user/project"),
+            ],
+        )
         sessions = session_sync.discover_sessions()
         self.assertEqual(len(sessions), 1)
 
@@ -521,12 +593,18 @@ class TestDiscoverSessions(unittest.TestCase):
         self.assertEqual(len(sessions), 0)
 
     def test_project_filter(self):
-        self._make_project("-home-user-project", [
-            ("s1.jsonl", "/home/user/project"),
-        ])
-        self._make_project("-home-user-other", [
-            ("s2.jsonl", "/home/user/other"),
-        ])
+        self._make_project(
+            "-home-user-project",
+            [
+                ("s1.jsonl", "/home/user/project"),
+            ],
+        )
+        self._make_project(
+            "-home-user-other",
+            [
+                ("s2.jsonl", "/home/user/other"),
+            ],
+        )
         sessions = session_sync.discover_sessions(project_filter="/home/user/project")
         self.assertEqual(len(sessions), 1)
 
@@ -538,6 +616,7 @@ class TestDiscoverSessions(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Test: export-current autodetect
 # ---------------------------------------------------------------------------
+
 
 class TestExportCurrentAutodetect(unittest.TestCase):
     def setUp(self):
@@ -557,18 +636,28 @@ class TestExportCurrentAutodetect(unittest.TestCase):
 
         # Create two sessions for same cwd, different mtimes
         old_path = make_synthetic_jsonl(
-            [make_user_message("old", cwd="/home/user/project",
-                               session_id="old00000-0000-0000-0000-000000000000",
-                               timestamp="2026-02-20T10:00:00Z")],
+            [
+                make_user_message(
+                    "old",
+                    cwd="/home/user/project",
+                    session_id="old00000-0000-0000-0000-000000000000",
+                    timestamp="2026-02-20T10:00:00Z",
+                )
+            ],
             os.path.join(proj_dir, "old.jsonl"),
         )
         # Ensure different mtime
         os.utime(old_path, (1000000, 1000000))
 
-        new_path = make_synthetic_jsonl(
-            [make_user_message("new", cwd="/home/user/project",
-                               session_id="new00000-0000-0000-0000-000000000000",
-                               timestamp="2026-02-24T10:00:00Z")],
+        make_synthetic_jsonl(
+            [
+                make_user_message(
+                    "new",
+                    cwd="/home/user/project",
+                    session_id="new00000-0000-0000-0000-000000000000",
+                    timestamp="2026-02-24T10:00:00Z",
+                )
+            ],
             os.path.join(proj_dir, "new.jsonl"),
         )
 
@@ -609,6 +698,7 @@ class TestExportCurrentAutodetect(unittest.TestCase):
 # Test: Integration (subprocess)
 # ---------------------------------------------------------------------------
 
+
 class TestIntegration(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
@@ -616,14 +706,19 @@ class TestIntegration(unittest.TestCase):
         os.makedirs(self.destdir)
         self.script = os.path.join(os.path.dirname(__file__), "session_sync.py")
         # Create a synthetic JSONL
-        self.jsonl = make_synthetic_jsonl([
-            make_file_history_snapshot(),
-            make_user_message("What is 2+2?"),
-            make_assistant_message([
-                {"type": "thinking", "thinking": "Simple math"},
-                {"type": "text", "text": "2+2 = 4"},
-            ]),
-        ], os.path.join(self.tmpdir, "test-session.jsonl"))
+        self.jsonl = make_synthetic_jsonl(
+            [
+                make_file_history_snapshot(),
+                make_user_message("What is 2+2?"),
+                make_assistant_message(
+                    [
+                        {"type": "thinking", "thinking": "Simple math"},
+                        {"type": "text", "text": "2+2 = 4"},
+                    ]
+                ),
+            ],
+            os.path.join(self.tmpdir, "test-session.jsonl"),
+        )
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
@@ -631,7 +726,8 @@ class TestIntegration(unittest.TestCase):
     def test_export_markdown(self):
         result = subprocess.run(
             [sys.executable, self.script, "export", self.jsonl, self.destdir],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Exported:", result.stdout)
@@ -651,8 +747,17 @@ class TestIntegration(unittest.TestCase):
 
     def test_export_raw(self):
         result = subprocess.run(
-            [sys.executable, self.script, "export", self.jsonl, self.destdir, "--format", "raw"],
-            capture_output=True, text=True,
+            [
+                sys.executable,
+                self.script,
+                "export",
+                self.jsonl,
+                self.destdir,
+                "--format",
+                "raw",
+            ],
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -667,7 +772,8 @@ class TestIntegration(unittest.TestCase):
         # so we test via direct export and then check manifest
         result = subprocess.run(
             [sys.executable, self.script, "export", self.jsonl, self.destdir],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.returncode, 0)
 
@@ -681,7 +787,8 @@ class TestIntegration(unittest.TestCase):
     def test_status(self):
         result = subprocess.run(
             [sys.executable, self.script, "status"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         # Should work even with no dest (just counts sessions)
         self.assertIn("Sessions:", result.stdout + result.stderr)
@@ -690,19 +797,29 @@ class TestIntegration(unittest.TestCase):
         # First export
         subprocess.run(
             [sys.executable, self.script, "export", self.jsonl, self.destdir],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         # Second export without force — should say "up to date"
         result = subprocess.run(
             [sys.executable, self.script, "export", self.jsonl, self.destdir],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         self.assertIn("up to date", result.stdout)
 
         # Third export with force — should re-export
         result = subprocess.run(
-            [sys.executable, self.script, "export", self.jsonl, self.destdir, "--force"],
-            capture_output=True, text=True,
+            [
+                sys.executable,
+                self.script,
+                "export",
+                self.jsonl,
+                self.destdir,
+                "--force",
+            ],
+            capture_output=True,
+            text=True,
         )
         self.assertIn("Exported:", result.stdout)
 

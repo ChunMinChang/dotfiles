@@ -72,7 +72,11 @@ def extract_tool_results(content):
     """Extract tool_result dicts from content list."""
     if not isinstance(content, list):
         return []
-    return [item for item in content if isinstance(item, dict) and item.get("type") == "tool_result"]
+    return [
+        item
+        for item in content
+        if isinstance(item, dict) and item.get("type") == "tool_result"
+    ]
 
 
 def scan_metadata(jsonl_path):
@@ -86,7 +90,10 @@ def scan_metadata(jsonl_path):
                 record = parse_line(line)
                 if record is None:
                     continue
-                if record.get("type") == "user" and record.get("message", {}).get("role") == "user":
+                if (
+                    record.get("type") == "user"
+                    and record.get("message", {}).get("role") == "user"
+                ):
                     return {
                         "sessionId": record.get("sessionId"),
                         "cwd": record.get("cwd"),
@@ -123,7 +130,11 @@ def discover_sessions(project_filter=None):
                 jsonl_path = os.path.join(full_dir, fname)
                 if project_filter:
                     meta = scan_metadata(jsonl_path)
-                    if meta and meta.get("cwd") and meta["cwd"].startswith(project_filter):
+                    if (
+                        meta
+                        and meta.get("cwd")
+                        and meta["cwd"].startswith(project_filter)
+                    ):
                         sessions.append(jsonl_path)
                 else:
                     sessions.append(jsonl_path)
@@ -173,7 +184,11 @@ def compute_project_paths(cwd_list):
         keys = {}
         for cwd in remaining:
             parts = cwd_parts[cwd]
-            key = os.path.join(*parts[-depth:]) if depth <= len(parts) else os.path.join(*parts)
+            key = (
+                os.path.join(*parts[-depth:])
+                if depth <= len(parts)
+                else os.path.join(*parts)
+            )
             keys[cwd] = key
 
         # Find collisions among remaining cwds
@@ -217,7 +232,9 @@ def save_manifest(dest_dir, manifest):
     """Atomic write manifest via .tmp + os.rename()."""
     manifest_path = os.path.join(dest_dir, MANIFEST_FILENAME)
     tmp_path = manifest_path + ".tmp"
-    manifest["last_sync"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    manifest["last_sync"] = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     with open(tmp_path, "w") as f:
         json.dump(manifest, f, indent=2)
         f.write("\n")
@@ -482,7 +499,11 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
                         text = block.get("text", "")
                         # Strip model signature lines
                         lines = text.split("\n")
-                        filtered = [l for l in lines if not l.strip().startswith("Co-Authored-By:")]
+                        filtered = [
+                            ln
+                            for ln in lines
+                            if not ln.strip().startswith("Co-Authored-By:")
+                        ]
                         text = "\n".join(filtered).strip()
                         if text:
                             if not wrote_header:
@@ -497,7 +518,10 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
                         tool_name = block.get("name", "Unknown")
                         tool_id = block.get("id", "")
                         tool_input = block.get("input", {})
-                        pending_tool_uses[tool_id] = {"name": tool_name, "input": tool_input}
+                        pending_tool_uses[tool_id] = {
+                            "name": tool_name,
+                            "input": tool_input,
+                        }
 
                         out_file.write(f"### Tool: {tool_name}\n\n")
                         rendered_input = render_tool_input(tool_name, tool_input)
@@ -533,7 +557,6 @@ def _render_subagent_section(out_file, subagent_messages):
         out_file.write(f"<details><summary>Agent {agent_id[:12]}</summary>\n\n")
 
         for nested_msg in info["messages"]:
-            nested_type = nested_msg.get("type", "")
             nested_message = nested_msg.get("message", {})
             role = nested_message.get("role", "")
             content = nested_message.get("content", "")
@@ -547,7 +570,9 @@ def _render_subagent_section(out_file, subagent_messages):
                     for block in content:
                         if isinstance(block, dict):
                             if block.get("type") == "text":
-                                out_file.write(f"**Assistant:** {block.get('text', '')}\n\n")
+                                out_file.write(
+                                    f"**Assistant:** {block.get('text', '')}\n\n"
+                                )
                             elif block.get("type") == "tool_use":
                                 out_file.write(f"**Tool:** {block.get('name', '')}\n\n")
 
@@ -569,8 +594,15 @@ def make_output_filename(meta, fmt):
     return f"{date}_{short_id}.{ext}"
 
 
-def export_session(jsonl_path, dest_dir, project_name, fmt, manifest,
-                   force=False, include_subagents=False):
+def export_session(
+    jsonl_path,
+    dest_dir,
+    project_name,
+    fmt,
+    manifest,
+    force=False,
+    include_subagents=False,
+):
     """Export a single session. Returns True on success."""
     meta = scan_metadata(jsonl_path)
     if not meta:
@@ -635,8 +667,13 @@ def cmd_export(args):
     project_name = os.path.basename(cwd) if cwd else "unknown"
 
     exported = export_session(
-        jsonl_path, dest_dir, project_name, fmt, manifest,
-        force=args.force, include_subagents=getattr(args, "include_subagents", False),
+        jsonl_path,
+        dest_dir,
+        project_name,
+        fmt,
+        manifest,
+        force=args.force,
+        include_subagents=getattr(args, "include_subagents", False),
     )
 
     if exported:
@@ -687,8 +724,13 @@ def cmd_sync_all(args):
 
         try:
             exported = export_session(
-                jsonl_path, dest_dir, project_name, fmt, manifest,
-                force=force, include_subagents=include_subagents,
+                jsonl_path,
+                dest_dir,
+                project_name,
+                fmt,
+                manifest,
+                force=force,
+                include_subagents=include_subagents,
             )
             if exported:
                 exported_count += 1
@@ -699,7 +741,9 @@ def cmd_sync_all(args):
             error_count += 1
 
     save_manifest(dest_dir, manifest)
-    print(f"Sync complete: {exported_count} exported, {skipped_count} up-to-date, {error_count} errors")
+    print(
+        f"Sync complete: {exported_count} exported, {skipped_count} up-to-date, {error_count} errors"
+    )
     return 0
 
 
@@ -738,7 +782,9 @@ def cmd_status(args):
                 synced += 1
 
     total = synced + unsynced + modified
-    print(f"Sessions: {total} total, {synced} synced, {unsynced} unsynced, {modified} modified")
+    print(
+        f"Sessions: {total} total, {synced} synced, {unsynced} unsynced, {modified} modified"
+    )
     return 0
 
 
@@ -767,7 +813,9 @@ def cmd_export_current(args):
                         candidates.append((mtime, jsonl_path, meta))
 
     if not candidates:
-        print(f"No sessions found for project directory: {project_dir}", file=sys.stderr)
+        print(
+            f"No sessions found for project directory: {project_dir}", file=sys.stderr
+        )
         return 1
 
     # Pick the most recently modified
@@ -781,8 +829,13 @@ def cmd_export_current(args):
     project_name = os.path.basename(cwd) if cwd else "unknown"
 
     exported = export_session(
-        jsonl_path, dest_dir, project_name, fmt, manifest,
-        force=True, include_subagents=getattr(args, "include_subagents", False),
+        jsonl_path,
+        dest_dir,
+        project_name,
+        fmt,
+        manifest,
+        force=True,
+        include_subagents=getattr(args, "include_subagents", False),
     )
 
     if exported:
@@ -815,37 +868,68 @@ def main(argv=None):
     p_export = subparsers.add_parser("export", help="Export a single session")
     p_export.add_argument("session", help="Path to session JSONL file")
     p_export.add_argument("dest", help="Destination directory")
-    p_export.add_argument("--format", choices=["markdown", "raw"], default="markdown",
-                          help="Output format (default: markdown)")
-    p_export.add_argument("--force", action="store_true", help="Re-export even if up to date")
-    p_export.add_argument("--include-subagents", action="store_true",
-                          help="Include subagent messages in output")
+    p_export.add_argument(
+        "--format",
+        choices=["markdown", "raw"],
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    p_export.add_argument(
+        "--force", action="store_true", help="Re-export even if up to date"
+    )
+    p_export.add_argument(
+        "--include-subagents",
+        action="store_true",
+        help="Include subagent messages in output",
+    )
 
     # sync-all
     p_sync = subparsers.add_parser("sync-all", help="Batch sync all sessions")
     p_sync.add_argument("dest", help="Destination directory")
-    p_sync.add_argument("--project-filter", help="Only sync sessions whose cwd starts with PATH")
-    p_sync.add_argument("--format", choices=["markdown", "raw"], default="markdown",
-                         help="Output format (default: markdown)")
+    p_sync.add_argument(
+        "--project-filter", help="Only sync sessions whose cwd starts with PATH"
+    )
+    p_sync.add_argument(
+        "--format",
+        choices=["markdown", "raw"],
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
     p_sync.add_argument("--force", action="store_true", help="Re-export all sessions")
-    p_sync.add_argument("--include-subagents", action="store_true",
-                         help="Include subagent messages in output")
+    p_sync.add_argument(
+        "--include-subagents",
+        action="store_true",
+        help="Include subagent messages in output",
+    )
 
     # status
     p_status = subparsers.add_parser("status", help="Show sync status")
     p_status.add_argument("dest", nargs="?", default=None, help="Destination directory")
-    p_status.add_argument("--project-filter", help="Only check sessions whose cwd starts with PATH")
+    p_status.add_argument(
+        "--project-filter", help="Only check sessions whose cwd starts with PATH"
+    )
 
     # export-current
-    p_current = subparsers.add_parser("export-current",
-                                       help="Export most recent session for a project")
+    p_current = subparsers.add_parser(
+        "export-current", help="Export most recent session for a project"
+    )
     p_current.add_argument("dest", help="Destination directory")
-    p_current.add_argument("--project-dir", default=os.getcwd(),
-                            help="Project directory to match (default: $PWD)")
-    p_current.add_argument("--format", choices=["markdown", "raw"], default="markdown",
-                            help="Output format (default: markdown)")
-    p_current.add_argument("--include-subagents", action="store_true",
-                            help="Include subagent messages in output")
+    p_current.add_argument(
+        "--project-dir",
+        default=os.getcwd(),
+        help="Project directory to match (default: $PWD)",
+    )
+    p_current.add_argument(
+        "--format",
+        choices=["markdown", "raw"],
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    p_current.add_argument(
+        "--include-subagents",
+        action="store_true",
+        help="Include subagent messages in output",
+    )
 
     args = parser.parse_args(argv[1:])
 
