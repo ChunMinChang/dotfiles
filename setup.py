@@ -2283,16 +2283,25 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             for event, hooks in new_settings["hooks"].items():
                 if event not in existing["hooks"]:
                     existing["hooks"][event] = []
-                # Add hooks that aren't already there
-                existing_cmds = set()
-                for h in existing["hooks"][event]:
-                    for hook in h.get("hooks", []):
-                        existing_cmds.add(hook.get("command", ""))
-                for new_hook in hooks:
-                    for hook in new_hook.get("hooks", []):
-                        if hook.get("command", "") not in existing_cmds:
-                            existing["hooks"][event].append(new_hook)
+                for new_entry in hooks:
+                    new_matcher = new_entry.get("matcher", "")
+                    # Find existing entry with the same matcher
+                    matched_entry = None
+                    for existing_entry in existing["hooks"][event]:
+                        if existing_entry.get("matcher", "") == new_matcher:
+                            matched_entry = existing_entry
                             break
+                    if matched_entry is not None:
+                        # Merge individual hooks into the existing entry
+                        existing_cmds = {
+                            h.get("command", "")
+                            for h in matched_entry.get("hooks", [])
+                        }
+                        for hook in new_entry.get("hooks", []):
+                            if hook.get("command", "") not in existing_cmds:
+                                matched_entry["hooks"].append(hook)
+                    else:
+                        existing["hooks"][event].append(new_entry)
 
         # Merge MCP servers
         for key in ["enableAllProjectMcpServers", "enabledMcpjsonServers"]:

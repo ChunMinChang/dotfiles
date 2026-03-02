@@ -27,6 +27,11 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-format.sh",
             "timeout": 120
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-static-analysis.sh",
+            "timeout": 300
           }
         ]
       }
