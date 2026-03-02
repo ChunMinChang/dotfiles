@@ -2294,8 +2294,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                     if matched_entry is not None:
                         # Merge individual hooks into the existing entry
                         existing_cmds = {
-                            h.get("command", "")
-                            for h in matched_entry.get("hooks", [])
+                            h.get("command", "") for h in matched_entry.get("hooks", [])
                         }
                         for hook in new_entry.get("hooks", []):
                             if hook.get("command", "") not in existing_cmds:
@@ -2534,7 +2533,9 @@ def claude_session_sync_init(tracker, dry_run=False):
     print_title("Claude Session Sync")
 
     source_script = os.path.join(BASE_DIR, "claude", "session_sync.py")
-    dest_bin = os.path.join(get_config()["DOTFILES_LOCAL_BIN_DIR"], "claude-session-sync")
+    dest_bin = os.path.join(
+        get_config()["DOTFILES_LOCAL_BIN_DIR"], "claude-session-sync"
+    )
     template_file = os.path.join(BASE_DIR, "claude", "CLAUDE.md.template")
     claude_md = os.path.join(os.path.expanduser("~"), ".claude", "CLAUDE.md")
 
