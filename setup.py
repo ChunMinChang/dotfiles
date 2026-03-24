@@ -2087,6 +2087,8 @@ def show_claude_hooks():
 # ============================================================================
 
 FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, "mozilla", "firefox", "dot.claude")
+MEDIA_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "media-skills")
+MEDIA_SKILLS_EXCLUDE = {"Template", "shared", ".git", ".github", "LICENSE", "README.md"}
 
 
 def get_user_input(prompt, default=""):
@@ -2183,13 +2185,32 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 gitignore_entries.append(f".claude/hooks/{hook}")
                 step += 1
 
-        # List skills to symlink
+        # List skills to symlink (personal)
         source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, "skills")
+        personal_skill_names = set()
         if os.path.isdir(source_skills):
             for skill in os.listdir(source_skills):
                 src = os.path.join(source_skills, skill)
                 dst = os.path.join(target_skills_dir, skill)
                 print(f"  {step}. Symlink: {dst} -> {src}")
+                gitignore_entries.append(f".claude/skills/{skill}/")
+                personal_skill_names.add(skill)
+                step += 1
+
+        # List media-skills to symlink (team-wide)
+        if os.path.isdir(MEDIA_SKILLS_DIR):
+            for skill in sorted(os.listdir(MEDIA_SKILLS_DIR)):
+                if skill in MEDIA_SKILLS_EXCLUDE:
+                    continue
+                if not os.path.isdir(os.path.join(MEDIA_SKILLS_DIR, skill)):
+                    continue
+                if skill in personal_skill_names:
+                    print(f"  {step}. SKIP (conflict with personal): {skill}")
+                    step += 1
+                    continue
+                src = os.path.join(MEDIA_SKILLS_DIR, skill)
+                dst = os.path.join(target_skills_dir, skill)
+                print(f"  {step}. Symlink (media-skills): {dst} -> {src}")
                 gitignore_entries.append(f".claude/skills/{skill}/")
                 step += 1
 
@@ -2239,8 +2260,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             print(f"Linked: {hook}")
             gitignore_entries.append(f".claude/hooks/{hook}")
 
-    # Symlink skills
+    # Symlink skills (personal)
     source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, "skills")
+    personal_skill_names = set()
     if os.path.isdir(source_skills):
         for skill in os.listdir(source_skills):
             src = os.path.join(source_skills, skill)
@@ -2254,6 +2276,32 @@ def install_firefox_claude(target_dir=None, dry_run=False):
 
             os.symlink(src, dst)
             print(f"Linked: {skill}")
+            gitignore_entries.append(f".claude/skills/{skill}/")
+            personal_skill_names.add(skill)
+
+    # Symlink media-skills (team-wide)
+    if os.path.isdir(MEDIA_SKILLS_DIR):
+        for skill in sorted(os.listdir(MEDIA_SKILLS_DIR)):
+            if skill in MEDIA_SKILLS_EXCLUDE:
+                continue
+            src = os.path.join(MEDIA_SKILLS_DIR, skill)
+            if not os.path.isdir(src):
+                continue
+            if skill in personal_skill_names:
+                print_warning(
+                    f"Skipping media-skill '{skill}' (conflicts with personal skill)"
+                )
+                continue
+            dst = os.path.join(target_skills_dir, skill)
+
+            if os.path.islink(dst):
+                os.unlink(dst)
+            elif os.path.exists(dst):
+                print_warning(f"Skipping existing directory: {dst}")
+                continue
+
+            os.symlink(src, dst)
+            print(f"Linked (media-skills): {skill}")
             gitignore_entries.append(f".claude/skills/{skill}/")
 
     # Handle settings.local.json
@@ -2417,13 +2465,17 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
                         print(f"Removed: {hook_path}")
                     removed.append(hook_path)
 
-    # Remove skill symlinks
+    # Remove skill symlinks (personal and media-skills)
     if os.path.isdir(target_skills_dir):
         for skill in os.listdir(target_skills_dir):
             skill_path = os.path.join(target_skills_dir, skill)
             if os.path.islink(skill_path):
                 link_target = os.readlink(skill_path)
-                if FIREFOX_CLAUDE_OVERLAY in link_target or ".dotfiles" in link_target:
+                if (
+                    FIREFOX_CLAUDE_OVERLAY in link_target
+                    or MEDIA_SKILLS_DIR in link_target
+                    or ".dotfiles" in link_target
+                ):
                     if dry_run:
                         print(f"  Would remove symlink: {skill_path}")
                     else:
