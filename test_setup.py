@@ -455,7 +455,7 @@ class TestClaudeSecurityIntegration(unittest.TestCase):
 
 
 class TestInstallFirefoxClaude(unittest.TestCase):
-    """Test install/uninstall of Firefox Claude settings including media-skills."""
+    """Test install/uninstall of Firefox Claude settings including skills."""
 
     def setUp(self):
         """Create temp dirs simulating a Firefox repo and dotfiles overlay."""
@@ -481,6 +481,19 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         with open(os.path.join(self.overlay_dir, "settings.local.json"), "w") as f:
             f.write('{"permissions":{"allow":[]}}')
 
+        # Build a minimal claude-skills directory
+        self.claude_dir = os.path.join(self.test_dir, "claude-skills")
+        for name in ["bug-start", "spec-check"]:
+            skill_dir = os.path.join(self.claude_dir, name)
+            os.makedirs(skill_dir)
+            with open(os.path.join(skill_dir, "SKILL.md"), "w") as f:
+                f.write(f"claude skill: {name}")
+        # Non-skill entries that should be excluded
+        with open(os.path.join(self.claude_dir, "CLAUDE.md"), "w") as f:
+            f.write("claude doc")
+        with open(os.path.join(self.claude_dir, "README.md"), "w") as f:
+            f.write("readme")
+
         # Build a minimal media-skills directory
         self.media_dir = os.path.join(self.test_dir, "media-skills")
         for name in ["bugzilla-wrangler", "s2-validate"]:
@@ -500,6 +513,8 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self._orig_overlay = setup.FIREFOX_CLAUDE_OVERLAY
         self._orig_media = setup.MEDIA_SKILLS_DIR
         self._orig_exclude = setup.MEDIA_SKILLS_EXCLUDE
+        self._orig_claude = setup.CLAUDE_SKILLS_DIR
+        self._orig_claude_exclude = setup.CLAUDE_SKILLS_EXCLUDE
         setup.FIREFOX_CLAUDE_OVERLAY = self.overlay_dir
         setup.MEDIA_SKILLS_DIR = self.media_dir
         setup.MEDIA_SKILLS_EXCLUDE = {
@@ -510,11 +525,15 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             "LICENSE",
             "README.md",
         }
+        setup.CLAUDE_SKILLS_DIR = self.claude_dir
+        setup.CLAUDE_SKILLS_EXCLUDE = {".git", ".github", "CLAUDE.md", "README.md"}
 
     def tearDown(self):
         setup.FIREFOX_CLAUDE_OVERLAY = self._orig_overlay
         setup.MEDIA_SKILLS_DIR = self._orig_media
         setup.MEDIA_SKILLS_EXCLUDE = self._orig_exclude
+        setup.CLAUDE_SKILLS_DIR = self._orig_claude
+        setup.CLAUDE_SKILLS_EXCLUDE = self._orig_claude_exclude
         shutil.rmtree(self.test_dir)
 
     def _install(self, **kwargs):
@@ -524,14 +543,19 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         ):
             return setup.install_firefox_claude(self.firefox_dir, **kwargs)
 
-    def test_install_symlinks_personal_and_media_skills(self):
-        """Both personal and media-skills get symlinked."""
+    def test_install_symlinks_all_skill_tiers(self):
+        """Personal, claude-skills, and media-skills all get symlinked."""
         self._install()
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         # Personal skill
         my_skill = os.path.join(skills_dir, "my-skill")
         self.assertTrue(os.path.islink(my_skill))
         self.assertIn(self.overlay_dir, os.readlink(my_skill))
+        # Claude skills
+        for name in ["bug-start", "spec-check"]:
+            path = os.path.join(skills_dir, name)
+            self.assertTrue(os.path.islink(path), f"{name} should be symlinked")
+            self.assertIn(self.claude_dir, os.readlink(path))
         # Media skills
         for name in ["bugzilla-wrangler", "s2-validate"]:
             path = os.path.join(skills_dir, name)
@@ -539,28 +563,54 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             self.assertIn(self.media_dir, os.readlink(path))
 
     def test_install_excludes_non_skill_entries(self):
-        """Template, shared, LICENSE, README.md are not symlinked."""
+        """Excluded entries from media-skills and claude-skills are not symlinked."""
         self._install()
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
+        # media-skills excludes
         for name in ["Template", "shared", "LICENSE", "README.md"]:
             self.assertFalse(
                 os.path.exists(os.path.join(skills_dir, name)),
                 f"{name} should not be symlinked",
             )
+        # claude-skills excludes
+        for name in ["CLAUDE.md"]:
+            self.assertFalse(
+                os.path.exists(os.path.join(skills_dir, name)),
+                f"{name} should not be symlinked",
+            )
 
-    def test_install_personal_skill_takes_precedence(self):
-        """When a media-skill has the same name as a personal skill, personal wins."""
-        # Create a media-skill with same name as personal
-        conflict_dir = os.path.join(self.media_dir, "my-skill")
-        os.makedirs(conflict_dir)
-        with open(os.path.join(conflict_dir, "SKILL.md"), "w") as f:
-            f.write("team version of my-skill")
+    def test_install_personal_skill_takes_precedence_over_all(self):
+        """When a skill name conflicts, personal wins over claude-skills and media-skills."""
+        # Create conflicting skills in both tiers
+        for d in [self.claude_dir, self.media_dir]:
+            conflict_dir = os.path.join(d, "my-skill")
+            os.makedirs(conflict_dir, exist_ok=True)
+            with open(os.path.join(conflict_dir, "SKILL.md"), "w") as f:
+                f.write(f"conflicting version from {d}")
 
         self._install()
         skill_link = os.path.join(self.firefox_dir, ".claude", "skills", "my-skill")
         self.assertTrue(os.path.islink(skill_link))
-        # Should point to the personal overlay, not media-skills
+        # Should point to the personal overlay
         self.assertIn(self.overlay_dir, os.readlink(skill_link))
+        self.assertNotIn(self.claude_dir, os.readlink(skill_link))
+        self.assertNotIn(self.media_dir, os.readlink(skill_link))
+
+    def test_install_claude_skills_take_precedence_over_media(self):
+        """When a skill exists in both claude-skills and media-skills, claude-skills wins."""
+        # Create a skill with the same name in both
+        for d in [self.claude_dir, self.media_dir]:
+            conflict_dir = os.path.join(d, "shared-skill")
+            os.makedirs(conflict_dir, exist_ok=True)
+            with open(os.path.join(conflict_dir, "SKILL.md"), "w") as f:
+                f.write(f"version from {d}")
+
+        self._install()
+        skill_link = os.path.join(
+            self.firefox_dir, ".claude", "skills", "shared-skill"
+        )
+        self.assertTrue(os.path.islink(skill_link))
+        self.assertIn(self.claude_dir, os.readlink(skill_link))
         self.assertNotIn(self.media_dir, os.readlink(skill_link))
 
     def test_install_no_media_skills_dir(self):
@@ -571,8 +621,17 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         # Personal skill still works
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "my-skill")))
 
-    def test_install_gitignore_includes_media_skills(self):
-        """Media-skill entries appear in .gitignore."""
+    def test_install_no_claude_skills_dir(self):
+        """Install works fine if claude-skills directory doesn't exist."""
+        setup.CLAUDE_SKILLS_DIR = os.path.join(self.test_dir, "nonexistent")
+        self._install()
+        skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
+        # Personal and media skills still work
+        self.assertTrue(os.path.islink(os.path.join(skills_dir, "my-skill")))
+        self.assertTrue(os.path.islink(os.path.join(skills_dir, "bugzilla-wrangler")))
+
+    def test_install_gitignore_includes_all_skills(self):
+        """Claude-skill and media-skill entries appear in .gitignore."""
         self._install()
         gitignore = os.path.join(self.firefox_dir, ".gitignore")
         if os.path.exists(gitignore):
@@ -580,19 +639,23 @@ class TestInstallFirefoxClaude(unittest.TestCase):
                 content = f.read()
             self.assertIn(".claude/skills/bugzilla-wrangler/", content)
             self.assertIn(".claude/skills/s2-validate/", content)
+            self.assertIn(".claude/skills/bug-start/", content)
+            self.assertIn(".claude/skills/spec-check/", content)
 
-    def test_uninstall_removes_media_skill_symlinks(self):
-        """Uninstall removes both personal and media-skill symlinks."""
+    def test_uninstall_removes_all_skill_symlinks(self):
+        """Uninstall removes personal, claude-skill, and media-skill symlinks."""
         self._install()
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         # Verify they exist first
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "bugzilla-wrangler")))
+        self.assertTrue(os.path.islink(os.path.join(skills_dir, "bug-start")))
 
         with patch("setup.get_user_input", return_value=""):
             setup.uninstall_firefox_claude(self.firefox_dir)
 
         # All symlinks should be gone
-        for name in ["my-skill", "bugzilla-wrangler", "s2-validate"]:
+        for name in ["my-skill", "bugzilla-wrangler", "s2-validate",
+                      "bug-start", "spec-check"]:
             path = os.path.join(skills_dir, name)
             self.assertFalse(os.path.exists(path), f"{name} should be removed")
 
@@ -603,14 +666,17 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "bugzilla-wrangler")))
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "my-skill")))
+        self.assertTrue(os.path.islink(os.path.join(skills_dir, "bug-start")))
 
-    def test_dry_run_shows_media_skills(self):
-        """Dry run output mentions media-skills."""
+    def test_dry_run_shows_all_skill_tiers(self):
+        """Dry run output mentions claude-skills and media-skills."""
         import io
 
         with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
             self._install(dry_run=True)
         output = mock_stdout.getvalue()
+        self.assertIn("claude-skills", output)
+        self.assertIn("bug-start", output)
         self.assertIn("media-skills", output)
         self.assertIn("bugzilla-wrangler", output)
         # Should NOT actually create symlinks

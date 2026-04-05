@@ -1,3 +1,7 @@
 [submodule "mozilla/firefox/media-skills"]
 	path = mozilla/firefox/media-skills
 	url = https://github.com/mozilla/media-skills.git
+
+[submodule "mozilla/firefox/claude-skills"]
+	path = mozilla/firefox/claude-skills
+	url = https://github.com/alastor0325/Claude-Skills.git
