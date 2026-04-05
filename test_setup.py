@@ -606,9 +606,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
                 f.write(f"version from {d}")
 
         self._install()
-        skill_link = os.path.join(
-            self.firefox_dir, ".claude", "skills", "shared-skill"
-        )
+        skill_link = os.path.join(self.firefox_dir, ".claude", "skills", "shared-skill")
         self.assertTrue(os.path.islink(skill_link))
         self.assertIn(self.claude_dir, os.readlink(skill_link))
         self.assertNotIn(self.media_dir, os.readlink(skill_link))
@@ -654,8 +652,13 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             setup.uninstall_firefox_claude(self.firefox_dir)
 
         # All symlinks should be gone
-        for name in ["my-skill", "bugzilla-wrangler", "s2-validate",
-                      "bug-start", "spec-check"]:
+        for name in [
+            "my-skill",
+            "bugzilla-wrangler",
+            "s2-validate",
+            "bug-start",
+            "spec-check",
+        ]:
             path = os.path.join(skills_dir, name)
             self.assertFalse(os.path.exists(path), f"{name} should be removed")
 

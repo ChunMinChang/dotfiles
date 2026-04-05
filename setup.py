@@ -2226,7 +2226,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 if not os.path.isdir(os.path.join(MEDIA_SKILLS_DIR, skill)):
                     continue
                 if skill in personal_skill_names or skill in claude_skill_names:
-                    print(f"  {step}. SKIP (conflict with personal/claude-skills): {skill}")
+                    print(
+                        f"  {step}. SKIP (conflict with personal/claude-skills): {skill}"
+                    )
                     step += 1
                     continue
                 src = os.path.join(MEDIA_SKILLS_DIR, skill)
