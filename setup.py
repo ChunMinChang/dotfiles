@@ -2109,7 +2109,10 @@ MEDIA_SKILLS_EXCLUDE = {"Template", "shared", ".git", ".github", "LICENSE", "REA
 CLAUDE_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "claude-skills")
 CLAUDE_SKILLS_EXCLUDE = {".git", ".github", ".githooks", "CLAUDE.md", "README.md"}
 # Rename skills during install: {"original-name": "installed-name"}
-CLAUDE_SKILLS_RENAME = {"triage": "av-weekly-triage"}
+CLAUDE_SKILLS_RENAME = {
+    "triage": "av-weekly-triage",
+    "sec-approval": "sec-approval-draft",
+}
 
 
 def get_user_input(prompt, default=""):
