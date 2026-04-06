@@ -520,6 +520,33 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
     return added
 
 
+def remove_from_gitignore(repo_dir, entries, dry_run=False):
+    """Remove entries from .gitignore if they exist."""
+    gitignore_path = os.path.join(repo_dir, ".gitignore")
+    if not os.path.exists(gitignore_path):
+        return []
+    with open(gitignore_path, "r") as f:
+        lines = f.readlines()
+    entries_set = set(entries)
+    removed = []
+    new_lines = []
+    for line in lines:
+        if line.strip() in entries_set:
+            removed.append(line.strip())
+            if not dry_run:
+                continue
+        new_lines.append(line)
+    if removed and not dry_run:
+        with open(gitignore_path, "w") as f:
+            f.writelines(new_lines)
+    for entry in removed:
+        if dry_run:
+            print(f"  Would remove from .gitignore: {entry}")
+        else:
+            print(f"Removed from .gitignore: {entry}")
+    return removed
+
+
 def print_installing_title(name, bold=False):
     print(
         colors.HEADER
@@ -2221,6 +2248,18 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 personal_skill_names.add(skill)
                 step += 1
 
+        # Show renamed claude-skills cleanup
+        for old_name, new_name in CLAUDE_SKILLS_RENAME.items():
+            old_path = os.path.join(target_skills_dir, old_name)
+            if os.path.islink(old_path):
+                print(
+                    f"  {step}. Remove stale (claude-skills): {old_name} (renamed to {new_name})"
+                )
+                remove_from_gitignore(
+                    target_dir, [f".claude/skills/{old_name}/"], dry_run=True
+                )
+                step += 1
+
         # List claude-skills to symlink (personal, higher priority than media-skills)
         claude_skill_names = set()
         if os.path.isdir(CLAUDE_SKILLS_DIR):
@@ -2325,6 +2364,19 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             print(f"Linked: {skill}")
             gitignore_entries.append(f".claude/skills/{skill}/")
             personal_skill_names.add(skill)
+
+    # Clean up stale symlinks and gitignore entries from renamed claude-skills
+    stale_gitignore = []
+    for old_name in CLAUDE_SKILLS_RENAME:
+        old_path = os.path.join(target_skills_dir, old_name)
+        if os.path.islink(old_path):
+            link_target = os.readlink(old_path)
+            if CLAUDE_SKILLS_DIR in link_target:
+                os.unlink(old_path)
+                stale_gitignore.append(f".claude/skills/{old_name}/")
+                print(f"Removed stale (claude-skills): {old_name}")
+    if stale_gitignore:
+        remove_from_gitignore(target_dir, stale_gitignore)
 
     # Symlink claude-skills (personal, higher priority than media-skills)
     claude_skill_names = set()
