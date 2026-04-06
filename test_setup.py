@@ -533,6 +533,8 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             "CLAUDE.md",
             "README.md",
         }
+        self._orig_claude_rename = setup.CLAUDE_SKILLS_RENAME
+        setup.CLAUDE_SKILLS_RENAME = {}
 
     def tearDown(self):
         setup.FIREFOX_CLAUDE_OVERLAY = self._orig_overlay
@@ -540,6 +542,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         setup.MEDIA_SKILLS_EXCLUDE = self._orig_exclude
         setup.CLAUDE_SKILLS_DIR = self._orig_claude
         setup.CLAUDE_SKILLS_EXCLUDE = self._orig_claude_exclude
+        setup.CLAUDE_SKILLS_RENAME = self._orig_claude_rename
         shutil.rmtree(self.test_dir)
 
     def _install(self, **kwargs):
@@ -633,6 +636,19 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         # Personal and media skills still work
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "my-skill")))
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "bugzilla-wrangler")))
+
+    def test_install_claude_skills_rename(self):
+        """Claude-skills with rename mapping are installed under the new name."""
+        setup.CLAUDE_SKILLS_RENAME = {"bug-start": "media-bug-start"}
+        self._install()
+        skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
+        # Original name should NOT exist
+        self.assertFalse(os.path.exists(os.path.join(skills_dir, "bug-start")))
+        # Renamed version should be symlinked to the original source
+        renamed = os.path.join(skills_dir, "media-bug-start")
+        self.assertTrue(os.path.islink(renamed))
+        self.assertIn(self.claude_dir, os.readlink(renamed))
+        self.assertTrue(os.readlink(renamed).endswith("/bug-start"))
 
     def test_install_gitignore_includes_all_skills(self):
         """Claude-skill and media-skill entries appear in .gitignore."""

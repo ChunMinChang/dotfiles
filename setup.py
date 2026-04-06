@@ -2105,6 +2105,8 @@ MEDIA_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "media-skills")
 MEDIA_SKILLS_EXCLUDE = {"Template", "shared", ".git", ".github", "LICENSE", "README.md"}
 CLAUDE_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "claude-skills")
 CLAUDE_SKILLS_EXCLUDE = {".git", ".github", ".githooks", "CLAUDE.md", "README.md"}
+# Rename skills during install: {"original-name": "installed-name"}
+CLAUDE_SKILLS_RENAME = {"triage": "av-weekly-triage"}
 
 
 def get_user_input(prompt, default=""):
@@ -2221,15 +2223,17 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                     continue
                 if not os.path.isdir(os.path.join(CLAUDE_SKILLS_DIR, skill)):
                     continue
-                if skill in personal_skill_names:
-                    print(f"  {step}. SKIP (conflict with personal): {skill}")
+                install_name = CLAUDE_SKILLS_RENAME.get(skill, skill)
+                if install_name in personal_skill_names:
+                    print(f"  {step}. SKIP (conflict with personal): {install_name}")
                     step += 1
                     continue
                 src = os.path.join(CLAUDE_SKILLS_DIR, skill)
-                dst = os.path.join(target_skills_dir, skill)
-                print(f"  {step}. Symlink (claude-skills): {dst} -> {src}")
-                gitignore_entries.append(f".claude/skills/{skill}/")
-                claude_skill_names.add(skill)
+                dst = os.path.join(target_skills_dir, install_name)
+                label = f"{skill} -> {install_name}" if skill != install_name else skill
+                print(f"  {step}. Symlink (claude-skills): {dst} -> {src} [{label}]")
+                gitignore_entries.append(f".claude/skills/{install_name}/")
+                claude_skill_names.add(install_name)
                 step += 1
 
         # List media-skills to symlink (team-wide)
@@ -2325,12 +2329,13 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             src = os.path.join(CLAUDE_SKILLS_DIR, skill)
             if not os.path.isdir(src):
                 continue
-            if skill in personal_skill_names:
+            install_name = CLAUDE_SKILLS_RENAME.get(skill, skill)
+            if install_name in personal_skill_names:
                 print_warning(
-                    f"Skipping claude-skill '{skill}' (conflicts with personal skill)"
+                    f"Skipping claude-skill '{install_name}' (conflicts with personal skill)"
                 )
                 continue
-            dst = os.path.join(target_skills_dir, skill)
+            dst = os.path.join(target_skills_dir, install_name)
 
             if os.path.islink(dst):
                 os.unlink(dst)
@@ -2339,8 +2344,11 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 continue
 
             os.symlink(src, dst)
-            print(f"Linked (claude-skills): {skill}")
-            gitignore_entries.append(f".claude/skills/{skill}/")
+            if skill != install_name:
+                print(f"Linked (claude-skills): {skill} as {install_name}")
+            else:
+                print(f"Linked (claude-skills): {skill}")
+            gitignore_entries.append(f".claude/skills/{install_name}/")
             claude_skill_names.add(skill)
 
     # Symlink media-skills (team-wide)
