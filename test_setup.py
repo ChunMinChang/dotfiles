@@ -526,7 +526,13 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             "README.md",
         }
         setup.CLAUDE_SKILLS_DIR = self.claude_dir
-        setup.CLAUDE_SKILLS_EXCLUDE = {".git", ".github", ".githooks", "CLAUDE.md", "README.md"}
+        setup.CLAUDE_SKILLS_EXCLUDE = {
+            ".git",
+            ".github",
+            ".githooks",
+            "CLAUDE.md",
+            "README.md",
+        }
 
     def tearDown(self):
         setup.FIREFOX_CLAUDE_OVERLAY = self._orig_overlay

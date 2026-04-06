@@ -21,6 +21,7 @@ def load_jsonc(path):
         stripped.append(line)
     return json.loads("".join(stripped))
 
+
 # Global variables
 # ------------------------------------------------------------------------------
 
