@@ -10,7 +10,7 @@ import sys
 
 
 def load_jsonc(path):
-    """Load a JSON file that may contain // line comments (JSONC)."""
+    """Load a JSON file that may contain // line comments and trailing commas."""
     with open(path, "r") as f:
         lines = f.readlines()
     stripped = []
@@ -19,7 +19,10 @@ def load_jsonc(path):
         if s.startswith("//"):
             continue
         stripped.append(line)
-    return json.loads("".join(stripped))
+    text = "".join(stripped)
+    # Remove trailing commas before } or ]
+    text = re.sub(r",\s*([\]}])", r"\1", text)
+    return json.loads(text)
 
 
 # Global variables
