@@ -4,4 +4,4 @@
 
 [submodule "mozilla/firefox/claude-skills"]
 	path = mozilla/firefox/claude-skills
-	url = https://github.com/alastor0325/Claude-Skills.git
+	url = https://github.com/alastor0325/Claude-Skills

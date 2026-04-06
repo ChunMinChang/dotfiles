@@ -8,6 +8,19 @@ import shutil
 import subprocess
 import sys
 
+
+def load_jsonc(path):
+    """Load a JSON file that may contain // line comments (JSONC)."""
+    with open(path, "r") as f:
+        lines = f.readlines()
+    stripped = []
+    for line in lines:
+        s = line.lstrip()
+        if s.startswith("//"):
+            continue
+        stripped.append(line)
+    return json.loads("".join(stripped))
+
 # Global variables
 # ------------------------------------------------------------------------------
 
@@ -2090,7 +2103,7 @@ FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, "mozilla", "firefox", "dot.claud
 MEDIA_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "media-skills")
 MEDIA_SKILLS_EXCLUDE = {"Template", "shared", ".git", ".github", "LICENSE", "README.md"}
 CLAUDE_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "claude-skills")
-CLAUDE_SKILLS_EXCLUDE = {".git", ".github", "CLAUDE.md", "README.md"}
+CLAUDE_SKILLS_EXCLUDE = {".git", ".github", ".githooks", "CLAUDE.md", "README.md"}
 
 
 def get_user_input(prompt, default=""):
@@ -2360,10 +2373,8 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     if merge_mode and existing_settings:
         # Merge settings
         print("Merging settings...")
-        with open(target_settings, "r") as f:
-            existing = json.load(f)
-        with open(src_settings, "r") as f:
-            new_settings = json.load(f)
+        existing = load_jsonc(target_settings)
+        new_settings = load_jsonc(src_settings)
 
         # Merge permissions
         if "permissions" in new_settings:
