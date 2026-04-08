@@ -11,6 +11,7 @@ allowed-tools:
   - Grep
   - Glob
   - AskUserQuestion
+  - WebFetch
   - Write
 ---
 
@@ -126,12 +127,31 @@ Inline comments in the diff **must not**:
 - Disclose that the change is security-related
 - Mention the bug as a security issue
 - Reference CVE numbers or sec-* keywords
+- Include stack traces, ASAN output, or crash signatures
+- Reference file paths or line numbers that pinpoint the flaw
+  (e.g. `// See H265.cpp:651`)
+- Provide reasoning that reveals the attack vector
+  (e.g. `// Without this check, an attacker could trigger X by doing Y`)
 
 **If comments fail**: suggest removing them or rewriting them as generic
 correctness/robustness comments. Security context belongs in the private bug,
 not in the source.
 
-### Check 3: Test Cases
+### Check 3: Security-Revealing Identifiers
+
+New or renamed variables, functions, classes, or constants in the diff **must
+not** reveal the vulnerability class or attack vector:
+
+- Bad: `fixUAFBuffer`, `preventOverflow`, `sanitizeXSSInput`
+- Good: `buffer`, `validateSize`, `sanitizeInput`
+- Bad: `kMaxAllocBeforeOOB`, `gNullDerefGuard`
+- Good: `kMaxAlloc`, `gGuard`
+
+**If identifiers fail**: suggest neutral renames that describe the
+*correctness* purpose, not the *security* purpose. The vulnerability context
+belongs in the private bug.
+
+### Check 4: Test Cases
 
 Tests included in the patch **must not**:
 
@@ -153,7 +173,7 @@ Additionally, verify the test-landing policy:
 **If tests fail**: suggest renaming, sanitizing test content, or splitting
 tests into a deferred follow-up.
 
-### Check 4: Try Server / CI
+### Check 5: Try Server / CI
 
 Check whether the user has pushed (or plans to push) to Try:
 
@@ -167,7 +187,7 @@ Check whether the user has pushed (or plans to push) to Try:
 
 Ask the user about their Try push status.
 
-### Check 5: Patch Obfuscation
+### Check 6: Patch Obfuscation
 
 Review whether the fix can be plausibly framed as a non-security change
 (performance improvement, correctness fix, code cleanup). The goal is to reduce
@@ -187,6 +207,7 @@ Present a summary table:
 | ----------------- | ------------- | ------- |
 | Commit messages   | PASS/FAIL     | ...     |
 | Code comments     | PASS/FAIL     | ...     |
+| Identifiers       | PASS/FAIL     | ...     |
 | Test cases        | PASS/FAIL     | ...     |
 | Try server        | PASS/FAIL/N/A | ...     |
 | Patch obfuscation | Advisory      | ...     |
@@ -195,6 +216,7 @@ Then present the checklist for the user to confirm:
 
 - [ ] Commit message is not security-revealing
 - [ ] No security-revealing inline comments in the patch
+- [ ] No security-revealing identifiers in the patch
 - [ ] Tests don't paint a bulls-eye (or are deferred to follow-up)
 - [ ] Not pushed to Try with bug number / security tests
 - [ ] Bug is filed as restricted/sec-* on Bugzilla
@@ -203,7 +225,7 @@ Then present the checklist for the user to confirm:
 Ask the user if they want help fixing them now. Re-audit after fixes.
 
 **This is a hard gate.** Ask the user to confirm all checklist items pass
-before proceeding. Do not proceed to Phase 2 until Checks 1–4 all pass and the
+before proceeding. Do not proceed to Phase 2 until Checks 1–5 all pass and the
 user gives explicit approval to continue.
 
 ---
@@ -243,10 +265,24 @@ Analyze:
 
 Rate as one of:
 
-- **Obvious**: The patch directly reveals the vulnerability class and location.
-  A security researcher would immediately understand it.
-- **Moderate**: Requires some knowledge to connect the patch to the vulnerability.
-- **Not obvious**: The fix is generic enough that it doesn't reveal the issue.
+- **Easy**: The trigger is obvious from the patch and reproducible with standard
+  web APIs alone; no special timing or heap work needed. A security researcher
+  would immediately understand the vulnerability class and location.
+- **Moderate**: The trigger is discoverable from the patch + public API knowledge,
+  but reliable exploitation needs one additional factor (timing, heap shaping,
+  or a non-default condition).
+- **Difficult**: The trigger is non-obvious from the patch and requires
+  independent discovery; OR reliable exploitation needs two or more independent
+  factors (e.g. non-obvious event vector + deterministic GC timing + heap
+  shaping). For race conditions, also use Difficult when the patch only fixes
+  one side of the race — the other racing operation and the API sequence needed
+  to reproduce the window are not disclosed by the patch.
+
+Always open the answer with one of "Easy.", "Moderate.", or "Difficult.",
+followed by 2-3 sentences of justification. Base the answer on the patch
+itself — what the fix reveals about the vulnerable code path — and on whether
+an attacker could recreate the conditions using only publicly available web
+APIs.
 
 #### Q2: Comments and Tests as Bulls-Eyes
 
@@ -267,36 +303,63 @@ information leaks."
 
 **Question**: "Which older supported branches are affected by this flaw?"
 
-Check `status-firefox*` flags from the bug (if fetched). If not available,
-inspect the code history:
+**Fetch the current release calendar** to determine which versions are on
+each channel:
 
-```bash
-# Find when the vulnerable code was introduced
-git log --oneline --follow -p -- <affected-file> | head -100
+```
+WebFetch: https://whattrainisitnow.com/calendar/
 ```
 
-Current Firefox release channels to consider (check MDN/wiki for current
-version numbers if needed):
+Extract the current Nightly, Beta, Release, and ESR version numbers.
 
-- **Nightly** (main/trunk)
-- **Beta**
-- **Release**
-- **ESR** (check which ESR versions are currently supported)
+**Check the current Firefox version** from the local tree:
+
+```bash
+cat config/milestone.txt
+```
+
+Check `status-firefox*` flags from the bug (if fetched). If not available,
+inspect the code history to find when the vulnerable code was introduced:
+
+**If git:**
+
+```bash
+git log --oneline --follow -S "<key_symbol>" -- <affected-file> | head -10
+```
+
+**If jj:**
+
+```bash
+jj log -r 'ancestors(trunk())' -T builtin_log_oneline -p -s -- <affected-file> | head -50
+```
 
 Cross-reference with the `status-firefoxNN: affected/unaffected/fixed` flags
 on the bug if available. If no regression range is identified, **assume the
 worst** — all supported branches are affected.
 
+Use this answer format: "Introduced in Firefox 118 (Bug XXXXXXX). Affects
+Nightly (150), Beta (149), Release (148), and ESR 128. Release status flags
+should be updated to reflect this."
+
 #### Q4: Regression Source
 
 **Question**: "If not all supported branches, which bug introduced the flaw?"
 
-Only needed if Q3 shows some branches are unaffected. Use git blame to find the
-introducing commit:
+Only needed if Q3 shows some branches are unaffected. Find the introducing
+commit:
+
+**If git:**
 
 ```bash
-git log --oneline -- <affected-file> | head -30
+git log --oneline -S "<key_symbol>" -- <affected-file> | head -10
 git blame -L <line>,<line> <affected-file>
+```
+
+**If jj:**
+
+```bash
+jj log -r 'ancestors(trunk())' -T builtin_log_oneline -s -- <affected-file> | head -30
+jj annotate <affected-file>
 ```
 
 Report the bug number or commit that introduced the flaw, which determines the
