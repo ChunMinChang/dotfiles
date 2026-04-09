@@ -350,12 +350,48 @@ jj log -r 'ancestors(trunk())' -T builtin_log_oneline -p -s -- <affected-file> |
 ```
 
 Cross-reference with the `status-firefoxNN: affected/unaffected/fixed` flags
-on the bug if available. If no regression range is identified, **assume the
+on the bug if available.
+
+**Verify reachability on each branch.** The vulnerable code may exist on a
+branch but be unreachable if it is gated behind a preference or feature flag
+that is disabled on that branch. For each affected ESR and release branch:
+
+1. **Check the pref/flag value on the branch itself** — do not assume the
+   current trunk value applies to older branches:
+
+   ```bash
+   # Example: check a pref on each ESR branch
+   git show upstream/esr115:<path-to-pref-file> | grep -A10 '<pref-name>'
+   git show upstream/esr128:<path-to-pref-file> | grep -A10 '<pref-name>'
+   git show upstream/esr140:<path-to-pref-file> | grep -A10 '<pref-name>'
+   ```
+
+2. **Check that the vulnerable code exists on the branch** — it may have been
+   added after the branch point:
+
+   ```bash
+   git show upstream/esr115:<affected-file> 2>&1 | head -3
+   ```
+
+3. **Determine when the feature was enabled** — find the commit that changed
+   the pref from disabled to enabled, and check which branches contain it:
+
+   ```bash
+   git log --all --oneline --grep='<enable-bug>' -- <pref-file>
+   git branch --all --contains <enable-commit>
+   ```
+
+A branch is **not affected** if the pref is `false` or `@IS_NIGHTLY_BUILD@`
+on release builds, even if the vulnerable code exists. Clearly state in the
+answer which branches are affected and which are not, with the reason (e.g.,
+"ESR 128: not affected — WebCodecs disabled by default, value: @IS_NIGHTLY_BUILD@").
+
+If no regression range is identified and no pref gate exists, **assume the
 worst** — all supported branches are affected.
 
 Use this answer format: "Introduced in Firefox 118 (Bug XXXXXXX). Affects
-Nightly (150), Beta (149), Release (148), and ESR 128. Release status flags
-should be updated to reflect this."
+Nightly (150), Beta (149), Release (148), and ESR 140. ESR 128 and ESR 115
+are not affected: the feature is disabled by default on those branches."
 
 #### Q4: Regression Source
 
@@ -378,8 +414,15 @@ jj log -r 'ancestors(trunk())' -T builtin_log_oneline -s -- <affected-file> | he
 jj annotate <affected-file>
 ```
 
-Report the bug number or commit that introduced the flaw, which determines the
-oldest affected branch.
+Report the bug number or commit that introduced the flaw. If the vulnerable
+code was introduced in one bug but only became reachable due to a later bug
+(e.g., a feature flag being enabled), report both:
+
+- The bug that introduced the vulnerable code
+- The bug that made it reachable (e.g., enabled the feature pref)
+
+This distinction matters for determining which branches actually need a fix
+versus which are technically vulnerable but unexploitable.
 
 #### Q5: Backport Status
 
