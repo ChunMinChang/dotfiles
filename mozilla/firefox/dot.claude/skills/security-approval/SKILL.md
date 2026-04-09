@@ -7,6 +7,7 @@ allowed-tools:
   - Bash(jj:*)
   - Bash(searchfox-cli:*)
   - Bash(bmo-to-md:*)
+  - Bash(python3:*)
   - Read
   - Grep
   - Glob
@@ -51,8 +52,13 @@ following priority order:
    - Check that `bmo-to-md` is installed: run `bmo-to-md --help`. If not
      found, ask the user to install it: `cargo install bmo-to-md`
      (see <https://github.com/padenot/bmo-to-md>).
-   - Check that a Bugzilla API key is configured: run `echo $BMO_API_KEY`.
-     If empty, ask the user to set it up.
+   - Check that a Bugzilla API key is configured (**never** read or print
+     the key itself):
+     ```bash
+     python3 .claude/skills/security-approval/bmo-sec-approval --check-auth
+     ```
+     If it fails, ask the user to store their key in
+     `~/.config/bugzilla/config.toml` (see Step 6, item 1 for instructions).
    - Download to a temp folder: `bmo-to-md -o /tmp/bug-<id> -a <bug_id>`
    - If `bmo-to-md` fails, **stop and report** to the user.
 3. **Neither provided**: ask the user whether they have a local bug report
@@ -263,7 +269,7 @@ messages gathered in the Preliminary step.
 
 #### Q1: Patch Visibility
 
-**Question**: "How easily can the security issue be deduced from the patch?"
+**Question**: "How easily could an exploit be constructed based on the patch?"
 
 Analyze:
 
@@ -311,7 +317,7 @@ information leaks."
 
 #### Q3: Affected Branches
 
-**Question**: "Which older supported branches are affected by this flaw?"
+**Question**: "Which branches (beta, release, and/or ESR) are affected by this flaw, and do the release status flags reflect this affected/unaffected state correctly?"
 
 **Fetch the current release calendar** to determine which versions are on
 each channel:
@@ -377,8 +383,9 @@ oldest affected branch.
 
 #### Q5: Backport Status
 
-**Question**: "Do you have backports for the affected branches? If not, how
-different, hard to create, and risky will they be?"
+**Questions** (two separate bullets in the output):
+- "Do you have backports for the affected branches?"
+- "If not, how different, hard to create, and risky will they be?"
 
 Ask the user:
 
@@ -434,45 +441,31 @@ Answer Yes, No, or Unknown. Check whether:
 
 ### Step 3: Draft the Questionnaire
 
-Generate the complete text to paste into the Bugzilla comment when requesting
-`sec-approval?`. Use this format:
+Generate the complete text using the same format that Bugzilla auto-generates
+for sec-approval requests. **Note:** the BMO REST API does not support
+Markdown rendering for attachment update comments (Bug 2030581), so the
+comment will display as plain text. The `* **Q**: A` format is still clear
+and readable without Markdown rendering — each question is visually distinct
+and answers follow inline. Use this exact format:
 
 ```text
-[Requesting sec-approval]
+### Security Approval Request
+* **How easily could an exploit be constructed based on the patch?**: <answer>
+* **Do comments in the patch, the check-in comment, or tests included in the patch paint a bulls-eye on the security problem?**: <answer>
+* **Which branches (beta, release, and/or ESR) are affected by this flaw, and do the release status flags reflect this affected/unaffected state correctly?**: <answer>
+* **If not all supported branches, which bug introduced the flaw?**: <answer — or "N/A">
+* **Do you have backports for the affected branches?**: <answer>
+* **If not, how different, hard to create, and risky will they be?**: <answer>
+* **How likely is this patch to cause regressions; how much testing does it need?**: <answer>
+* **Is the patch ready to land after security approval is given?**: <Yes/No>
+* **Is Android affected?**: <Yes/No/Unknown>
 
-1. How easily can the security issue be deduced from the patch?
-   <answer>
-
-2. Do comments in the patch, the check-in comment, or tests
-   included in the patch paint a bulls-eye on the security
-   problem?
-   <answer>
-
-3. Which older supported branches are affected by this flaw?
-   <answer>
-
-4. If not all supported branches, which bug introduced the
-   flaw?
-   <answer — or "N/A, all branches affected">
-
-5. Do you have backports for the affected branches? If not,
-   how different, hard to create, and risky will they be?
-   <answer>
-
-6. How likely is this patch to cause regressions; how much
-   testing does it need?
-   <answer>
-
-7. Is the patch ready to land after security approval is
-   given?
-   <Yes/No>
-
-8. Is Android affected?
-   <Yes/No/Unknown>
+*Drafted with the assistance of Claude Code — reviewed and approved by the patch author.*
 ```
 
-Keep answers factual, specific, and concise. Do not reveal more about the
-vulnerability than necessary.
+Keep answers factual, specific, and concise. Each answer follows the `**:`
+on the same line as a single flowing sentence or paragraph. Do not reveal
+more about the vulnerability than necessary.
 
 ### Step 4: Present and Confirm
 
@@ -491,45 +484,131 @@ generate a markdown file at the repository root named
 `sec-approval-bug-<bug_id>.md` (e.g., `sec-approval-bug-1234567.md`).
 If no bug ID is available, use `sec-approval.md`.
 
-The file should be plain text (no markdown headings, no indented answers,
-no markdown list syntax). Format as follows:
+The file must use the exact same markdown format as the questionnaire
+drafted in Step 3 (the Bugzilla auto-generated format):
 
 ```text
-[Requesting sec-approval]
+### Security Approval Request
+* **How easily could an exploit be constructed based on the patch?**: <answer>
+* **Do comments in the patch, the check-in comment, or tests included in the patch paint a bulls-eye on the security problem?**: <answer>
+* **Which branches (beta, release, and/or ESR) are affected by this flaw, and do the release status flags reflect this affected/unaffected state correctly?**: <answer>
+* **If not all supported branches, which bug introduced the flaw?**: <answer>
+* **Do you have backports for the affected branches?**: <answer>
+* **If not, how different, hard to create, and risky will they be?**: <answer>
+* **How likely is this patch to cause regressions; how much testing does it need?**: <answer>
+* **Is the patch ready to land after security approval is given?**: <answer>
+* **Is Android affected?**: <answer>
 
-1. How easily can the security issue be deduced from the
-patch?
-<answer as a single flowing paragraph>
-
-2. Do comments in the patch, the check-in comment, or tests
-included in the patch paint a bulls-eye on the security
-problem?
-<answer as a single flowing paragraph>
-
-3. Which older supported branches are affected by this flaw?
-<answer as a single flowing paragraph>
-
-4. If not all supported branches, which bug introduced the
-flaw?
-<answer as a single flowing paragraph>
-
-5. Do you have backports for the affected branches? If not,
-how different, hard to create, and risky will they be?
-<answer as a single flowing paragraph>
-
-6. How likely is this patch to cause regressions; how much
-testing does it need?
-<answer as a single flowing paragraph>
-
-7. Is the patch ready to land after security approval is
-given?
-<Yes/No>
-
-8. Is Android affected?
-<Yes/No/Unknown>
+*Drafted with the assistance of Claude Code — reviewed and approved by the patch author.*
 ```
 
 Use the Write tool to create this file, then inform the user of the file path.
+
+### Step 6: Post to Bugzilla (Optional)
+
+**This step only applies when sec-approval is required.** Do NOT offer to post
+if the bug qualifies for automatic approval (see Step 1):
+
+- **sec-low**, **sec-moderate**, **sec-other**, or **sec-want**: no sec-approval
+  needed — the patch can land directly.
+- **Recent unshipped Nightly-only regression** with ESR and Beta marked
+  `unaffected`: no sec-approval needed.
+
+For these cases, inform the user the questionnaire file is available for their
+records but does not need to be posted. Skip the rest of this step.
+
+For **sec-high**, **sec-critical**, or **unrated** bugs (assume worst-case):
+ask the user whether they want to post the questionnaire directly to Bugzilla
+and request `sec-approval?` on the attachment.
+
+If the user agrees:
+
+1. **Check API key**: run the auth check — **never** read or print the key
+   itself:
+
+   ```bash
+   python3 .claude/skills/security-approval/bmo-sec-approval --check-auth
+   ```
+
+   If it fails, offer the user two options and stop:
+
+   - **Persistent** (recommended): store the key once for all future sessions:
+     ```
+     mkdir -p ~/.config/bugzilla && cat > ~/.config/bugzilla/config.toml << 'EOF'
+     api_key = "YOUR_KEY"
+     EOF
+     chmod 600 ~/.config/bugzilla/config.toml
+     ```
+   - **One-time**: set it for the current session only:
+     ```
+     export BMO_API_KEY="YOUR_KEY"
+     ```
+
+   Tell the user to replace `YOUR_KEY` with their Bugzilla API key from
+   <https://bugzilla.mozilla.org/userprefs.cgi?tab=apikey>. If they already
+   have `bmo-to-md` configured, the key in `~/.config/bmo-to-md/config.toml`
+   is also picked up automatically.
+
+2. **Identify the attachment**: the sec-approval flag must be set on the
+   Phabricator attachment (the patch revision), not on the bug itself.
+
+   First, extract Phabricator revision IDs from the local commits gathered in
+   the Preliminary step:
+
+   **If git:**
+
+   ```bash
+   git log origin/main..HEAD --format=%B | grep -oP 'Differential Revision:.*/(D\d+)' | sed 's|.*Differential Revision:.*/||'
+   ```
+
+   **If jj:**
+
+   ```bash
+   jj log -r 'trunk()..@' -T description | grep -oP 'Differential Revision:.*/(D\d+)' | sed 's|.*Differential Revision:.*/||'
+   ```
+
+   Then fetch all active Phabricator attachments from Bugzilla:
+
+   ```bash
+   python3 .claude/skills/security-approval/bmo-sec-approval <bug_id> --list
+   ```
+
+   This prints each attachment with its attachment ID, Phabricator revision ID,
+   summary, and existing flags.
+
+   Cross-reference the revisions found in the commits with the attachments from
+   Bugzilla. Present a table like:
+
+   | Revision | Attachment ID | Summary            | Flags | In local commits? |
+   | -------- | ------------- | ------------------ | ----- | ----------------- |
+   | D290715  | 9560245       | Bug 2022604 - ...  |       | Yes               |
+   | D290800  | 9560300       | Bug 2022604 - ...  |       | No                |
+
+   - If exactly **one** attachment matches a local commit revision, suggest it
+     as the default. Ask the user to confirm.
+   - If **multiple** match, ask the user to pick one.
+   - If **none** match (e.g. patch not yet submitted to Phabricator), tell the
+     user to submit the patch first, or let them provide an attachment ID
+     manually.
+
+3. **Dry-run first**: always run with `--dry-run` so the user can verify before
+   posting:
+
+   ```bash
+   python3 .claude/skills/security-approval/bmo-sec-approval \
+       <bug_id> sec-approval-bug-<bug_id>.md --attachment <id> --dry-run
+   ```
+
+   Show the dry-run output to the user and ask for confirmation.
+
+4. **Post**: after the user confirms, run without `--dry-run`:
+
+   ```bash
+   python3 .claude/skills/security-approval/bmo-sec-approval \
+       <bug_id> sec-approval-bug-<bug_id>.md --attachment <id>
+   ```
+
+5. **Report**: show the user the Bugzilla URL from the script output.
 
 ---
 
