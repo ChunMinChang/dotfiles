@@ -233,7 +233,7 @@ For third-party code, use upstream permanent links from `references/upstream-lib
 ### Step 1.5b: Third-Party Library Sub-Workflow (Conditional)
 
 If the root cause involves vendored third-party code (file paths matching
-`references/upstream-libs.md`), activate this sub-workflow:
+`references/upstream-libs.md`), activate this sub-workflow.
 
 #### T1: Check for Local Upstream Repo
 
@@ -242,42 +242,202 @@ Ask the user via AskUserQuestion:
 - If yes: "Where is it?"
 - If no: "Should I clone it? Where?" (suggest `~/Work/{lib-name}`)
 
-#### T2: Scope the Issue
+#### T2: Initial Scope Hypothesis
 
-Evaluate whether the bug is:
+Form an initial hypothesis about where the bug lives:
 - **(a) In the library itself** — would reproduce with standalone upstream tests
 - **(b) In Firefox's integration** — library works correctly but Firefox's wrapper
   code, IPC, threading, or lifecycle management causes the issue
-- **(c) In Firefox's local patches** — check `media/{lib}/` for `.patch` files or
-  diffs from the upstream revision
+- **(c) In Firefox's local patches** — Firefox applies patches on top of the vendored
+  library that introduce or expose the problem. Check `media/{lib}/` for `.patch`
+  files or diffs from the upstream revision.
 
-Document the classification in the analysis doc.
+This is a hypothesis — T3 will confirm or refute it.
 
-#### T3: Create Standalone Library Tests
+#### T3: Diagnostic — Reproduce in Upstream Library
 
-If the issue may be in the library itself (scope a):
-1. Navigate to the local library repo
-2. Identify the library's test framework (see `references/upstream-libs.md`)
-3. Create a minimal test case using the library's native test framework
-4. Run the test to confirm: "Bug reproduces in upstream {lib} at revision {hash}"
-   or "Bug does NOT reproduce upstream — Firefox integration issue"
+**This step is mandatory regardless of the T2 hypothesis.** Even if you suspect a
+Firefox integration issue, always attempt to reproduce in the upstream library
+first. This eliminates false assumptions about where the bug lives.
 
-#### T4: Divergent Fix Strategy
+1. **Code path trace**: Read and trace the suspected code path in the library's own
+   source files. Produce a numbered trace using permanent upstream links (e.g.,
+   `https://gitlab.xiph.org/xiph/vorbis/-/blob/{hash}/lib/sharedbook.c#L355`).
 
-**For the library (upstream fix):**
-- Analyze with broader scope — long-term, architecturally sound solutions
-- Larger changes are acceptable for upstream
-- Note: this fix needs to be submitted upstream then vendored
+2. **Debugging instrumentation**: Add targeted logging (printf, fprintf(stderr),
+   library-specific debug macros) to confirm the traced code path is hit. Capture
+   output in `<output-dir>/bug-<id>-debug-lib-<desc>.log`.
 
-**For Firefox (integration fix / local patch):**
-- Prefer smaller, well-scoped patches
-- If Firefox already applies patches on top, a local patch may be more pragmatic
-- Consider: can we work around the library bug in the integration layer?
+3. **Standalone test**: Create a minimal test case in the library's native test
+   framework (see the Library Test Frameworks table in `references/upstream-libs.md`).
+   The test should exercise the suspected failure condition.
 
-Both strategies appear in Phase 2's Proposed Solutions with their own
-Pros/Cons/Effort/Risk rows.
+4. **Build and run**: Build the library and execute the test.
+
+**The T3 result determines the scope and which branch to follow:**
+
+| T3 Result | Scope | Next Step |
+|-----------|-------|-----------|
+| Bug **reproduces** in upstream library | **(a) Library bug** | → Branch A |
+| Bug **does NOT reproduce** upstream | **(b) Firefox integration** | → Branch B |
+| Bug reproduces **differently** (e.g., different behavior, partial failure, or only under specific threading/config that Firefox uses) | **(a+b) Split scope** | → Branch C |
+
+Document the T3 result and confirmed scope in the analysis doc.
+
+---
+
+#### Branch A: Library Bug (scope a)
+
+The bug exists in the upstream library. Investigation and fix happen primarily in
+the library repo. Use upstream permanent links for all code references.
+
+**A1. Complete library investigation:**
+- **Design intention**: Study git history in the library repo (`git log`, `git blame`,
+  commit messages). Understand why the code was written this way, what constraints
+  the authors faced. This replaces Step 1.6 for third-party code.
+- **Verify claims**: Apply the two-tier rule (Verified vs `[Assumption]`) to all
+  claims about the library code.
+
+**A2. Create Firefox-side regression test:**
+
+Create a test in the Firefox tree that reproduces the issue through Firefox's
+integration layer. This proves Firefox is affected AND will verify that vendoring
+the upstream fix resolves the problem in Firefox.
+
+1. Use the PoC from the bug report (test.html, attached testcases) as the basis
+2. Choose the appropriate Firefox test framework:
+   - **gtest** — C/C++ internal paths that call library APIs directly
+   - **crashtest** — crash-only via web-facing paths (`<audio>`, `<video>`, etc.)
+   - **WPT** — web-exposed, spec-defined behavior
+   - **mochitest** — web-exposed, Firefox-specific behavior
+3. The test MUST fail without the fix and pass with it
+4. Register the test in the appropriate manifest
+5. Run against the unfixed tree to confirm it fails
+
+**A3. Fix strategy:**
+
+Fix the bug in the local library repo. Verify:
+1. The T3 standalone library test now passes
+2. Apply the fix to the vendored copy in Firefox (`media/{lib}/` or `third_party/{lib}/`)
+3. Rebuild Firefox and verify the A2 Firefox test now passes
+
+Phase 2 solutions should include:
+- **Upstream fix**: submit to upstream, then update vendored copy via `./mach vendor`
+  or manual update. Preferred for long-term health. Larger scope acceptable.
+- **Local Firefox patch** (if urgent): apply as a patch on top of the vendored
+  library pending upstream acceptance. Smaller scope, faster to land.
+
+Both appear in the Proposed Solutions with Pros/Cons/Effort/Risk.
+
+---
+
+#### Branch B: Firefox Integration Bug (scope b)
+
+The library works correctly — the bug is in how Firefox uses it (wrapper code, IPC
+actors, threading model, lifecycle management, error handling around library calls).
+
+**B1. Pivot investigation to Firefox code:**
+
+Resume the standard investigation steps, but focused on the integration layer:
+- **Step 1.5** (code path trace): Trace the Firefox integration code using searchfox
+  revision-pinned links. Include the boundary where Firefox calls into the library
+  and how results/errors propagate back.
+- **Step 1.6** (design intention): Study the Firefox integration code's git history.
+  Why was the wrapper written this way? What assumptions does it make about the
+  library's behavior?
+- **Step 1.8** (proof test): Create a Firefox test (gtest/mochitest/crashtest/WPT)
+  that reproduces the integration bug. This is the primary proof test — no separate
+  library test is needed since the library itself is correct.
+- **Step 1.9** (debug logs): Instrument the Firefox integration code.
+
+**B2. Fix strategy (Phase 2):**
+
+The fix is entirely in Firefox's integration layer. Typical fixes:
+- Correct threading assumptions (e.g., library is not thread-safe but Firefox calls
+  it from multiple threads)
+- Fix lifecycle management (e.g., using library object after shutdown)
+- Add missing error handling around library calls
+- Correct IPC serialization of library types
+
+No upstream submission needed. The T3 result ("library works correctly") should be
+documented to prevent future misattribution.
+
+---
+
+#### Branch C: Split Scope (scope a+b, or scope c)
+
+The root cause spans both the library and Firefox's integration. Common patterns:
+- Library has an undocumented API contract; Firefox violates it
+- Library has a threading assumption; Firefox's threading model breaks it
+- Firefox's local patches (`media/{lib}/*.patch`) introduce a bug not in upstream
+- Library returns an error that upstream callers handle but Firefox's wrapper doesn't
+
+**C1. Investigate both layers:**
+
+You need TWO code path traces, TWO design intention studies, and TWO sets of
+permanent links:
+
+- **Library side**: Code path trace with upstream permanent links. Design intention
+  from library git history. Document what the library expects (API contracts,
+  threading model, preconditions).
+- **Firefox side**: Code path trace with searchfox links. Design intention from
+  Firefox git history. Document where Firefox violates the library's expectations
+  or fails to handle a library-side edge case.
+
+For **scope (c)** (Firefox local patches): compare the vendored code against the
+upstream revision to identify what the patches changed and whether the patch
+introduced the bug:
+```bash
+# Diff vendored copy against upstream
+git diff HEAD:media/<lib>/src/file.c <local-lib-repo>/src/file.c
+# Or check for explicit patch files
+ls media/<lib>/*.patch
+```
+
+**C2. Create tests for BOTH layers:**
+
+- **Library test** (T3): Demonstrates the library-side aspect (e.g., the API
+  contract, the edge case the library doesn't handle well). This test may PASS
+  or FAIL depending on whether the library itself has a bug or just an
+  undocumented limitation.
+- **Firefox test** (A2 pattern): Demonstrates the Firefox-side aspect (e.g., the
+  contract violation, the missing error handling). This test MUST fail without fix.
+
+**C3. Fix strategy (Phase 2):**
+
+Present separate strategies for each layer:
+
+| Layer | Fix Type | Scope |
+|-------|----------|-------|
+| Library | Harden API, add validation, document contract | Long-term, submit upstream |
+| Firefox | Respect API contract, add error handling, fix threading | Smaller scope, land in Firefox |
+
+Both fixes may be needed. The analysis doc should clarify:
+- Which fix is **necessary** (without it the bug persists)
+- Which fix is **defensive** (hardens against the class of bug)
+- Landing order: Firefox fix can land immediately; library fix goes upstream then
+  gets vendored later
+
+For **scope (c)**: evaluate whether to fix the local patch, replace it with
+a better patch, or remove it entirely (if upstream now handles the case).
+
+---
+
+#### Summary: Required Tests by Scope
+
+| Scope | Library Test (T3) | Firefox Test | Notes |
+|-------|-------------------|--------------|-------|
+| **(a) Library bug** | Yes — must FAIL | Yes (A2) — must FAIL | Both required |
+| **(b) Firefox integration** | Diagnostic only (PASSES) | Yes (B1) — must FAIL | Only Firefox test is proof |
+| **(a+b/c) Split** | Yes — may PASS or FAIL | Yes (C2) — must FAIL | Both required, separate evidence |
 
 ### Step 1.6: Study Design Intention
+
+**Note:** If Step 1.5b is active:
+- **Branch A** (library bug): design intention is done in the library repo (A1). Skip this step.
+- **Branch B** (Firefox integration): this step applies — study Firefox integration code.
+- **Branch C** (split): design intention is needed for BOTH layers (C1). Do this step
+  for the Firefox side; the library side is covered in C1.
 
 After identifying the root cause code, study HOW and WHY it was introduced:
 
@@ -528,3 +688,8 @@ Append the **## Proposed Solutions** section to the analysis doc with:
 - Compare multiple failure instances (at least 2 task IDs) before forming a root
   cause hypothesis for intermittent failures
 - The test suite name in Treeherder is often the fastest clue to the root cause area
+- For vendored third-party library bugs: always run the T3 diagnostic first to
+  determine scope. Then follow the appropriate branch:
+  - **Branch A** (library bug): library test + Firefox test, upstream fix
+  - **Branch B** (Firefox integration): Firefox test only, integration fix
+  - **Branch C** (split): both tests, fixes in both layers
