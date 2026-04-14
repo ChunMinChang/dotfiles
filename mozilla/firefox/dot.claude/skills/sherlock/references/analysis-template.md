@@ -128,6 +128,12 @@ Library: {name} (upstream revision: `{hash}`)
 - [`bug-{id}-test-run.log`](./bug-{id}-test-run.log) — {Firefox test output}
 - [`bug-{id}-test-run-firefox.log`](./bug-{id}-test-run-firefox.log) — {Firefox test output, Branch C}
 
+### Instrumentation Patches
+> Patches that add debugging instrumentation. Reapplicable if investigation needs to be repeated.
+
+- [`bug-{id}-debug-firefox-instrumentation.patch`](./bug-{id}-debug-firefox-instrumentation.patch) — {what was instrumented in Firefox code}
+- [`bug-{id}-debug-lib-instrumentation.patch`](./bug-{id}-debug-lib-instrumentation.patch) — {what was instrumented in library code} *(Branch A/C only)*
+
 ### Test Notes
 {Any notes on test robustness, FuzzingFunctions conversion, or why a test was skipped.}
 

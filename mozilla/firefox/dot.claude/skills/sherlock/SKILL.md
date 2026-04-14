@@ -264,9 +264,21 @@ first. This eliminates false assumptions about where the bug lives.
    source files. Produce a numbered trace using permanent upstream links (e.g.,
    `https://gitlab.xiph.org/xiph/vorbis/-/blob/{hash}/lib/sharedbook.c#L355`).
 
-2. **Debugging instrumentation**: Add targeted logging (printf, fprintf(stderr),
-   library-specific debug macros) to confirm the traced code path is hit. Capture
-   output in `<output-dir>/bug-<id>-debug-lib-<desc>.log`.
+2. **Debugging instrumentation**: Add targeted logging to confirm the traced code
+   path is hit during test execution. Generate the instrumentation as a patch:
+   ```bash
+   # In the local library repo — add logging, then generate patch
+   # Edit files to add printf/fprintf(stderr)/library debug macros at key points
+   git diff > <output-dir>/bug-<id>-debug-lib-instrumentation.patch
+   ```
+   Common instrumentation patterns for C/C++ libraries:
+   - `fprintf(stderr, "SHERLOCK: %s:%d reached\\n", __FILE__, __LINE__);`
+   - `fprintf(stderr, "SHERLOCK: value=%d\\n", variable);`
+   - Library-specific debug macros if available (e.g., `aom_internal_error`, `dav1d_log`)
+
+   Keep the patch as an artifact — it documents exactly what was added and is
+   reapplicable if the investigation needs to be repeated. Capture test output
+   with instrumentation in `<output-dir>/bug-<id>-debug-lib-<desc>.log`.
 
 3. **Standalone test**: Create a minimal test case in the library's native test
    framework (see the Library Test Frameworks table in `references/upstream-libs.md`).
@@ -371,7 +383,9 @@ Resume the standard investigation steps, but focused on the integration layer:
 - **Step 1.8** (proof test): Create a Firefox test (gtest/mochitest/crashtest/WPT)
   that reproduces the integration bug. This is the primary proof test — no separate
   library test is needed since the library itself is correct.
-- **Step 1.9** (debug logs): Instrument the Firefox integration code.
+- **Step 1.9** (debug logs): Instrument the Firefox integration code. Generate
+  a patch (`bug-<id>-debug-firefox-instrumentation.patch`) as described in
+  Step 1.8e. Capture output, then revert the instrumentation.
 
 **B2. Fix strategy (Phase 2):**
 
@@ -589,9 +603,31 @@ The test must:
 
 #### 1.8e: Add Debugging Instrumentation
 
-Add targeted logging (MOZ_LOG, printf, `info()`) to confirm the traced code path
-is actually hit during test execution. This produces the debug logs that verify
-your code path trace.
+Add targeted logging to confirm the traced code path is actually hit during test
+execution. Generate the instrumentation as a patch so it is reproducible and
+reviewable:
+
+```bash
+# In the Firefox tree — add logging, then generate patch
+# Edit files to add instrumentation at key points in the traced code path
+git diff > <output-dir>/bug-<id>-debug-firefox-instrumentation.patch
+```
+
+Common instrumentation patterns for Firefox C++/JS:
+- **MOZ_LOG**: `MOZ_LOG(gMediaDecoderLog, LogLevel::Debug, ("SHERLOCK: %s:%d", __FILE__, __LINE__));`
+- **printf** (quick and dirty): `printf("SHERLOCK: reached %s:%d\n", __FILE__, __LINE__);`
+- **Mochitest JS**: `info("SHERLOCK: state=" + variable);`
+- **GTest**: `GTEST_LOG_(INFO) << "SHERLOCK: value=" << variable;`
+
+Keep the patch as an artifact in the output directory. It documents exactly what
+was added, is reapplicable if the investigation needs to be repeated, and should
+be reverted after debug logs are captured:
+
+```bash
+# After capturing logs, revert instrumentation
+git checkout -- <modified files>
+# Or: git apply -R <output-dir>/bug-<id>-debug-firefox-instrumentation.patch
+```
 
 #### When NOT to Write a Test
 
@@ -615,7 +651,13 @@ logs captured within the branch workflow:
 - **Branch B**: B1 ran the Firefox test with debug instrumentation
 - **Branch C**: T3 ran the library test; C2 ran the Firefox test
 
-Execute tests and capture output:
+**1. Apply instrumentation** (from Step 1.8e):
+```bash
+git apply <output-dir>/bug-<id>-debug-firefox-instrumentation.patch
+./mach build binaries   # rebuild with instrumentation
+```
+
+**2. Run tests and capture output:**
 ```bash
 ./mach test <path> --headless 2>&1 | tee <output-dir>/bug-<id>-test-run.log
 ```
@@ -625,7 +667,21 @@ Additional debug logs go in separate files:
 <output-dir>/bug-<id>-debug-<description>.log
 ```
 
-**Evaluate results:**
+**3. Revert instrumentation** after capturing logs:
+```bash
+git apply -R <output-dir>/bug-<id>-debug-firefox-instrumentation.patch
+```
+
+**Output artifacts:**
+
+| File | Contents |
+|------|----------|
+| `bug-<id>-debug-firefox-instrumentation.patch` | Instrumentation added to Firefox code |
+| `bug-<id>-debug-lib-instrumentation.patch` | Instrumentation added to library code (1.5b only) |
+| `bug-<id>-test-run.log` | Test execution output |
+| `bug-<id>-debug-<desc>.log` | Targeted debug output from instrumentation |
+
+**4. Evaluate results:**
 - Test **FAILS as expected** → confirms root cause, record as evidence
 - Test **PASSES** (contradicts hypothesis) → re-examine root cause, loop back to 1.4
 - Test **inconclusive** → note as `[Assumption]`, document what would make it conclusive
