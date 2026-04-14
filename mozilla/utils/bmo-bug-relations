@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+"""List Bugzilla bug relations (depends-on and blocks).
+
+Takes a BMO bug number or URL, fetches its dependency and blocking
+relations, and outputs a markdown file.
+
+Usage:
+    bmo-bug-relations <bug-id-or-url> [-o FILE]
+    bmo-bug-relations --check-auth
+
+Examples:
+    bmo-bug-relations 2030637
+    bmo-bug-relations https://bugzilla.mozilla.org/show_bug.cgi?id=2030637
+    bmo-bug-relations 2030637 -o relations.md
+
+API key resolution (first match wins):
+    1. $BMO_API_KEY environment variable
+    2. api_key in ~/.config/bugzilla/config.toml
+    3. api_key in ~/.config/bmo-to-md/config.toml
+"""
+
+import argparse
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+
+BMO = "https://bugzilla.mozilla.org"
+BMO_CONFIG = os.path.expanduser("~/.config/bugzilla/config.toml")
+BMO_TO_MD_CONFIG = os.path.expanduser("~/.config/bmo-to-md/config.toml")
+
+
+def _read_toml_api_key(path):
+    """Read api_key from a TOML file. Returns the value or None."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("api_key"):
+                    _, _, val = line.partition("=")
+                    val = val.strip().strip('"').strip("'")
+                    if val:
+                        return val
+    except OSError:
+        pass
+    return None
+
+
+def resolve_api_key():
+    """Resolve BMO API key without ever printing it.
+
+    Checks, in order:
+      1. $BMO_API_KEY environment variable
+      2. api_key in ~/.config/bugzilla/config.toml
+      3. api_key in ~/.config/bmo-to-md/config.toml
+    Returns (key, source) or (None, None).
+    """
+    env = os.environ.get("BMO_API_KEY", "").strip()
+    if env:
+        return env, "$BMO_API_KEY"
+    for path in (BMO_CONFIG, BMO_TO_MD_CONFIG):
+        val = _read_toml_api_key(path)
+        if val:
+            return val, path
+    return None, None
+
+
+def check_auth():
+    """Print whether an API key is available (never prints the key)."""
+    key, source = resolve_api_key()
+    if key:
+        print(f"OK: API key found via {source}")
+    else:
+        print("error: no Bugzilla API key found", file=sys.stderr)
+        print(
+            "\nTo access private bugs, configure your API key using one of:\n"
+            "\n"
+            "  Option 1 — Persistent (recommended):\n"
+            f"    mkdir -p ~/.config/bugzilla && cat > {BMO_CONFIG} << 'EOF'\n"
+            '    api_key = "YOUR_KEY"\n'
+            "    EOF\n"
+            f"    chmod 600 {BMO_CONFIG}\n"
+            "\n"
+            "  Option 2 — Current session only:\n"
+            '    export BMO_API_KEY="YOUR_KEY"\n'
+            "\n"
+            "Get your API key at: "
+            "https://bugzilla.mozilla.org/userprefs.cgi?tab=apikey",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def api_get(path, api_key=None):
+    """Make a GET request to the Bugzilla REST API."""
+    url = f"{BMO}/rest/{path}"
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["X-BUGZILLA-API-KEY"] = api_key
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read()), resp.status
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode(errors="replace")
+        return {"error": True, "code": e.code, "message": err_body}, e.code
+    except urllib.error.URLError as e:
+        print(f"error: {e.reason}", file=sys.stderr)
+        sys.exit(1)
+
+
+def extract_bug_id(arg):
+    """Extract a bug ID from a number or BMO URL."""
+    # Plain number
+    if re.fullmatch(r"\d+", arg):
+        return arg
+    # URL patterns
+    m = re.search(r"bugzilla\.mozilla\.org/show_bug\.cgi\?id=(\d+)", arg)
+    if m:
+        return m.group(1)
+    m = re.search(r"bugzilla\.mozilla\.org/rest/bug/(\d+)", arg)
+    if m:
+        return m.group(1)
+    # Last resort: any number in the string
+    m = re.search(r"(\d{4,})", arg)
+    if m:
+        return m.group(1)
+    return None
+
+
+def fetch_bug(bug_id, api_key=None):
+    """Fetch a bug. Try without key first; use key if needed."""
+    fields = "id,summary,depends_on,blocks,status,resolution"
+    data, status = api_get(f"bug/{bug_id}?include_fields={fields}",
+                           api_key=api_key)
+    return data, status
+
+
+def fetch_bugs_batch(bug_ids, api_key=None):
+    """Fetch multiple bugs in one request. Returns {id: bug_dict}."""
+    if not bug_ids:
+        return {}
+    ids_param = ",".join(str(b) for b in bug_ids)
+    fields = "id,summary,status,resolution"
+    data, status = api_get(f"bug?id={ids_param}&include_fields={fields}",
+                           api_key=api_key)
+    if status != 200 or "bugs" not in data:
+        return {}
+    return {bug["id"]: bug for bug in data["bugs"]}
+
+
+def format_bug_line(bug_id, bugs_info):
+    """Format a single bug as a markdown list item."""
+    info = bugs_info.get(bug_id)
+    url = f"{BMO}/show_bug.cgi?id={bug_id}"
+    if info:
+        summary = info.get("summary", "")
+        status = info.get("status", "")
+        resolution = info.get("resolution", "")
+        state = status
+        if resolution:
+            state = f"{status} {resolution}"
+        return f"- [Bug {bug_id}]({url}) — ({state}) {summary}"
+    return f"- [Bug {bug_id}]({url}) — (restricted)"
+
+
+def generate_markdown(bug_id, bug_data, deps_info, blocks_info):
+    """Generate markdown output."""
+    summary = bug_data.get("summary", "")
+    status = bug_data.get("status", "")
+    resolution = bug_data.get("resolution", "")
+    depends_on = bug_data.get("depends_on", [])
+    blocks = bug_data.get("blocks", [])
+
+    state = status
+    if resolution:
+        state = f"{status} {resolution}"
+
+    lines = []
+    lines.append(f"# [Bug {bug_id}]({BMO}/show_bug.cgi?id={bug_id})")
+    lines.append(f"**{summary}** ({state})")
+
+    if depends_on:
+        lines.append(f"## Depends on ({len(depends_on)})")
+        for dep_id in sorted(depends_on):
+            lines.append(format_bug_line(dep_id, deps_info))
+    else:
+        lines.append("## Depends on")
+        lines.append("None")
+
+    if blocks:
+        lines.append(f"## Blocks ({len(blocks)})")
+        for blk_id in sorted(blocks):
+            lines.append(format_bug_line(blk_id, blocks_info))
+    else:
+        lines.append("## Blocks")
+        lines.append("None")
+
+    return "\n".join(lines) + "\n"
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "bug", nargs="?",
+        help="Bug ID or BMO URL (e.g. 2030637 or "
+             "https://bugzilla.mozilla.org/show_bug.cgi?id=2030637)",
+    )
+    parser.add_argument(
+        "-o", "--output", metavar="FILE",
+        help="Output file (default: bug-<id>-deps.md)",
+    )
+    parser.add_argument(
+        "--check-auth", action="store_true",
+        help="Check if an API key is available and exit",
+    )
+    args = parser.parse_args()
+
+    if args.check_auth:
+        check_auth()
+        return
+
+    if not args.bug:
+        parser.error("bug ID or URL is required")
+
+    bug_id = extract_bug_id(args.bug)
+    if not bug_id:
+        print(f"error: cannot extract bug ID from: {args.bug}", file=sys.stderr)
+        sys.exit(1)
+
+    # Try fetching without API key first (works for public bugs)
+    api_key = None
+    data, status = fetch_bug(bug_id)
+
+    if status in (401, 403):
+        # Private bug — need API key
+        key, source = resolve_api_key()
+        if not key:
+            print(
+                f"error: Bug {bug_id} requires authentication but no "
+                "Bugzilla API key was found.\n",
+                file=sys.stderr,
+            )
+            print(
+                "Configure your API key using one of:\n"
+                "\n"
+                "  Option 1 — Persistent (recommended):\n"
+                f"    mkdir -p ~/.config/bugzilla && cat > {BMO_CONFIG}"
+                " << 'EOF'\n"
+                '    api_key = "YOUR_KEY"\n'
+                "    EOF\n"
+                f"    chmod 600 {BMO_CONFIG}\n"
+                "\n"
+                "  Option 2 — Current session only:\n"
+                '    export BMO_API_KEY="YOUR_KEY"\n'
+                "\n"
+                "Get your API key at: "
+                "https://bugzilla.mozilla.org/userprefs.cgi?tab=apikey",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        api_key = key
+        data, status = fetch_bug(bug_id, api_key=api_key)
+
+    if status != 200 or "bugs" not in data:
+        msg = data.get("message", str(data)) if isinstance(data, dict) else data
+        print(f"error: failed to fetch bug {bug_id}: {msg}", file=sys.stderr)
+        sys.exit(1)
+
+    bug_data = data["bugs"][0]
+    depends_on = bug_data.get("depends_on", [])
+    blocks = bug_data.get("blocks", [])
+
+    # Fetch details for all related bugs
+    all_related = set(depends_on) | set(blocks)
+    deps_info = {}
+    blocks_info = {}
+    if all_related:
+        related_info = fetch_bugs_batch(list(all_related), api_key=api_key)
+        deps_info = related_info
+        blocks_info = related_info
+
+    md = generate_markdown(bug_id, bug_data, deps_info, blocks_info)
+
+    output_file = args.output or f"bug-{bug_id}-relations.md"
+    with open(output_file, "w") as f:
+        f.write(md)
+    print(f"Written to {output_file}")
+
+
+if __name__ == "__main__":
+    main()
