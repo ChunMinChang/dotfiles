@@ -1,3 +1,15 @@
+<!--
+SANITIZATION CHECKLIST — verify before finalizing:
+- [ ] No mention of Firefox, Gecko, Mozilla, or any browser name
+- [ ] No Bugzilla links or Firefox bug numbers
+- [ ] No searchfox.org links (use upstream forge links only)
+- [ ] No sec-* ratings or security exploitation details
+- [ ] No description of how the issue can be triggered via web content
+- [ ] No references to Firefox-specific concepts (IPC, content process, sandbox, etc.)
+- [ ] Issue described purely in terms of the library's API and internal behavior
+- [ ] For split-scope (Branch C): framed as a bug, hardening request, or documentation
+  request — not as "our integration violates your contract"
+-->
 # {library_name}: {concise issue title}
 
 ## Summary
@@ -44,4 +56,4 @@ Every claim must be backed by a code reference.}
 
 {If a patch is available:}
 **Patch**: {link to branch/commit in the local repo, or inline diff}
-**Verified**: T3 standalone test passes after applying this fix.
+**Verified**: Standalone test passes after applying this fix.

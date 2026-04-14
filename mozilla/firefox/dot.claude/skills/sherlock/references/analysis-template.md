@@ -36,27 +36,50 @@ Suggested rating: **sec-{level}** because:
 - **Trees**: {autoland, mozilla-central, try}
 - **Date range**: {last 7 days from YYYY-MM-DD to YYYY-MM-DD}
 
+## Third-Party Library Classification
+> Include this section ONLY when the root cause involves vendored third-party code (Step 1.5b active). Delete for Firefox-only bugs.
+
+- **Library**: {name} (vendored at `media/{lib}/` or `third_party/{lib}/`)
+- **Upstream repo**: {upstream URL}
+- **Vendored revision**: `{hash}`
+- **T3 diagnostic result**: {Reproduces upstream / Does NOT reproduce upstream / Reproduces differently}
+- **Confirmed scope**: {(a) Library bug / (b) Firefox integration / (a+b) Split scope / (c) Firefox local patches}
+- **Branch followed**: {A / B / C}
+- **Upstream report**: [`bug-{id}-upstream-{library}.md`](./bug-{id}-upstream-{library}.md) *(Branch A and C only)*
+
 ## Code Path Trace
 
-### Entry Point
+### Firefox Code Path
 [`EntryFunction`]({permanent-searchfox-link}) — {what it does}
 
-### Trace
-1. [`Namespace::Caller`]({permanent-link}#L{line}) — {description}
+1. [`Namespace::Caller`]({permanent-searchfox-link}#L{line}) — {description}
    - {What happens at this step, with evidence}
-2. [`Namespace::Callee`]({permanent-link}#L{line}) — {description}
+2. [`Namespace::Callee`]({permanent-searchfox-link}#L{line}) — {description}
    - {What goes wrong here, citing specific lines}
 3. ...
 
-### Third-Party Code
-> Include this subsection only if the trace enters vendored third-party code.
+### Third-Party Library Code Path
+> Include this subsection for Branch A, Branch C, or whenever the trace enters vendored third-party code. Use upstream permanent links.
 
-Library: {name} (vendored revision: `{hash}`)
-- [`upstream_function`]({permanent-upstream-link}) — {description}
-- Scope: {library bug / Firefox integration issue / Firefox local patch}
+Library: {name} (upstream revision: `{hash}`)
+
+1. [`upstream_function`]({permanent-upstream-link}#L{line}) — {description}
+   - {What happens in the library code}
+2. [`next_function`]({permanent-upstream-link}#L{line}) — {description}
+   - {Where the defect occurs in the library}
+3. ...
+
+### Integration Boundary
+> Include this subsection for Branch B and Branch C. Document where Firefox calls into the library and how results/errors propagate back.
+
+- **Firefox → Library**: [`wrapper_call`]({searchfox-link}) calls [`lib_api`]({upstream-link})
+- **Library → Firefox**: return value / callback / error code at [`handler`]({searchfox-link})
+- **Contract violation** (if any): {what the library expects vs what Firefox does}
 
 ## Design Intention
-{Study of HOW and WHY the root cause code was introduced.}
+
+### Firefox Side
+> For Branch B, Branch C, or Firefox-only bugs.
 
 - **Introducing commit**: {hash} ([Bug {id}](bugzilla-link))
 - **Original purpose**: {What problem this code was originally solving}
@@ -64,6 +87,15 @@ Library: {name} (vendored revision: `{hash}`)
 - **Constraints/tradeoffs**: {What limitations shaped the design}
 - **Function contract**: {Preconditions, postconditions, invariants}
 - **How root cause relates**: {Does the bug violate the original design, or reveal a gap in it?}
+
+### Library Side
+> For Branch A and Branch C. Use upstream commit references.
+
+- **Introducing commit**: `{upstream_hash}` ({upstream commit message summary})
+- **Original purpose**: {What problem this library code was solving}
+- **Design rationale**: {Why the library authors chose this approach}
+- **API contract / assumptions**: {Threading model, preconditions, documented or undocumented}
+- **How root cause relates**: {Library bug, missing validation, undocumented limitation?}
 
 ## Root Cause
 {Clear statement of WHY the bug occurs.}
@@ -78,14 +110,23 @@ Library: {name} (vendored revision: `{hash}`)
 
 ## Test Evidence
 
-### Proof Tests
+### Firefox Proof Tests
 | Test | Framework | Purpose | Result |
 |------|-----------|---------|--------|
 | `{path/to/test}` | gtest/mochitest/WPT/crashtest | Demonstrates {what} | FAIL (confirms root cause) |
 
+### Library Standalone Tests
+> Include for Branch A and Branch C only. Delete for Firefox-only bugs.
+
+| Test | Framework | Repo | Purpose | Result |
+|------|-----------|------|---------|--------|
+| `{path/in/lib/tests}` | googletest/meson/custom | {library_name} @ `{hash}` | Demonstrates {what} | FAIL/PASS |
+
 ### Debug Logs
 - [`bug-{id}-debug-{desc}.log`](./bug-{id}-debug-{desc}.log) — {what it shows}
-- [`bug-{id}-test-run.log`](./bug-{id}-test-run.log) — {test execution output}
+- [`bug-{id}-debug-lib-{desc}.log`](./bug-{id}-debug-lib-{desc}.log) — {library debug output}
+- [`bug-{id}-test-run.log`](./bug-{id}-test-run.log) — {Firefox test output}
+- [`bug-{id}-test-run-firefox.log`](./bug-{id}-test-run-firefox.log) — {Firefox test output, Branch C}
 
 ### Test Notes
 {Any notes on test robustness, FuzzingFunctions conversion, or why a test was skipped.}
