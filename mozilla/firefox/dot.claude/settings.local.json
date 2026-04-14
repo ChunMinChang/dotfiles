@@ -6,7 +6,9 @@
       "Bash(searchfox-cli:*)",
       "Bash(./.claude/hooks/should-format-lint.sh:*)",
       "Bash(./mach vendor:*)",
-      "Bash(./mach static-analysis:*)"
+      "Bash(./mach static-analysis:*)",
+      "Bash(.claude/skills/sherlock/sherlock-config:*)",
+      "Bash(bmo-to-md:*)"
     ]
   },
   "model": "opusplan",
