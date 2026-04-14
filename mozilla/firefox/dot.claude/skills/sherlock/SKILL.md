@@ -417,14 +417,16 @@ git diff HEAD:media/<lib>/src/file.c <local-lib-repo>/src/file.c
 ls media/<lib>/*.patch
 ```
 
-**C2. Create tests for BOTH layers:**
+**C2. Create and run tests for BOTH layers:**
 
-- **Library test** (T3): Demonstrates the library-side aspect (e.g., the API
-  contract, the edge case the library doesn't handle well). This test may PASS
-  or FAIL depending on whether the library itself has a bug or just an
-  undocumented limitation.
-- **Firefox test** (A2 pattern): Demonstrates the Firefox-side aspect (e.g., the
-  contract violation, the missing error handling). This test MUST fail without fix.
+- **Library test** (from T3): Already created and run in T3. The result (PASS or
+  FAIL) indicates whether the library itself has a bug or just an undocumented
+  limitation.
+- **Firefox test** (A2 pattern): Create a Firefox-side test that demonstrates the
+  integration aspect (e.g., the contract violation, the missing error handling).
+  Follow A2 steps 1-5: choose framework, register in manifest, run against the
+  unfixed tree. This test MUST fail without fix. Capture output in
+  `<output-dir>/bug-<id>-test-run-firefox.log`.
 
 **C3. Generate upstream report (if library-side fix needed):**
 
@@ -471,11 +473,11 @@ a better patch, or remove it entirely (if upstream now handles the case).
 
 ### Step 1.6: Study Design Intention
 
-**Note:** If Step 1.5b is active:
-- **Branch A** (library bug): design intention is done in the library repo (A1). Skip this step.
-- **Branch B** (Firefox integration): this step applies — study Firefox integration code.
-- **Branch C** (split): design intention is needed for BOTH layers (C1). Do this step
-  for the Firefox side; the library side is covered in C1.
+**Note:** If Step 1.5b is active, skip this step — design intention is already
+covered within the branch workflow:
+- **Branch A**: done in A1 (library repo)
+- **Branch B**: done in B1 (Firefox integration code)
+- **Branch C**: done in C1 (both layers)
 
 After identifying the root cause code, study HOW and WHY it was introduced:
 
@@ -535,6 +537,12 @@ only address the symptom.
 - [ ] For intermittency: distinguish known trigger vs plausible explanation
 
 ### Step 1.8: Evaluate and Create Proof Tests
+
+**Note:** If Step 1.5b is active, skip this step — proof tests are already created
+within the branch workflow:
+- **Branch A**: T3 (library test) + A2 (Firefox test)
+- **Branch B**: B1 (Firefox proof test)
+- **Branch C**: C2 (both library and Firefox tests)
 
 Read `references/test-frameworks.md` for framework selection and FuzzingFunctions mapping.
 
@@ -600,6 +608,12 @@ Crashtest is acceptable (~50% detection) when:
 If no test: document rationale in Test Evidence section of the analysis doc.
 
 ### Step 1.9: Run Tests and Capture Debug Logs
+
+**Note:** If Step 1.5b is active, skip this step — tests are already run and debug
+logs captured within the branch workflow:
+- **Branch A**: T3 ran the library test; A2 ran the Firefox test
+- **Branch B**: B1 ran the Firefox test with debug instrumentation
+- **Branch C**: T3 ran the library test; C2 ran the Firefox test
 
 Execute tests and capture output:
 ```bash
