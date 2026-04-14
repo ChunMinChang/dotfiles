@@ -314,12 +314,35 @@ the upstream fix resolves the problem in Firefox.
 4. Register the test in the appropriate manifest
 5. Run against the unfixed tree to confirm it fails
 
-**A3. Fix strategy:**
+**A3. Generate upstream report:**
+
+Generate a second, concise analysis document for reporting to the upstream library
+maintainers. Read `references/upstream-report-template.md` for the template.
+
+Write to `<output-dir>/bug-<id>-upstream-<library>.md`.
+
+**Critical rules for the upstream report:**
+- Use ONLY upstream permanent links — no searchfox, no Firefox paths
+- Do NOT mention Firefox, Gecko, or any browser-specific context
+- Do NOT include security exploitation details, sec-* ratings, or how the bug
+  can be triggered via web content
+- Do NOT include Bugzilla links or Firefox bug numbers
+- Describe the issue purely in terms of the library's API and internal behavior
+- Include the T3 standalone test case (or reference it)
+- Include the library-side code path trace from A1
+- If a fix is verified (A4), include it as a suggested fix
+
+This report should be suitable for filing as an upstream bug report or attaching
+to a pull request / issue tracker entry.
+
+**A4. Fix strategy:**
 
 Fix the bug in the local library repo. Verify:
 1. The T3 standalone library test now passes
 2. Apply the fix to the vendored copy in Firefox (`media/{lib}/` or `third_party/{lib}/`)
 3. Rebuild Firefox and verify the A2 Firefox test now passes
+4. Update the upstream report (`bug-<id>-upstream-<library>.md`) with the
+   suggested fix if verified
 
 Phase 2 solutions should include:
 - **Upstream fix**: submit to upstream, then update vendored copy via `./mach vendor`
@@ -403,7 +426,22 @@ ls media/<lib>/*.patch
 - **Firefox test** (A2 pattern): Demonstrates the Firefox-side aspect (e.g., the
   contract violation, the missing error handling). This test MUST fail without fix.
 
-**C3. Fix strategy (Phase 2):**
+**C3. Generate upstream report (if library-side fix needed):**
+
+If the library has a bug, undocumented limitation, or missing hardening that
+contributes to the issue, generate an upstream report following the same rules
+as Branch A step A3. Read `references/upstream-report-template.md`.
+
+Write to `<output-dir>/bug-<id>-upstream-<library>.md`.
+
+**For split-scope reports, frame the issue from the library's perspective:**
+- If the library has a bug: report it as a bug
+- If the library has an undocumented API contract: frame as a documentation or
+  hardening request ("library should validate X" or "document that callers must Y")
+- Do NOT reveal the Firefox-side contract violation or exploitation path
+- Do NOT include Firefox security ratings or Bugzilla links
+
+**C4. Fix strategy (Phase 2):**
 
 Present separate strategies for each layer:
 
@@ -578,21 +616,35 @@ Additional debug logs go in separate files:
 - Test **PASSES** (contradicts hypothesis) → re-examine root cause, loop back to 1.4
 - Test **inconclusive** → note as `[Assumption]`, document what would make it conclusive
 
-### Step 1.10: Generate Analysis Document
+### Step 1.10: Generate Analysis Documents
+
+**Primary analysis document** (always required):
 
 Read `references/analysis-template.md` for the template structure.
 
-**Create the file:**
 ```bash
 mkdir -p <output-dir>
 ```
 Use the Write tool to create `<output-dir>/bug-<id>-analysis.md`.
 
-**IMPORTANT:**
+Requirements:
 - Fill ALL sections with actual content (no placeholders)
 - Verify with Read tool after creation
 - Verify all links are revision-pinned (not trunk URLs)
 - Ensure the Design Intention section is present and filled
+
+**Upstream report** (required for Branch A and Branch C with library-side fix):
+
+If Step 1.5b produced a Branch A (library bug) or Branch C (split scope with
+library-side component), the upstream report should already have been generated
+in step A3 or C3. Verify it exists at `<output-dir>/bug-<id>-upstream-<library>.md`.
+
+If not yet created, generate it now using `references/upstream-report-template.md`.
+The upstream report must:
+- Contain NO Firefox/browser/Bugzilla references
+- Contain NO security exploitation details or sec-* ratings
+- Use ONLY upstream permanent links
+- Be self-contained and suitable for filing with the library's issue tracker
 
 ### Step 1.11: Log to History
 
