@@ -8,7 +8,7 @@
 - **Status**: {status}
 - **Public**: {Yes/No}
 - **Analysis Date**: {YYYY-MM-DD}
-- **Searchfox Revision**: [`{short_hash}`](https://searchfox.org/mozilla-central/rev/{full_hash}) (pinned for all links in this document)
+- **Searchfox Revision**: [`{short_hash}`](https://searchfox.org/firefox-main/rev/{full_hash}) (pinned for all links in this document)
 
 {2-3 sentence root cause finding. Update whenever root cause changes.}
 

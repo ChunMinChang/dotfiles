@@ -32,8 +32,7 @@ https://searchfox.org/{repo}/rev/{hash}/{path}#{start}-{end}
 
 | Repo ID | Description |
 |---------|-------------|
-| mozilla-central | Firefox trunk (legacy name, still works) |
-| firefox-main | Firefox trunk (current primary) |
+| firefox-main | Firefox trunk (primary) |
 | firefox-beta / mozilla-beta | Beta branch |
 | firefox-release / mozilla-release | Release branch |
 | firefox-esr115 | ESR 115 |
@@ -44,9 +43,9 @@ https://searchfox.org/{repo}/rev/{hash}/{path}#{start}-{end}
 ### Revision Resolution Strategy
 
 1. Get local revision: `git rev-parse HEAD`
-2. Validate on searchfox: WebFetch `https://searchfox.org/mozilla-central/rev/{hash}/moz.configure`
+2. Validate on searchfox: WebFetch `https://searchfox.org/firefox-main/rev/{hash}/moz.configure`
    - If 200: use this hash for all links in the session
-   - If 404 (searchfox hasn't indexed this rev yet): fetch `https://searchfox.org/mozilla-central/source/moz.configure` and extract the indexed revision from the page content
+   - If 404 (searchfox hasn't indexed this rev yet): fetch `https://searchfox.org/firefox-main/source/moz.configure` and extract the indexed revision from the page content
 3. Cache the validated revision for the entire session ($SHERLOCK_REV)
 4. For ESR/beta branches: repeat with the appropriate repo ID
 
@@ -133,7 +132,7 @@ Format: `[Section Name](full URL with anchor)`
 ## Examples
 
 **Searchfox (revision-pinned):**
-[`MediaDecoder::Shutdown`](https://searchfox.org/mozilla-central/rev/8fe6930c0832009b3162bebee7d4ede1a4c8c9a8/dom/media/MediaDecoder.cpp#456)
+[`MediaDecoder::Shutdown`](https://searchfox.org/firefox-main/rev/8fe6930c0832009b3162bebee7d4ede1a4c8c9a8/dom/media/MediaDecoder.cpp#456)
 
 **Searchfox (WebKit):**
 [`MediaPlayer::pause`](https://searchfox.org/wubkat/rev/abc123def456/Source/WebCore/platform/graphics/MediaPlayer.cpp#120)

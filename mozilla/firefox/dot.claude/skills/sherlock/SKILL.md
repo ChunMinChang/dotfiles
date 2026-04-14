@@ -50,7 +50,7 @@ Parse the arguments:
 1. **Every claim needs evidence or `[Assumption]` label** — do not state hypotheses
    as facts. Read the code before making any claim about code behavior.
 2. **ALWAYS use revision-pinned links** — read `references/source-permalinks.md`.
-   Never use trunk/tip URLs (`mozilla-central/source/...`) in the analysis doc.
+   Never use trunk/tip URLs (`firefox-main/source/...`) in the analysis doc.
 3. **Tests are PROOFS for root cause claims** — they must demonstrate the root cause
    is correct. They are reusable for TDD later, but their primary purpose here is evidence.
 4. **Debug logs go in separate files** — never inline multi-line log output in the
@@ -118,9 +118,9 @@ mcp__moz__get_bugzilla_bug(bug_id: {bug_id})
 Pin a searchfox revision for the entire session so all links are permanent:
 
 1. Get local HEAD: `git rev-parse HEAD`
-2. Validate on searchfox: `WebFetch https://searchfox.org/mozilla-central/rev/<hash>/moz.configure`
+2. Validate on searchfox: `WebFetch https://searchfox.org/firefox-main/rev/<hash>/moz.configure`
    - If the page loads (200): use this hash as `$SHERLOCK_REV`
-   - If 404 (not yet indexed): fetch `https://searchfox.org/mozilla-central/source/moz.configure`
+   - If 404 (not yet indexed): fetch `https://searchfox.org/firefox-main/source/moz.configure`
      and extract the latest indexed revision from the page
 3. Use `$SHERLOCK_REV` for ALL searchfox links in this session
 4. For ESR/beta branches: repeat with the appropriate repo ID (e.g., `firefox-esr128`)
@@ -222,7 +222,7 @@ produce a revision-pinned link using `$SHERLOCK_REV`.
 
 Format as a numbered trace:
 ```
-1. [`Class::Method`](https://searchfox.org/mozilla-central/rev/<hash>/path#line) — description
+1. [`Class::Method`](https://searchfox.org/firefox-main/rev/<hash>/path#line) — description
 2. [`Next::Call`](link) — what happens, with evidence
 ```
 
