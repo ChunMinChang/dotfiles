@@ -15,7 +15,7 @@
 ## Build Requirements
 {Standard debug build sufficient, OR:}
 - **Build type**: ASan / TSan / Debug
-- **Mozconfig**: See [`bug-{id}-mozconfig`](./bug-{id}-mozconfig) in this directory
+- **Mozconfig**: See [`bug-{id}-mozconfig`](./firefox/debug/bug-{id}-mozconfig)
 - **Rationale**: {Why this build type is needed}
 
 ## Security Rating
@@ -45,7 +45,7 @@ Suggested rating: **sec-{level}** because:
 - **T3 diagnostic result**: {Reproduces upstream / Does NOT reproduce upstream / Reproduces differently}
 - **Confirmed scope**: {(a) Library bug / (b) Firefox integration / (a+b) Split scope / (c) Firefox local patches}
 - **Branch followed**: {A / B / C}
-- **Upstream report**: [`bug-{id}-upstream-{library}.md`](./bug-{id}-upstream-{library}.md) *(Branch A and C only)*
+- **Upstream report**: [`bug-{id}-upstream-{library}.md`](./{library}/bug-{id}-upstream-{library}.md) *(Branch A and C only)*
 
 ## Code Path Trace
 
@@ -122,17 +122,28 @@ Library: {name} (upstream revision: `{hash}`)
 |------|-----------|------|---------|--------|
 | `{path/in/lib/tests}` | googletest/meson/custom | {library_name} @ `{hash}` | Demonstrates {what} | FAIL/PASS |
 
-### Debug Logs
-- [`bug-{id}-debug-{desc}.log`](./bug-{id}-debug-{desc}.log) — {what it shows}
-- [`bug-{id}-debug-lib-{desc}.log`](./bug-{id}-debug-lib-{desc}.log) — {library debug output}
-- [`bug-{id}-test-run.log`](./bug-{id}-test-run.log) — {Firefox test output}
-- [`bug-{id}-test-run-firefox.log`](./bug-{id}-test-run-firefox.log) — {Firefox test output, Branch C}
+### Debug Logs and Instrumentation
 
-### Instrumentation Patches
-> Patches that add debugging instrumentation. Reapplicable if investigation needs to be repeated.
+**Firefox** (`firefox/debug/`):
+- [`firefox/debug/bug-{id}-test-run.log`](./firefox/debug/bug-{id}-test-run.log) — Test execution output
+- [`firefox/debug/bug-{id}-debug-{desc}.log`](./firefox/debug/bug-{id}-debug-{desc}.log) — Debug output
+- [`firefox/debug/01-test-{desc}.patch`](./firefox/debug/01-test-{desc}.patch) — Test patch
+- [`firefox/debug/02-debug-firefox-instrumentation.patch`](./firefox/debug/02-debug-firefox-instrumentation.patch) — Instrumentation
 
-- [`bug-{id}-debug-firefox-instrumentation.patch`](./bug-{id}-debug-firefox-instrumentation.patch) — {what was instrumented in Firefox code}
-- [`bug-{id}-debug-lib-instrumentation.patch`](./bug-{id}-debug-lib-instrumentation.patch) — {what was instrumented in library code} *(Branch A/C only)*
+**Library** (`{library}/debug/`) *(Branch A/C only)*:
+- [`{library}/debug/bug-{id}-debug-lib-{desc}.log`](./{library}/debug/bug-{id}-debug-lib-{desc}.log) — Debug output
+- [`{library}/debug/01-test-{desc}.patch`](./{library}/debug/01-test-{desc}.patch) — Test patch (may include injection)
+- [`{library}/debug/02-debug-lib-instrumentation.patch`](./{library}/debug/02-debug-lib-instrumentation.patch) — Instrumentation
+
+### Fix Patches
+
+**Firefox** (`firefox/fix/`):
+- [`firefox/fix/01-test-{desc}.patch`](./firefox/fix/01-test-{desc}.patch) — Regression test
+- [`firefox/fix/02-fix-{desc}.patch`](./firefox/fix/02-fix-{desc}.patch) — Fix (on top of test)
+
+**Library** (`{library}/fix/`) *(Branch A/C only)*:
+- [`{library}/fix/01-test-{desc}.patch`](./{library}/fix/01-test-{desc}.patch) — Standalone test (if no injection needed)
+- [`{library}/fix/02-fix-{desc}.patch`](./{library}/fix/02-fix-{desc}.patch) — Fix (on top of test)
 
 ### Test Notes
 {Any notes on test robustness, FuzzingFunctions conversion, or why a test was skipped.}

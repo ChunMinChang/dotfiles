@@ -91,6 +91,76 @@ Priority:
 mkdir -p <output-dir>
 ```
 
+### Output Directory Structure
+
+The output directory always uses the same uniform layout. Firefox patches go in
+`firefox/`, third-party patches go in `<library>/`. Both use identical `fix/` +
+`debug/` substructure. Patches are numbered so they can be applied in order —
+test patches first, then fix patches on top, so reviewers can verify tests go
+from FAIL to PASS.
+
+```
+<output-dir>/
+  bug-<id>-analysis.md                          # Primary analysis document
+  history.log                                   # Investigation history log
+  bug-<id>-report/                              # Bug report from bmo-to-md
+  firefox/
+    fix/                                        # Clean patches for Firefox
+      01-test-<desc>.patch                     #   Regression test
+      02-fix-<desc>.patch                      #   Fix on top of test
+    debug/                                      # Firefox debug artifacts
+      01-test-<desc>.patch                     #   Same test patch(es)
+      02-debug-firefox-instrumentation.patch   #   Instrumentation on top
+      bug-<id>-debug-<desc>.log                #   Captured debug output
+      bug-<id>-test-run.log                    #   Test execution output
+  <library>/                                    # Only when third-party involved
+    bug-<id>-upstream-<library>.md              # Upstream report (sanitized)
+    fix/                                        # For upstream: clean, applicable
+      01-test-<desc>.patch                     #   Standalone test (if no injection)
+      02-fix-<desc>.patch                      #   Fix on top of test
+    debug/                                      # For upstream: reproduction aid
+      01-test-<desc>.patch                     #   Test (may include injection)
+      02-debug-lib-instrumentation.patch       #   Logging on top of test
+      bug-<id>-debug-lib-<desc>.log            #   Library debug output
+```
+
+The `<library>/` folder is created only when Step 1.5b is active (Branch A, B, or C).
+For Branch B (Firefox integration bug), `<library>/` may contain only the T3
+diagnostic logs — no `fix/` patches since the library has no bug.
+
+The Firefox fix may differ from the upstream fix (e.g., upstream takes a wider-scope
+fix touching many files, while Firefox takes a less-aggressive local patch touching
+one or two files).
+
+**Patch ordering rules:**
+
+Within each `fix/` folder:
+- If the regression test can be created **without code injection** (reproducible with
+  certain inputs in the built-in test framework), then test patches come first, fix
+  patches on top.
+- If the test requires **code injection** (e.g., custom malloc returning OOM, mocked
+  syscalls), then only fix patches go in `fix/` — the injection-based tests go in
+  `debug/` instead.
+
+Within each `debug/` folder:
+- Always contains test patches (including injection-based ones), with debug
+  instrumentation patches on top.
+- Goal: developers can apply these patches and immediately reproduce + confirm
+  the issue.
+
+**Numbering**: Use two-digit prefixes (`01-`, `02-`, ...) for apply order. Use
+descriptive names after the prefix (e.g., `01-test-ogg-truncated-stream.patch`,
+`02-fix-bounds-check-vorbis-window.patch`).
+
+**Directory creation**: Create all needed subdirectories early:
+```bash
+mkdir -p <output-dir>/firefox/fix
+mkdir -p <output-dir>/firefox/debug
+# If third-party library is involved (Step 1.5b):
+mkdir -p <output-dir>/<library>/fix
+mkdir -p <output-dir>/<library>/debug
+```
+
 ### Fetch Bug Report
 
 **If report-path was provided**: read it directly. Look for `summary.md` or
@@ -269,7 +339,7 @@ first. This eliminates false assumptions about where the bug lives.
    ```bash
    # In the local library repo — add logging, then generate patch
    # Edit files to add printf/fprintf(stderr)/library debug macros at key points
-   git diff > <output-dir>/bug-<id>-debug-lib-instrumentation.patch
+   git diff > <output-dir>/<library>/debug/02-debug-lib-instrumentation.patch
    ```
    Common instrumentation patterns for C/C++ libraries:
    - `fprintf(stderr, "SHERLOCK: %s:%d reached\\n", __FILE__, __LINE__);`
@@ -281,19 +351,32 @@ first. This eliminates false assumptions about where the bug lives.
 
 3. **Standalone test**: Create a minimal test case in the library's native test
    framework (see the Library Test Frameworks table in `references/upstream-libs.md`).
-   The test should exercise the suspected failure condition.
+   The test should exercise the suspected failure condition. Generate a test patch:
+   ```bash
+   # Revert instrumentation first to get a clean test-only diff
+   git stash
+   # Re-apply only the test changes (not instrumentation)
+   # ... add test files / modify test manifests ...
+   git diff > <output-dir>/<library>/debug/01-test-<desc>.patch
+   # Re-apply instrumentation on top
+   git stash pop
+   ```
+   If the test can be created without code injection, also copy it to the fix folder:
+   ```bash
+   cp <output-dir>/<library>/debug/01-test-<desc>.patch <output-dir>/<library>/fix/01-test-<desc>.patch
+   ```
 
 4. **Build and run**: Build the library (with instrumentation applied) and execute
    the test. Capture debug output:
    ```bash
-   <build-command> 2>&1 | tee <output-dir>/bug-<id>-debug-lib-build.log
-   <test-command> 2>&1 | tee <output-dir>/bug-<id>-debug-lib-<desc>.log
+   <build-command> 2>&1 | tee <output-dir>/<library>/debug/bug-<id>-debug-lib-build.log
+   <test-command> 2>&1 | tee <output-dir>/<library>/debug/bug-<id>-debug-lib-<desc>.log
    ```
 
 5. **Revert instrumentation**: Clean the library working tree so branches start
    from a pristine state:
    ```bash
-   git apply -R <output-dir>/bug-<id>-debug-lib-instrumentation.patch
+   git apply -R <output-dir>/<library>/debug/02-debug-lib-instrumentation.patch
    # Or: git checkout -- <modified files>
    ```
    The patch artifact is preserved for reapplication if needed later.
@@ -336,14 +419,22 @@ the upstream fix resolves the problem in Firefox.
    - **mochitest** — web-exposed, Firefox-specific behavior
 3. The test MUST fail without the fix and pass with it
 4. Register the test in the appropriate manifest
-5. Run against the unfixed tree to confirm it fails
+5. Generate the test patch and save to output directory:
+   ```bash
+   git diff > <output-dir>/firefox/fix/01-test-<desc>.patch
+   cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
+   ```
+6. Run against the unfixed tree and capture output:
+   ```bash
+   ./mach test <path> --headless 2>&1 | tee <output-dir>/firefox/debug/bug-<id>-test-run.log
+   ```
 
 **A3. Generate upstream report:**
 
 Generate a second, concise analysis document for reporting to the upstream library
 maintainers. Read `references/upstream-report-template.md` for the template.
 
-Write to `<output-dir>/bug-<id>-upstream-<library>.md`.
+Write to `<output-dir>/<library>/bug-<id>-upstream-<library>.md`.
 
 **Critical rules for the upstream report:**
 - Use ONLY upstream permanent links — no searchfox, no Firefox paths
@@ -361,12 +452,17 @@ to a pull request / issue tracker entry.
 
 **A4. Fix strategy:**
 
-Fix the bug in the local library repo. Verify:
-1. The T3 standalone library test now passes
+Fix the bug in the local library repo. Generate the fix as a patch:
+```bash
+# In the library repo, on top of the clean (instrumentation-reverted) tree
+git diff > <output-dir>/<library>/fix/02-fix-<desc>.patch
+```
+
+Verify:
+1. Apply test + fix patches in the library repo and confirm the T3 test now passes
 2. Apply the fix to the vendored copy in Firefox (`media/{lib}/` or `third_party/{lib}/`)
 3. Rebuild Firefox and verify the A2 Firefox test now passes
-4. Update the upstream report (`bug-<id>-upstream-<library>.md`) with the
-   suggested fix if verified
+4. Update the upstream report with the suggested fix if verified
 
 Phase 2 solutions should include:
 - **Upstream fix**: submit to upstream, then update vendored copy via `./mach vendor`
@@ -396,8 +492,8 @@ Resume the standard investigation steps, but focused on the integration layer:
   that reproduces the integration bug. This is the primary proof test — no separate
   library test is needed since the library itself is correct.
 - **Step 1.9** (debug logs): Instrument the Firefox integration code. Generate
-  a patch (`bug-<id>-debug-firefox-instrumentation.patch`) as described in
-  Step 1.8e. Capture output, then revert the instrumentation.
+  a patch (`firefox/debug/02-debug-firefox-instrumentation.patch`) as described
+  in Step 1.8e. Capture output to `firefox/debug/`, then revert.
 
 **B2. Fix strategy (Phase 2):**
 
@@ -450,9 +546,9 @@ ls media/<lib>/*.patch
   limitation.
 - **Firefox test** (A2 pattern): Create a Firefox-side test that demonstrates the
   integration aspect (e.g., the contract violation, the missing error handling).
-  Follow A2 steps 1-5: choose framework, register in manifest, run against the
-  unfixed tree. This test MUST fail without fix. Capture output in
-  `<output-dir>/bug-<id>-test-run-firefox.log`.
+  Follow A2 steps 1-6: choose framework, register in manifest, generate patch to
+  `firefox/fix/` and `firefox/debug/`, run against the unfixed tree and capture
+  output to `firefox/debug/`. This test MUST fail without fix.
 
 **C3. Generate upstream report (if library-side fix needed):**
 
@@ -460,7 +556,7 @@ If the library has a bug, undocumented limitation, or missing hardening that
 contributes to the issue, generate an upstream report following the same rules
 as Branch A step A3. Read `references/upstream-report-template.md`.
 
-Write to `<output-dir>/bug-<id>-upstream-<library>.md`.
+Write to `<output-dir>/<library>/bug-<id>-upstream-<library>.md`.
 
 **For split-scope reports, frame the issue from the library's perspective:**
 - If the library has a bug: report it as a bug
@@ -602,7 +698,7 @@ Signals for sanitizer builds:
 
 If a special build is needed:
 - Read the mozconfig presets from `references/test-frameworks.md`
-- Auto-generate a mozconfig file: `<output-dir>/bug-<id>-mozconfig`
+- Auto-generate a mozconfig file: `<output-dir>/firefox/debug/bug-<id>-mozconfig`
 - Present to user for review via AskUserQuestion before building
 - The user can invoke `/mozconfig` for full interactive configuration if preferred
 
@@ -622,7 +718,7 @@ reviewable:
 ```bash
 # In the Firefox tree — add logging, then generate patch
 # Edit files to add instrumentation at key points in the traced code path
-git diff > <output-dir>/bug-<id>-debug-firefox-instrumentation.patch
+git diff > <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
 ```
 
 Common instrumentation patterns for Firefox C++/JS:
@@ -638,7 +734,7 @@ be reverted after debug logs are captured:
 ```bash
 # After capturing logs, revert instrumentation
 git checkout -- <modified files>
-# Or: git apply -R <output-dir>/bug-<id>-debug-firefox-instrumentation.patch
+# Or: git apply -R <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
 ```
 
 #### When NOT to Write a Test
@@ -665,35 +761,34 @@ logs captured within the branch workflow:
 
 **1. Apply instrumentation** (from Step 1.8e):
 ```bash
-git apply <output-dir>/bug-<id>-debug-firefox-instrumentation.patch
+git apply <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
 ./mach build binaries   # rebuild with instrumentation
 ```
 
 **2. Run tests and capture output:**
 ```bash
-./mach test <path> --headless 2>&1 | tee <output-dir>/bug-<id>-test-run.log
+./mach test <path> --headless 2>&1 | tee <output-dir>/firefox/debug/bug-<id>-test-run.log
 ```
 
-Additional debug logs go in separate files:
+Additional debug logs go in the `debug/` directory:
 ```
-<output-dir>/bug-<id>-debug-<description>.log
+<output-dir>/firefox/debug/bug-<id>-debug-<description>.log
 ```
 
 **3. Revert instrumentation** after capturing logs:
 ```bash
-git apply -R <output-dir>/bug-<id>-debug-firefox-instrumentation.patch
+git apply -R <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
 ```
 
-**Output artifacts:**
+**4. Generate test patch** (from the clean tree):
+```bash
+# Generate Firefox test patch (test changes only, no instrumentation)
+git diff > <output-dir>/firefox/fix/01-test-<desc>.patch
+# Copy to firefox/debug/ for the reproducible debug stack
+cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
+```
 
-| File | Contents |
-|------|----------|
-| `bug-<id>-debug-firefox-instrumentation.patch` | Instrumentation added to Firefox code |
-| `bug-<id>-debug-lib-instrumentation.patch` | Instrumentation added to library code (1.5b only) |
-| `bug-<id>-test-run.log` | Test execution output |
-| `bug-<id>-debug-<desc>.log` | Targeted debug output from instrumentation |
-
-**4. Evaluate results:**
+**5. Evaluate results:**
 - Test **FAILS as expected** → confirms root cause, record as evidence
 - Test **PASSES** (contradicts hypothesis) → re-examine root cause, loop back to 1.4
 - Test **inconclusive** → note as `[Assumption]`, document what would make it conclusive
@@ -719,7 +814,7 @@ Requirements:
 
 If Step 1.5b produced a Branch A (library bug) or Branch C (split scope with
 library-side component), the upstream report should already have been generated
-in step A3 or C3. Verify it exists at `<output-dir>/bug-<id>-upstream-<library>.md`.
+in step A3 or C3. Verify it exists at `<output-dir>/<library>/bug-<id>-upstream-<library>.md`.
 
 If not yet created, generate it now using `references/upstream-report-template.md`.
 The upstream report must:
