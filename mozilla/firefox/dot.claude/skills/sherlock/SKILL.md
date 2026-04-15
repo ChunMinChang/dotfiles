@@ -277,14 +277,26 @@ first. This eliminates false assumptions about where the bug lives.
    - Library-specific debug macros if available (e.g., `aom_internal_error`, `dav1d_log`)
 
    Keep the patch as an artifact — it documents exactly what was added and is
-   reapplicable if the investigation needs to be repeated. Capture test output
-   with instrumentation in `<output-dir>/bug-<id>-debug-lib-<desc>.log`.
+   reapplicable if the investigation needs to be repeated.
 
 3. **Standalone test**: Create a minimal test case in the library's native test
    framework (see the Library Test Frameworks table in `references/upstream-libs.md`).
    The test should exercise the suspected failure condition.
 
-4. **Build and run**: Build the library and execute the test.
+4. **Build and run**: Build the library (with instrumentation applied) and execute
+   the test. Capture debug output:
+   ```bash
+   <build-command> 2>&1 | tee <output-dir>/bug-<id>-debug-lib-build.log
+   <test-command> 2>&1 | tee <output-dir>/bug-<id>-debug-lib-<desc>.log
+   ```
+
+5. **Revert instrumentation**: Clean the library working tree so branches start
+   from a pristine state:
+   ```bash
+   git apply -R <output-dir>/bug-<id>-debug-lib-instrumentation.patch
+   # Or: git checkout -- <modified files>
+   ```
+   The patch artifact is preserved for reapplication if needed later.
 
 **The T3 result determines the scope and which branch to follow:**
 
