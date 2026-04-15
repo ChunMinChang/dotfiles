@@ -470,8 +470,9 @@ the upstream fix resolves the problem in Firefox.
    cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
    git reset HEAD~1
    ```
-6. Run against the unfixed tree and capture output:
+6. Build and run against the unfixed tree:
    ```bash
+   ./mach build
    ./mach test <path> --headless 2>&1 | tee <output-dir>/firefox/debug/bug-<id>-test-run.log
    ```
 
@@ -548,9 +549,10 @@ Resume the standard investigation steps, focused on the integration layer:
 4. **Debug instrumentation** (Step 1.8e): Add Firefox-side instrumentation as
    described in Step 1.8e. Generate `firefox/debug/02-debug-firefox-instrumentation.patch`.
 
-5. **Run with instrumentation** (Step 1.9): Apply instrumentation via `git am -3`,
-   rebuild, run tests, capture debug logs to `firefox/debug/`, then revert via
-   `git reset HEAD~1` + `git checkout`.
+5. **Run with instrumentation** (Step 1.9): Both test and instrumentation are in
+   the working tree. Build (`./mach build`), run tests, capture debug logs to
+   `firefox/debug/`. Then revert instrumentation only (`git checkout -- <instrumented
+   files>`), keeping test files for patch generation.
 
 **B2. Fix strategy (Phase 2):**
 
@@ -787,13 +789,10 @@ Common instrumentation patterns for Firefox C++/JS:
 - **GTest**: `GTEST_LOG_(INFO) << "SHERLOCK: value=" << variable;`
 
 Keep the patch as an artifact in the output directory. It documents exactly what
-was added, is reapplicable if the investigation needs to be repeated, and should
-be reverted after debug logs are captured:
-
-```bash
-# After capturing logs, revert instrumentation
-git checkout -- <modified files>
-```
+was added and is reapplicable if the investigation needs to be repeated. The
+instrumentation stays in the working tree — it will be reverted in Step 1.9
+after debug logs are captured (by reverting only the instrumented files, keeping
+test files intact).
 
 #### When NOT to Write a Test
 
@@ -817,31 +816,27 @@ logs captured within the branch workflow:
 - **Branch B**: B1 ran the Firefox test with debug instrumentation
 - **Branch C**: T3 ran the library test; C2 ran the Firefox test
 
-**1. Apply instrumentation** (from Step 1.8e):
+**1. Build and run** (test + instrumentation are already in the working tree
+from Steps 1.8d and 1.8e):
 ```bash
-git am -3 <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
-./mach build   # rebuild from source with instrumentation
-```
-
-**2. Run tests and capture output:**
-```bash
+./mach build
 ./mach test <path> --headless 2>&1 | tee <output-dir>/firefox/debug/bug-<id>-test-run.log
 ```
 
-Additional debug logs go in the `debug/` directory:
+Additional debug logs go in the `firefox/debug/` directory:
 ```
 <output-dir>/firefox/debug/bug-<id>-debug-<description>.log
 ```
 
-**3. Revert instrumentation** after capturing logs:
+**2. Revert instrumentation only** (keep test files):
 ```bash
-git reset HEAD~1   # undo the git am commit, keep changes in working tree
-git checkout -- <modified files>
+git checkout -- <instrumented files only>
 ```
+Use `git diff --name-only` to identify which files are instrumentation vs test,
+or refer to the files listed in the 1.8e patch.
 
-**4. Generate test patch** (from the clean tree):
+**3. Generate test patch** (from tree with test changes only):
 ```bash
-# Generate Firefox test patch (test changes only, no instrumentation)
 git add <test files>
 git commit --author="$SHERLOCK_AUTHOR" -m "Add regression test for <desc>"
 git format-patch -1 --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
@@ -849,7 +844,7 @@ cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-t
 git reset HEAD~1
 ```
 
-**5. Evaluate results:**
+**4. Evaluate results:**
 - Test **FAILS as expected** → confirms root cause, record as evidence
 - Test **PASSES** (contradicts hypothesis) → re-examine root cause, loop back to 1.4
 - Test **inconclusive** → note as `[Assumption]`, document what would make it conclusive
