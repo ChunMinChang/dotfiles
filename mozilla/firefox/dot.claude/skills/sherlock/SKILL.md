@@ -820,7 +820,7 @@ logs captured within the branch workflow:
 **1. Apply instrumentation** (from Step 1.8e):
 ```bash
 git am -3 <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
-./mach build binaries   # rebuild with instrumentation
+./mach build   # rebuild from source with instrumentation
 ```
 
 **2. Run tests and capture output:**

@@ -49,11 +49,59 @@ Every claim must be backed by a code reference.}
 
 {If the test is short enough, include inline. Otherwise reference the file.}
 
+## How to Reproduce
+
+### 1. Set up the build environment
+```bash
+git clone {upstream_repo_url}
+cd {library_name}
+git checkout {upstream_revision_hash}
+```
+
+{Library-specific build prerequisites, e.g., "Requires CMake 3.16+, nasm, and
+a C11 compiler." Adapt based on the library's own build documentation.}
+
+### 2. Apply the test patch and build
+```bash
+git am -3 debug/01-test-<desc>.patch
+{build commands — e.g.:}
+{  cmake -B build -DCMAKE_BUILD_TYPE=Debug}
+{  cmake --build build}
+```
+
+### 3. Run the test to confirm the failure
+```bash
+{test command — e.g.:}
+{  ctest --test-dir build -R <test_name>}
+```
+Expected result: **FAIL** — {brief description of expected failure output}
+
+### 4. Capture debug logs (optional)
+To see detailed trace output confirming the code path:
+```bash
+git am -3 debug/02-debug-lib-instrumentation.patch
+{rebuild command}
+{test command} 2>&1 | tee debug-output.log
+```
+The instrumentation adds `SHERLOCK:` prefixed log lines at key points in the
+code path.
+
+### 5. Apply the fix and verify
+```bash
+# Reset to clean state, then apply test + fix
+git checkout .
+git am -3 fix/01-test-<desc>.patch
+git am -3 fix/02-fix-<desc>.patch
+{rebuild command}
+{test command}
+```
+Expected result: **PASS**
+
 ## Suggested Fix
 > Optional — include only if a fix has been verified against the test case.
 
 {Description of the fix approach, in terms the library maintainers would use.}
 
 {If a patch is available:}
-**Patch**: {link to branch/commit in the local repo, or inline diff}
+**Patch**: See `fix/02-fix-<desc>.patch`
 **Verified**: Standalone test passes after applying this fix.

@@ -148,6 +148,88 @@ Library: {name} (upstream revision: `{hash}`)
 ### Test Notes
 {Any notes on test robustness, FuzzingFunctions conversion, or why a test was skipped.}
 
+## How to Reproduce and Verify
+
+### Firefox
+
+#### 1. Build Firefox from source
+```bash
+# Use the appropriate mozconfig (standard debug, ASan, or TSan)
+# See Build Requirements section above
+cp {mozconfig path or inline} .mozconfig
+./mach build
+```
+Always build from source — do not use artifact builds. Use `./mach build` for a
+full build. For incremental rebuilds after C++/Rust-only changes: `./mach build binaries`.
+
+#### 2. Apply the test patch and run
+```bash
+git am -3 firefox/fix/01-test-<desc>.patch
+./mach build          # rebuild with test added
+./mach test {test_path} --headless
+```
+Expected result: **FAIL** — {brief description of expected failure}
+
+#### 3. Capture debug logs (optional)
+```bash
+git am -3 firefox/debug/02-debug-firefox-instrumentation.patch
+./mach build          # rebuild with instrumentation
+./mach test {test_path} --headless 2>&1 | tee firefox-debug.log
+```
+Look for `SHERLOCK:` prefixed lines in the output.
+To revert instrumentation:
+```bash
+git reset HEAD~1
+git checkout -- .
+```
+
+#### 4. Apply the fix and verify
+```bash
+# Start from a clean tree with only the test patch applied
+git am -3 firefox/fix/01-test-<desc>.patch
+git am -3 firefox/fix/02-fix-<desc>.patch
+./mach build
+./mach test {test_path} --headless
+```
+Expected result: **PASS**
+
+### Third-Party Library
+> Include this subsection for Branch A and Branch C only. Delete for Firefox-only bugs.
+
+#### 1. Set up the library build environment
+```bash
+git clone {upstream_repo_url}
+cd {library_name}
+git checkout {upstream_revision_hash}
+```
+{Library-specific prerequisites and build setup instructions.}
+
+#### 2. Apply the test patch and run
+```bash
+git am -3 {library}/debug/01-test-<desc>.patch
+{build command}
+{test command}
+```
+Expected result: **FAIL** (Branch A) or **PASS** (Branch C with undocumented limitation)
+
+#### 3. Capture debug logs (optional)
+```bash
+git am -3 {library}/debug/02-debug-lib-instrumentation.patch
+{rebuild command}
+{test command} 2>&1 | tee lib-debug.log
+```
+To revert: `git reset HEAD~1 && git checkout -- .`
+
+#### 4. Apply the fix and verify
+```bash
+git checkout .
+git am -3 {library}/fix/01-test-<desc>.patch
+git am -3 {library}/fix/02-fix-<desc>.patch
+{rebuild command}
+{test command}
+```
+Expected result: **PASS**
+
 ## Related Context
 - **Duplicates**: [Bug {id}](bugzilla-link), [Bug {id}](bugzilla-link)
 - **Related bugs**: [Bug {id}](bugzilla-link)
