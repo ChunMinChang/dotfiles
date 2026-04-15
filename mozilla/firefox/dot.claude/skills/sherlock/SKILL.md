@@ -102,7 +102,6 @@ from FAIL to PASS.
 ```
 <output-dir>/
   bug-<id>-analysis.md                          # Primary analysis document
-  history.log                                   # Investigation history log
   bug-<id>-report/                              # Bug report from bmo-to-md
   firefox/
     fix/                                        # Clean patches for Firefox
@@ -878,23 +877,6 @@ The upstream report must:
 - Contain NO security exploitation details or sec-* ratings
 - Use ONLY upstream permanent links
 - Be self-contained and suitable for filing with the library's issue tracker
-
-### Step 1.11: Log to History
-
-Append one line to `<output-dir>/history.log`:
-
-**If Public:**
-```bash
-echo "$(date +%Y-%m-%d) | <bug_id> | PUBLIC | <component> | <root_cause_brief>" >> <output-dir>/history.log
-```
-
-**If Private:**
-```bash
-echo "$(date +%Y-%m-%d) | <bug_id> | PRIVATE" >> <output-dir>/history.log
-```
-
-Where `root_cause_brief` is 3-5 words (e.g., "missing promise rejection").
-For private bugs: log ONLY `date | bug_id | PRIVATE`. No title, component, or details.
 
 ---
 
