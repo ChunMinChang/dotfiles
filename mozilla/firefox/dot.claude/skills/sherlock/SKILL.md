@@ -135,6 +135,10 @@ repo (see T3 for details):
 - `sherlock/bug-<id>/debug` — instrumentation on top of test
 - `sherlock/bug-<id>/fix` — fix on top of test (created in A4/C4)
 
+The `firefox/` output structure mirrors the Firefox working branch (see Step 1.3c):
+- `sherlock/bug-<id>` — test commits, then fix commits on top (Phase 2)
+- `sherlock/bug-<id>/debug` — instrumentation on top of tests (temporary)
+
 The Firefox fix may differ from the upstream fix (e.g., upstream takes a wider-scope
 fix touching many files, while Firefox takes a less-aggressive local patch touching
 one or two files).
@@ -171,17 +175,17 @@ SHERLOCK_AUTHOR=$(.claude/skills/sherlock/sherlock-config --get-patch-author)
 This reads `patch_author` from `~/.config/sherlock/config.toml` if set, otherwise
 falls back to `git config user.name` / `git config user.email`.
 
-Patch generation pattern:
+Patch generation pattern (commits stay on the branch):
 ```bash
 git add <files>
 git commit --author="$SHERLOCK_AUTHOR" -m "<descriptive message>"
 git format-patch -1 --stdout > <output-dir>/<path>/<NN>-<desc>.patch
-git reset HEAD~1
 ```
 The commit message should describe what the patch does (e.g.,
 "Add gtest for OOB read in vorbis window function" or "Add debug
-instrumentation for decode path tracing"). The `git reset HEAD~1` undoes the
-commit but keeps the working tree changes for continued work.
+instrumentation for decode path tracing"). Commits are kept on the working
+branch — do NOT reset. The branch history IS the ordered patch series:
+`test-1 → test-2 → ... → fix-1 → fix-2 → ...`
 
 **Directory creation**: Create `firefox/` subdirectories after resolving the
 output directory. Create `<library>/` subdirectories when Step 1.5b activates
@@ -327,6 +331,24 @@ The plan should cover:
 Present the plan to the user for review. The user may refine the hypothesis,
 suggest additional code areas, or redirect the investigation. Use `ExitPlanMode`
 after the user approves or provides feedback.
+
+### Step 1.3c: Create Firefox Working Branch
+
+Create a working branch in the Firefox tree for all sherlock test and fix commits:
+```bash
+git checkout -b sherlock/bug-<id> HEAD
+```
+
+All test commits go on this branch first, then fix commits on top (Phase 2):
+```
+HEAD
+  └── sherlock/bug-<id>               ← test-1 → test-2 → ... → fix-1 → fix-2 → ...
+        └── sherlock/bug-<id>/debug   ← instrumentation on top of tests (temporary)
+```
+
+The `sherlock/bug-<id>/debug` branch is created later (Step 1.8e or B1.4) when
+instrumentation is needed. It forks from the last test commit and is used only for
+debug capture — it is not part of the final patch series.
 
 ### Step 1.4: Research Code Paths
 
@@ -502,14 +524,15 @@ the upstream fix resolves the problem in Firefox.
    - **mochitest** — web-exposed, Firefox-specific behavior
 3. The test MUST fail without the fix and pass with it
 4. Register the test in the appropriate manifest
-5. Generate the test patch and save to output directory:
+5. Commit the test on the Firefox working branch and generate the patch:
    ```bash
+   git checkout sherlock/bug-<id>
    git add <test files>
    git commit --author="$SHERLOCK_AUTHOR" -m "Add regression test for <desc>"
    git format-patch -1 --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
    cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
-   git reset HEAD~1
    ```
+   The commit stays on the branch — do NOT reset.
 6. Build and run against the unfixed tree:
    ```bash
    ./mach build
@@ -589,17 +612,17 @@ Resume the standard investigation steps, focused on the integration layer:
    library's behavior?
 
 3. **Proof test** (Step 1.8): Create a Firefox test that reproduces the integration
-   bug. Follow A2 steps 1-6: choose framework, register in manifest, generate patch
-   to `firefox/fix/` and `firefox/debug/`, run against unfixed tree and capture
-   output to `firefox/debug/`. No separate library test needed — the library is correct.
+   bug. Follow A2 steps 1-6: choose framework, register in manifest, commit on
+   `sherlock/bug-<id>`, generate patch to `firefox/fix/` and `firefox/debug/`,
+   build and run. No separate library test needed — the library is correct.
 
-4. **Debug instrumentation** (Step 1.8e): Add Firefox-side instrumentation as
-   described in Step 1.8e. Generate `firefox/debug/02-debug-firefox-instrumentation.patch`.
+4. **Debug instrumentation** (Step 1.8e): Create `sherlock/bug-<id>/debug` branch
+   from the test commit. Add instrumentation, commit, generate
+   `firefox/debug/02-debug-firefox-instrumentation.patch`.
 
-5. **Run with instrumentation** (Step 1.9): Both test and instrumentation are in
-   the working tree. Build (`./mach build`), run tests, capture debug logs to
-   `firefox/debug/`. Then revert instrumentation only (`git checkout -- <instrumented
-   files>`), keeping test files for patch generation.
+5. **Run with instrumentation** (Step 1.9): Build on the debug branch (`./mach build`),
+   run tests, capture debug logs to `firefox/debug/`. Switch back to
+   `sherlock/bug-<id>` (working branch with test commits only).
 
 **B2. Fix strategy (Phase 2):**
 
@@ -834,16 +857,19 @@ The test must:
 
 #### 1.8e: Add Debugging Instrumentation
 
-Add targeted logging to confirm the traced code path is actually hit during test
-execution. Generate the instrumentation as a patch so it is reproducible and
-reviewable:
+Create a debug branch from the current test commit for instrumentation:
 
 ```bash
-# In the Firefox tree — add logging, then generate format-patch
+git checkout -b sherlock/bug-<id>/debug
+```
+
+Add targeted logging to confirm the traced code path is actually hit during test
+execution. Commit and generate the patch:
+
+```bash
 git add <instrumented files>
 git commit --author="$SHERLOCK_AUTHOR" -m "Add debug instrumentation for <desc>"
 git format-patch -1 --stdout > <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
-git reset HEAD~1
 ```
 
 Common instrumentation patterns for Firefox C++/JS:
@@ -852,11 +878,8 @@ Common instrumentation patterns for Firefox C++/JS:
 - **Mochitest JS**: `info("SHERLOCK: state=" + variable);`
 - **GTest**: `GTEST_LOG_(INFO) << "SHERLOCK: value=" << variable;`
 
-Keep the patch as an artifact in the output directory. It documents exactly what
-was added and is reapplicable if the investigation needs to be repeated. The
-instrumentation stays in the working tree — it will be reverted in Step 1.9
-after debug logs are captured (by reverting only the instrumented files, keeping
-test files intact).
+The debug branch is temporary — it's used for the build+run+capture cycle in
+Step 1.9, then you switch back to the main working branch.
 
 #### When NOT to Write a Test
 
@@ -880,9 +903,9 @@ logs captured within the branch workflow:
 - **Branch B**: B1 ran the Firefox test with debug instrumentation
 - **Branch C**: T3 ran the library test; C2 ran the Firefox test
 
-**1. Build and run** (test + instrumentation are already in the working tree
-from Steps 1.8d and 1.8e):
+**1. Build and run on the debug branch** (has test commits + instrumentation):
 ```bash
+# Should already be on sherlock/bug-<id>/debug from Step 1.8e
 ./mach build
 ./mach test <path> --headless 2>&1 | tee <output-dir>/firefox/debug/bug-<id>-test-run.log
 ```
@@ -892,20 +915,20 @@ Additional debug logs go in the `firefox/debug/` directory:
 <output-dir>/firefox/debug/bug-<id>-debug-<description>.log
 ```
 
-**2. Revert instrumentation only** (keep test files):
+**2. Switch back to the working branch:**
 ```bash
-git checkout -- <instrumented files only>
+git checkout sherlock/bug-<id>
 ```
-Use `git diff --name-only` to identify which files are instrumentation vs test,
-or refer to the files listed in the 1.8e patch.
+The debug branch is preserved. The working branch has only test commits (clean,
+ready for fix commits in Phase 2).
 
-**3. Generate test patch** (from tree with test changes only):
+**3. Generate test patches** from the branch history:
 ```bash
-git add <test files>
-git commit --author="$SHERLOCK_AUTHOR" -m "Add regression test for <desc>"
-git format-patch -1 --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
+# Export all test commits as numbered patches
+git format-patch HEAD~N --stdout   # where N = number of test commits
+# Or export individually and copy to debug/:
+git format-patch -1 <commit> --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
 cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
-git reset HEAD~1
 ```
 
 **4. Evaluate results:**
