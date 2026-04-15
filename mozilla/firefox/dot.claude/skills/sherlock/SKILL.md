@@ -427,10 +427,6 @@ Generate the test patch:
 ```bash
 git format-patch -1 --stdout > <output-dir>/<library>/debug/01-test-<desc>.patch
 ```
-If the test can be created without code injection, also copy it to the fix folder:
-```bash
-cp <output-dir>/<library>/debug/01-test-<desc>.patch <output-dir>/<library>/fix/01-test-<desc>.patch
-```
 
 **2. Create the debug branch and add instrumentation:**
 
@@ -542,6 +538,12 @@ This report should be suitable for filing as an upstream bug report or attaching
 to a pull request / issue tracker entry.
 
 **A4. Fix strategy:**
+
+First, copy the test patch to `fix/` (now that scope (a) is confirmed and the test
+FAILS). Only copy if the test requires no code injection:
+```bash
+cp <output-dir>/<library>/debug/01-test-<desc>.patch <output-dir>/<library>/fix/01-test-<desc>.patch
+```
 
 Create the fix branch on top of the test branch in the library repo:
 ```bash
@@ -670,6 +672,23 @@ Write to `<output-dir>/<library>/bug-<id>-upstream-<library>.md`.
 - Do NOT include Firefox security ratings or Bugzilla links
 
 **C4. Fix strategy (Phase 2):**
+
+If the T3 library test FAILS and requires no code injection, copy it to `fix/`:
+```bash
+cp <output-dir>/<library>/debug/01-test-<desc>.patch <output-dir>/<library>/fix/01-test-<desc>.patch
+```
+If the test PASSES (undocumented limitation), only the hardening fix goes in `fix/`
+— no test patch, since there's no FAIL→PASS transition to demonstrate.
+
+Create the library fix branch (same as A4):
+```bash
+git checkout sherlock/bug-<id>/test
+git checkout -b sherlock/bug-<id>/fix
+# ... implement the fix ...
+git add <fix files>
+git commit --author="$SHERLOCK_AUTHOR" -m "Fix <desc>"
+git format-patch -1 --stdout > <output-dir>/<library>/fix/02-fix-<desc>.patch
+```
 
 Present separate strategies for each layer:
 
