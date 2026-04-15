@@ -19,6 +19,8 @@ allowed-tools:
   - AskUserQuestion
   - WebFetch
   - TaskCreate
+  - EnterPlanMode
+  - ExitPlanMode
 ---
 
 # Sherlock: Root Cause Analysis
@@ -300,6 +302,25 @@ Extract:
 
 **Never assume** that because a test occasionally fails, the feature is broken.
 If it passes 95% of the time, something rare causes the failure.
+
+### Step 1.3b: Plan the Investigation
+
+**Enter plan mode** before starting the deep investigation. Use `EnterPlanMode`
+to draft an investigation plan based on what Steps 1.1-1.3 revealed.
+
+The plan should cover:
+- **Hypothesis**: Initial theory about the root cause (to be confirmed or refuted)
+- **Code areas to investigate**: Which files/subsystems to trace (from bug report,
+  stack traces, component, test suite names)
+- **Third-party involvement**: Whether vendored library code is likely involved
+  (if yes, which library and why)
+- **Build requirements**: Whether a special build (debug/ASan/TSan) is likely needed
+- **Test strategy**: What kind of proof test is likely appropriate
+- **Open questions**: What information is still missing
+
+Present the plan to the user for review. The user may refine the hypothesis,
+suggest additional code areas, or redirect the investigation. Use `ExitPlanMode`
+after the user approves or provides feedback.
 
 ### Step 1.4: Research Code Paths
 
@@ -900,14 +921,23 @@ or tell me what needs more investigation."**
 
 ## Phase 2: Solution Discussion
 
-### Step 2.1: Read Analysis Doc
+**Enter plan mode before proposing solutions.** Use `EnterPlanMode` to structure
+the solution design. The plan file serves as the working draft for solution
+proposals — the analysis doc remains untouched until the user explicitly approves.
+
+### Step 2.1: Read Analysis Doc and Enter Plan Mode
 
 Re-read the analysis doc. Note the verified root cause, design intention, and
 proof test results. These ground the solution discussion.
 
+Then enter plan mode:
+```
+EnterPlanMode
+```
+
 ### Step 2.2: Propose Solutions
 
-For each viable approach, present:
+Draft solutions in the plan file. For each viable approach, present:
 - **Description** of the approach
 - **PROS** (list)
 - **CONS** (list)
@@ -937,7 +967,12 @@ the last agreed-upon state. Only update when the user gives explicit approval.
 
 Only on explicit user signal ("write it down", "update the doc", "document this", etc.).
 
-Append the **## Proposed Solutions** section to the analysis doc with:
+Exit plan mode first:
+```
+ExitPlanMode
+```
+
+Then append the **## Proposed Solutions** section to the analysis doc with:
 - Each option described with pros/cons
 - Comparison table (Pros, Cons, Effort, Risk columns)
 - Agreed Approach section documenting the selected solution and reasoning
