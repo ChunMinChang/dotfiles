@@ -176,11 +176,14 @@ The commit message should describe what the patch does (e.g.,
 instrumentation for decode path tracing"). The `git reset HEAD~1` undoes the
 commit but keeps the working tree changes for continued work.
 
-**Directory creation**: Create all needed subdirectories early:
+**Directory creation**: Create `firefox/` subdirectories after resolving the
+output directory. Create `<library>/` subdirectories when Step 1.5b activates
+and the library is identified (T1):
 ```bash
+# Always (after resolving output directory):
 mkdir -p <output-dir>/firefox/fix
 mkdir -p <output-dir>/firefox/debug
-# If third-party library is involved (Step 1.5b):
+# When Step 1.5b activates (after T1 identifies the library):
 mkdir -p <output-dir>/<library>/fix
 mkdir -p <output-dir>/<library>/debug
 ```
@@ -527,19 +530,27 @@ actors, threading model, lifecycle management, error handling around library cal
 
 **B1. Pivot investigation to Firefox code:**
 
-Resume the standard investigation steps, but focused on the integration layer:
-- **Step 1.5** (code path trace): Trace the Firefox integration code using searchfox
-  revision-pinned links. Include the boundary where Firefox calls into the library
-  and how results/errors propagate back.
-- **Step 1.6** (design intention): Study the Firefox integration code's git history.
-  Why was the wrapper written this way? What assumptions does it make about the
-  library's behavior?
-- **Step 1.8** (proof test): Create a Firefox test (gtest/mochitest/crashtest/WPT)
-  that reproduces the integration bug. This is the primary proof test — no separate
-  library test is needed since the library itself is correct.
-- **Step 1.9** (debug logs): Instrument the Firefox integration code. Generate
-  a patch (`firefox/debug/02-debug-firefox-instrumentation.patch`) as described
-  in Step 1.8e. Capture output to `firefox/debug/`, then revert.
+Resume the standard investigation steps, focused on the integration layer:
+
+1. **Code path trace** (Step 1.5): Trace the Firefox integration code using searchfox
+   revision-pinned links. Include the boundary where Firefox calls into the library
+   and how results/errors propagate back.
+
+2. **Design intention** (Step 1.6): Study the Firefox integration code's git history.
+   Why was the wrapper written this way? What assumptions does it make about the
+   library's behavior?
+
+3. **Proof test** (Step 1.8): Create a Firefox test that reproduces the integration
+   bug. Follow A2 steps 1-6: choose framework, register in manifest, generate patch
+   to `firefox/fix/` and `firefox/debug/`, run against unfixed tree and capture
+   output to `firefox/debug/`. No separate library test needed — the library is correct.
+
+4. **Debug instrumentation** (Step 1.8e): Add Firefox-side instrumentation as
+   described in Step 1.8e. Generate `firefox/debug/02-debug-firefox-instrumentation.patch`.
+
+5. **Run with instrumentation** (Step 1.9): Apply instrumentation via `git am -3`,
+   rebuild, run tests, capture debug logs to `firefox/debug/`, then revert via
+   `git reset HEAD~1` + `git checkout`.
 
 **B2. Fix strategy (Phase 2):**
 
