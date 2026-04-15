@@ -152,6 +152,21 @@ Within each `debug/` folder:
 descriptive names after the prefix (e.g., `01-test-ogg-truncated-stream.patch`,
 `02-fix-bounds-check-vorbis-window.patch`).
 
+**Patch format**: Always use `git format-patch` so patches can be applied via
+`git am -3` (with three-way merge) or `git apply`. This requires committing
+changes before generating the patch:
+```bash
+# Stage and commit, then generate format-patch, then undo the commit
+git add <files>
+git commit -m "<descriptive message>"
+git format-patch -1 --stdout > <output-dir>/<path>/<NN>-<desc>.patch
+git reset HEAD~1
+```
+The commit message in the patch should describe what the patch does (e.g.,
+"Add gtest for OOB read in vorbis window function" or "Add debug
+instrumentation for decode path tracing"). The `git reset HEAD~1` undoes the
+commit but keeps the working tree changes for continued work.
+
 **Directory creation**: Create all needed subdirectories early:
 ```bash
 mkdir -p <output-dir>/firefox/fix
@@ -337,9 +352,11 @@ first. This eliminates false assumptions about where the bug lives.
 2. **Debugging instrumentation**: Add targeted logging to confirm the traced code
    path is hit during test execution. Generate the instrumentation as a patch:
    ```bash
-   # In the local library repo — add logging, then generate patch
-   # Edit files to add printf/fprintf(stderr)/library debug macros at key points
-   git diff > <output-dir>/<library>/debug/02-debug-lib-instrumentation.patch
+   # In the local library repo — add logging, then generate format-patch
+   git add <instrumented files>
+   git commit -m "Add debug instrumentation for <desc>"
+   git format-patch -1 --stdout > <output-dir>/<library>/debug/02-debug-lib-instrumentation.patch
+   git reset HEAD~1
    ```
    Common instrumentation patterns for C/C++ libraries:
    - `fprintf(stderr, "SHERLOCK: %s:%d reached\\n", __FILE__, __LINE__);`
@@ -353,11 +370,14 @@ first. This eliminates false assumptions about where the bug lives.
    framework (see the Library Test Frameworks table in `references/upstream-libs.md`).
    The test should exercise the suspected failure condition. Generate a test patch:
    ```bash
-   # Revert instrumentation first to get a clean test-only diff
+   # Revert instrumentation first to get a clean test-only commit
    git stash
    # Re-apply only the test changes (not instrumentation)
    # ... add test files / modify test manifests ...
-   git diff > <output-dir>/<library>/debug/01-test-<desc>.patch
+   git add <test files>
+   git commit -m "Add standalone test for <desc>"
+   git format-patch -1 --stdout > <output-dir>/<library>/debug/01-test-<desc>.patch
+   git reset HEAD~1
    # Re-apply instrumentation on top
    git stash pop
    ```
@@ -376,8 +396,7 @@ first. This eliminates false assumptions about where the bug lives.
 5. **Revert instrumentation**: Clean the library working tree so branches start
    from a pristine state:
    ```bash
-   git apply -R <output-dir>/<library>/debug/02-debug-lib-instrumentation.patch
-   # Or: git checkout -- <modified files>
+   git checkout -- <modified files>
    ```
    The patch artifact is preserved for reapplication if needed later.
 
@@ -421,8 +440,11 @@ the upstream fix resolves the problem in Firefox.
 4. Register the test in the appropriate manifest
 5. Generate the test patch and save to output directory:
    ```bash
-   git diff > <output-dir>/firefox/fix/01-test-<desc>.patch
+   git add <test files>
+   git commit -m "Add regression test for <desc>"
+   git format-patch -1 --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
    cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
+   git reset HEAD~1
    ```
 6. Run against the unfixed tree and capture output:
    ```bash
@@ -455,7 +477,10 @@ to a pull request / issue tracker entry.
 Fix the bug in the local library repo. Generate the fix as a patch:
 ```bash
 # In the library repo, on top of the clean (instrumentation-reverted) tree
-git diff > <output-dir>/<library>/fix/02-fix-<desc>.patch
+git add <fix files>
+git commit -m "Fix <desc>"
+git format-patch -1 --stdout > <output-dir>/<library>/fix/02-fix-<desc>.patch
+git reset HEAD~1
 ```
 
 Verify:
@@ -716,9 +741,11 @@ execution. Generate the instrumentation as a patch so it is reproducible and
 reviewable:
 
 ```bash
-# In the Firefox tree — add logging, then generate patch
-# Edit files to add instrumentation at key points in the traced code path
-git diff > <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
+# In the Firefox tree — add logging, then generate format-patch
+git add <instrumented files>
+git commit -m "Add debug instrumentation for <desc>"
+git format-patch -1 --stdout > <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
+git reset HEAD~1
 ```
 
 Common instrumentation patterns for Firefox C++/JS:
@@ -734,7 +761,6 @@ be reverted after debug logs are captured:
 ```bash
 # After capturing logs, revert instrumentation
 git checkout -- <modified files>
-# Or: git apply -R <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
 ```
 
 #### When NOT to Write a Test
@@ -761,7 +787,7 @@ logs captured within the branch workflow:
 
 **1. Apply instrumentation** (from Step 1.8e):
 ```bash
-git apply <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
+git am -3 <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
 ./mach build binaries   # rebuild with instrumentation
 ```
 
@@ -777,15 +803,18 @@ Additional debug logs go in the `debug/` directory:
 
 **3. Revert instrumentation** after capturing logs:
 ```bash
-git apply -R <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
+git reset HEAD~1   # undo the git am commit, keep changes in working tree
+git checkout -- <modified files>
 ```
 
 **4. Generate test patch** (from the clean tree):
 ```bash
 # Generate Firefox test patch (test changes only, no instrumentation)
-git diff > <output-dir>/firefox/fix/01-test-<desc>.patch
-# Copy to firefox/debug/ for the reproducible debug stack
+git add <test files>
+git commit -m "Add regression test for <desc>"
+git format-patch -1 --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
 cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
+git reset HEAD~1
 ```
 
 **5. Evaluate results:**
