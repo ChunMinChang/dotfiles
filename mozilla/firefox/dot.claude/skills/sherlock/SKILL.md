@@ -129,6 +129,12 @@ The `<library>/` folder is created only when Step 1.5b is active (Branch A, B, o
 For Branch B (Firefox integration bug), `<library>/` may contain only the T3
 diagnostic logs — no `fix/` patches since the library has no bug.
 
+The `<library>/` output structure mirrors three git branches in the local library
+repo (see T3 for details):
+- `sherlock/bug-<id>/test` — test commits (base for debug and fix)
+- `sherlock/bug-<id>/debug` — instrumentation on top of test
+- `sherlock/bug-<id>/fix` — fix on top of test (created in A4/C4)
+
 The Firefox fix may differ from the upstream fix (e.g., upstream takes a wider-scope
 fix touching many files, while Firefox takes a less-aggressive local patch touching
 one or two files).
@@ -389,60 +395,78 @@ This is a hypothesis — T3 will confirm or refute it.
 Firefox integration issue, always attempt to reproduce in the upstream library
 first. This eliminates false assumptions about where the bug lives.
 
-1. **Code path trace**: Read and trace the suspected code path in the library's own
-   source files. Produce a numbered trace using permanent upstream links (e.g.,
-   `https://gitlab.xiph.org/xiph/vorbis/-/blob/{hash}/lib/sharedbook.c#L355`).
+**Branch structure in the local library repo:**
 
-2. **Debugging instrumentation**: Add targeted logging to confirm the traced code
-   path is hit during test execution. Generate the instrumentation as a patch:
-   ```bash
-   # In the local library repo — add logging, then generate format-patch
-   git add <instrumented files>
-   git commit --author="$SHERLOCK_AUTHOR" -m "Add debug instrumentation for <desc>"
-   git format-patch -1 --stdout > <output-dir>/<library>/debug/02-debug-lib-instrumentation.patch
-   git reset HEAD~1
-   ```
-   Common instrumentation patterns for C/C++ libraries:
-   - `fprintf(stderr, "SHERLOCK: %s:%d reached\\n", __FILE__, __LINE__);`
-   - `fprintf(stderr, "SHERLOCK: value=%d\\n", variable);`
-   - Library-specific debug macros if available (e.g., `aom_internal_error`, `dav1d_log`)
+Work in the library repo uses three branches forked from the upstream revision.
+This keeps test, debug, and fix work cleanly separated with proper git history:
 
-   Keep the patch as an artifact — it documents exactly what was added and is
-   reapplicable if the investigation needs to be repeated.
+```
+upstream HEAD (vendored revision)
+  └── sherlock/bug-<id>/test     ← test commits
+        ├── sherlock/bug-<id>/debug  ← debug instrumentation on top of test
+        └── sherlock/bug-<id>/fix    ← fix commits on top of test (created in A4/C4)
+```
 
-3. **Standalone test**: Create a minimal test case in the library's native test
-   framework (see the Library Test Frameworks table in `references/upstream-libs.md`).
-   The test should exercise the suspected failure condition. Generate a test patch:
-   ```bash
-   # Revert instrumentation first to get a clean test-only commit
-   git stash
-   # Re-apply only the test changes (not instrumentation)
-   # ... add test files / modify test manifests ...
-   git add <test files>
-   git commit --author="$SHERLOCK_AUTHOR" -m "Add standalone test for <desc>"
-   git format-patch -1 --stdout > <output-dir>/<library>/debug/01-test-<desc>.patch
-   git reset HEAD~1
-   # Re-apply instrumentation on top
-   git stash pop
-   ```
-   If the test can be created without code injection, also copy it to the fix folder:
-   ```bash
-   cp <output-dir>/<library>/debug/01-test-<desc>.patch <output-dir>/<library>/fix/01-test-<desc>.patch
-   ```
+**1. Create the test branch and write the standalone test:**
 
-4. **Build and run**: Build the library (with instrumentation applied) and execute
-   the test. Capture debug output:
-   ```bash
-   <build-command> 2>&1 | tee <output-dir>/<library>/debug/bug-<id>-debug-lib-build.log
-   <test-command> 2>&1 | tee <output-dir>/<library>/debug/bug-<id>-debug-lib-<desc>.log
-   ```
+```bash
+# In the local library repo
+git checkout -b sherlock/bug-<id>/test <vendored-revision>
+```
 
-5. **Revert instrumentation**: Clean the library working tree so branches start
-   from a pristine state:
-   ```bash
-   git checkout -- <modified files>
-   ```
-   The patch artifact is preserved for reapplication if needed later.
+Create a minimal test case in the library's native test framework (see the
+Library Test Frameworks table in `references/upstream-libs.md`). The test should
+exercise the suspected failure condition.
+
+```bash
+git add <test files>
+git commit --author="$SHERLOCK_AUTHOR" -m "Add standalone test for <desc>"
+```
+
+Generate the test patch:
+```bash
+git format-patch -1 --stdout > <output-dir>/<library>/debug/01-test-<desc>.patch
+```
+If the test can be created without code injection, also copy it to the fix folder:
+```bash
+cp <output-dir>/<library>/debug/01-test-<desc>.patch <output-dir>/<library>/fix/01-test-<desc>.patch
+```
+
+**2. Create the debug branch and add instrumentation:**
+
+```bash
+git checkout -b sherlock/bug-<id>/debug
+```
+
+Add targeted logging to confirm the traced code path is hit during test execution.
+
+Common instrumentation patterns for C/C++ libraries:
+- `fprintf(stderr, "SHERLOCK: %s:%d reached\\n", __FILE__, __LINE__);`
+- `fprintf(stderr, "SHERLOCK: value=%d\\n", variable);`
+- Library-specific debug macros if available (e.g., `aom_internal_error`, `dav1d_log`)
+
+```bash
+git add <instrumented files>
+git commit --author="$SHERLOCK_AUTHOR" -m "Add debug instrumentation for <desc>"
+git format-patch -1 --stdout > <output-dir>/<library>/debug/02-debug-lib-instrumentation.patch
+```
+
+**3. Code path trace**: Read and trace the suspected code path in the library's own
+source files. Produce a numbered trace using permanent upstream links (e.g.,
+`https://gitlab.xiph.org/xiph/vorbis/-/blob/{hash}/lib/sharedbook.c#L355`).
+
+**4. Build and run** (on the debug branch — has both test + instrumentation):
+```bash
+<build-command> 2>&1 | tee <output-dir>/<library>/debug/bug-<id>-debug-lib-build.log
+<test-command> 2>&1 | tee <output-dir>/<library>/debug/bug-<id>-debug-lib-<desc>.log
+```
+
+**5. Switch back to the test branch** for clean state:
+```bash
+git checkout sherlock/bug-<id>/test
+```
+The debug and test branches are preserved for later use. The fix branch (A4/C4)
+will be created on top of the test branch.
 
 **The T3 result determines the scope and which branch to follow:**
 
@@ -519,19 +543,20 @@ to a pull request / issue tracker entry.
 
 **A4. Fix strategy:**
 
-Fix the bug in the local library repo. Generate the fix as a patch:
+Create the fix branch on top of the test branch in the library repo:
 ```bash
-# In the library repo, on top of the clean (instrumentation-reverted) tree
+git checkout sherlock/bug-<id>/test
+git checkout -b sherlock/bug-<id>/fix
+# ... implement the fix ...
 git add <fix files>
 git commit --author="$SHERLOCK_AUTHOR" -m "Fix <desc>"
 git format-patch -1 --stdout > <output-dir>/<library>/fix/02-fix-<desc>.patch
-git reset HEAD~1
 ```
 
 Verify:
-1. Apply test + fix patches in the library repo and confirm the T3 test now passes
+1. Build and run the T3 test on the fix branch — confirm it now passes
 2. Apply the fix to the vendored copy in Firefox (`media/{lib}/` or `third_party/{lib}/`)
-3. Rebuild Firefox and verify the A2 Firefox test now passes
+3. `./mach build` and verify the A2 Firefox test now passes
 4. Update the upstream report with the suggested fix if verified
 
 Phase 2 solutions should include:
