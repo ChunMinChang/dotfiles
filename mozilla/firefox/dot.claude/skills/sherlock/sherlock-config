@@ -8,6 +8,7 @@ Usage:
     sherlock-config --check-setup
     sherlock-config --check-auth
     sherlock-config --get-output-dir
+    sherlock-config --get-patch-author
     sherlock-config --fetch-bug <bug_id> -o <dir>
     sherlock-config --fetch-attachments <bug_id> -o <dir>
 
@@ -144,6 +145,38 @@ def get_output_dir():
     """Print the configured output_dir from sherlock config, or empty."""
     val = _read_toml_field(SHERLOCK_CONFIG, "output_dir")
     print(val or "")
+
+
+def get_patch_author():
+    """Print the patch author for git commit --author.
+
+    Resolution order:
+      1. patch_author in ~/.config/sherlock/config.toml
+      2. Git user config (git config user.name + user.email)
+    Prints in "Name <email>" format suitable for --author.
+    """
+    val = _read_toml_field(SHERLOCK_CONFIG, "patch_author")
+    if val:
+        print(val)
+        return
+
+    # Fall back to git config
+    try:
+        name = subprocess.run(
+            ["git", "config", "user.name"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        email = subprocess.run(
+            ["git", "config", "user.email"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        if name and email:
+            print(f"{name} <{email}>")
+            return
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    print("")
 
 
 def check_setup():
@@ -467,6 +500,10 @@ def main():
         help="Print the configured output_dir, or empty string",
     )
     parser.add_argument(
+        "--get-patch-author", action="store_true",
+        help="Print the patch author (from config or git config)",
+    )
+    parser.add_argument(
         "--fetch-bug", metavar="BUG_ID",
         help="Fetch bug report for the given bug ID",
     )
@@ -485,6 +522,7 @@ def main():
         args.check_setup,
         args.check_auth,
         args.get_output_dir,
+        args.get_patch_author,
         args.fetch_bug is not None,
         args.fetch_attachments is not None,
     ]
@@ -504,6 +542,10 @@ def main():
 
     if args.get_output_dir:
         get_output_dir()
+        return
+
+    if args.get_patch_author:
+        get_patch_author()
         return
 
     if args.fetch_bug is not None:

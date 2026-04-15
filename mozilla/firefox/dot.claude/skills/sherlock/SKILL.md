@@ -154,15 +154,24 @@ descriptive names after the prefix (e.g., `01-test-ogg-truncated-stream.patch`,
 
 **Patch format**: Always use `git format-patch` so patches can be applied via
 `git am -3` (with three-way merge) or `git apply`. This requires committing
-changes before generating the patch:
+changes before generating the patch.
+
+The patch author must be the user, not the AI agent. Resolve the author at the
+start of the session:
 ```bash
-# Stage and commit, then generate format-patch, then undo the commit
+SHERLOCK_AUTHOR=$(.claude/skills/sherlock/sherlock-config --get-patch-author)
+```
+This reads `patch_author` from `~/.config/sherlock/config.toml` if set, otherwise
+falls back to `git config user.name` / `git config user.email`.
+
+Patch generation pattern:
+```bash
 git add <files>
-git commit -m "<descriptive message>"
+git commit --author="$SHERLOCK_AUTHOR" -m "<descriptive message>"
 git format-patch -1 --stdout > <output-dir>/<path>/<NN>-<desc>.patch
 git reset HEAD~1
 ```
-The commit message in the patch should describe what the patch does (e.g.,
+The commit message should describe what the patch does (e.g.,
 "Add gtest for OOB read in vorbis window function" or "Add debug
 instrumentation for decode path tracing"). The `git reset HEAD~1` undoes the
 commit but keeps the working tree changes for continued work.
@@ -198,7 +207,19 @@ mcp__moz__get_bugzilla_bug(bug_id: {bug_id})
 - MCP returns content → **Public: Yes**
 - MCP returns "Bug not found" or authorization error → **Public: No**
 
-### Resolve Searchfox Revision (Session-Wide)
+### Resolve Session-Wide Variables
+
+Resolve these at the start of the session and reuse throughout:
+
+**Patch author** (`$SHERLOCK_AUTHOR`):
+```bash
+SHERLOCK_AUTHOR=$(.claude/skills/sherlock/sherlock-config --get-patch-author)
+```
+Reads `patch_author` from `~/.config/sherlock/config.toml` if set, otherwise
+falls back to `git config user.name` / `git config user.email`. All generated
+patches use this as the commit author.
+
+**Searchfox revision** (`$SHERLOCK_REV`):
 
 Pin a searchfox revision for the entire session so all links are permanent:
 
@@ -354,7 +375,7 @@ first. This eliminates false assumptions about where the bug lives.
    ```bash
    # In the local library repo — add logging, then generate format-patch
    git add <instrumented files>
-   git commit -m "Add debug instrumentation for <desc>"
+   git commit --author="$SHERLOCK_AUTHOR" -m "Add debug instrumentation for <desc>"
    git format-patch -1 --stdout > <output-dir>/<library>/debug/02-debug-lib-instrumentation.patch
    git reset HEAD~1
    ```
@@ -375,7 +396,7 @@ first. This eliminates false assumptions about where the bug lives.
    # Re-apply only the test changes (not instrumentation)
    # ... add test files / modify test manifests ...
    git add <test files>
-   git commit -m "Add standalone test for <desc>"
+   git commit --author="$SHERLOCK_AUTHOR" -m "Add standalone test for <desc>"
    git format-patch -1 --stdout > <output-dir>/<library>/debug/01-test-<desc>.patch
    git reset HEAD~1
    # Re-apply instrumentation on top
@@ -441,7 +462,7 @@ the upstream fix resolves the problem in Firefox.
 5. Generate the test patch and save to output directory:
    ```bash
    git add <test files>
-   git commit -m "Add regression test for <desc>"
+   git commit --author="$SHERLOCK_AUTHOR" -m "Add regression test for <desc>"
    git format-patch -1 --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
    cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
    git reset HEAD~1
@@ -478,7 +499,7 @@ Fix the bug in the local library repo. Generate the fix as a patch:
 ```bash
 # In the library repo, on top of the clean (instrumentation-reverted) tree
 git add <fix files>
-git commit -m "Fix <desc>"
+git commit --author="$SHERLOCK_AUTHOR" -m "Fix <desc>"
 git format-patch -1 --stdout > <output-dir>/<library>/fix/02-fix-<desc>.patch
 git reset HEAD~1
 ```
@@ -743,7 +764,7 @@ reviewable:
 ```bash
 # In the Firefox tree — add logging, then generate format-patch
 git add <instrumented files>
-git commit -m "Add debug instrumentation for <desc>"
+git commit --author="$SHERLOCK_AUTHOR" -m "Add debug instrumentation for <desc>"
 git format-patch -1 --stdout > <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
 git reset HEAD~1
 ```
@@ -811,7 +832,7 @@ git checkout -- <modified files>
 ```bash
 # Generate Firefox test patch (test changes only, no instrumentation)
 git add <test files>
-git commit -m "Add regression test for <desc>"
+git commit --author="$SHERLOCK_AUTHOR" -m "Add regression test for <desc>"
 git format-patch -1 --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
 cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
 git reset HEAD~1
