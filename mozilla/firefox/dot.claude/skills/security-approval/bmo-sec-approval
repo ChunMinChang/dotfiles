@@ -249,6 +249,7 @@ def main():
 
     payload = {
         "comment": comment,
+        "is_markdown": True,
         "flags": [{"name": "sec-approval", "status": "?"}],
     }
 
@@ -261,10 +262,6 @@ def main():
 
     # Post comment and set sec-approval? in a single request so Bugzilla
     # creates one comment entry (not two).
-    # NOTE: Markdown rendering is not supported here — the BMO REST API
-    # does not pass is_markdown to add_comment() for attachment updates.
-    # Filed as Bug 2030581.  The comment uses * **bold**: syntax which
-    # remains clear as plain text.
     api("PUT", f"bug/attachment/{attachment_id}",
         data=payload, api_key=api_key)
     print(f"sec-approval? set on attachment {attachment_id} ({att_summary})")

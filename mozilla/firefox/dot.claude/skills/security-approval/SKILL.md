@@ -485,11 +485,8 @@ Answer Yes, No, or Unknown. Check whether:
 ### Step 3: Draft the Questionnaire
 
 Generate the complete text using the same format that Bugzilla auto-generates
-for sec-approval requests. **Note:** the BMO REST API does not support
-Markdown rendering for attachment update comments (Bug 2030581), so the
-comment will display as plain text. The `* **Q**: A` format is still clear
-and readable without Markdown rendering — each question is visually distinct
-and answers follow inline. Use this exact format:
+for sec-approval requests. The comment will be posted with `is_markdown: true`
+so Markdown is rendered on Bugzilla. Use this exact format:
 
 ```text
 ### Security Approval Request
