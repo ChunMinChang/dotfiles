@@ -435,9 +435,99 @@ def append_nonexistent_lines_to_file(file, lines, tracker=None):
         return False
 
 
+DOTFILES_GITIGNORE_HEADER = "# Added by dotfiles setup (Claude Code settings)"
+
+
+def _split_gitignore_sections(lines):
+    """
+    Partition .gitignore lines into (before_header, header_line, our_entries, after).
+
+    ``our_entries`` is the contiguous block of non-empty lines that follow the
+    dotfiles header (stops at the first blank line or next ``#`` comment).
+    If the header is absent, everything goes in ``before_header`` and the
+    remaining slots are empty.
+    """
+    before = []
+    header = None
+    ours = []
+    after = []
+
+    i = 0
+    # Phase 1: before the header
+    while i < len(lines):
+        if lines[i].rstrip("\n") == DOTFILES_GITIGNORE_HEADER:
+            header = lines[i]
+            i += 1
+            break
+        before.append(lines[i])
+        i += 1
+    else:
+        return before, header, ours, after
+
+    # Phase 2: our entries — contiguous non-blank, non-comment lines
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if not stripped or stripped.startswith("#"):
+            break
+        ours.append(lines[i])
+        i += 1
+
+    # Phase 3: everything else
+    after = lines[i:]
+    return before, header, ours, after
+
+
+def _rewrite_our_section(gitignore_path, new_entries):
+    """Write ``new_entries`` (sorted, deduped) under the dotfiles header."""
+    lines = []
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, "r") as f:
+            lines = f.readlines()
+
+    before, header, _ours, after = _split_gitignore_sections(lines)
+
+    sorted_entries = sorted(set(new_entries))
+
+    out = []
+    out.extend(before)
+    if sorted_entries:
+        if out and not out[-1].endswith("\n"):
+            out[-1] = out[-1] + "\n"
+        # Blank line before our section for readability, unless file is empty.
+        if out and out[-1].strip():
+            out.append("\n")
+        out.append(DOTFILES_GITIGNORE_HEADER + "\n")
+        for entry in sorted_entries:
+            out.append(entry + "\n")
+    elif header is not None:
+        # Section became empty — drop a trailing blank line we may have left.
+        while out and out[-1].strip() == "":
+            out.pop()
+        if out:
+            out.append("\n")
+
+    # Preserve anything that followed our section.
+    if after:
+        if out and sorted_entries and not out[-1].endswith("\n"):
+            out.append("\n")
+        out.extend(after)
+
+    with open(gitignore_path, "w") as f:
+        f.writelines(out)
+
+
+def _read_our_entries(gitignore_path):
+    """Return the set of entries currently in our gitignore section."""
+    if not os.path.exists(gitignore_path):
+        return set()
+    with open(gitignore_path, "r") as f:
+        _, _, ours, _ = _split_gitignore_sections(f.readlines())
+    return {line.strip() for line in ours if line.strip()}
+
+
 def add_to_gitignore(repo_dir, entries, dry_run=False):
     """
-    Add entries to .gitignore if they don't already exist.
+    Add entries to our managed section of .gitignore, keeping it sorted.
 
     Args:
         repo_dir: Path to the git repository root
@@ -450,25 +540,26 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
     gitignore_path = os.path.join(repo_dir, ".gitignore")
     added = []
 
-    # Read existing entries
-    existing_entries = set()
+    our_entries = _read_our_entries(gitignore_path)
+
+    # Also treat entries that appear outside our section as "already ignored"
+    # so we don't duplicate them.
+    all_existing = set()
     if os.path.exists(gitignore_path):
         with open(gitignore_path, "r") as f:
             for line in f:
                 stripped = line.strip()
                 if stripped and not stripped.startswith("#"):
-                    existing_entries.add(stripped)
+                    all_existing.add(stripped)
 
-    # Determine which entries need to be added
     entries_to_add = []
     already_ignored = []
     for entry in entries:
-        if entry not in existing_entries:
-            entries_to_add.append(entry)
-        else:
+        if entry in our_entries or entry in all_existing:
             already_ignored.append(entry)
+        else:
+            entries_to_add.append(entry)
 
-    # Report entries already in .gitignore (repo default)
     if already_ignored:
         print("Already in .gitignore (no action needed):")
         for entry in already_ignored:
@@ -483,37 +574,12 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
             added.append(entry)
         return added
 
-    # Add entries to .gitignore
-    COMMENT_HEADER = "# Added by dotfiles setup (Claude Code settings)"
+    merged = sorted(our_entries | set(entries_to_add))
     try:
-        # Check if comment header already exists
-        has_header = False
-        if os.path.exists(gitignore_path):
-            with open(gitignore_path, "r") as f:
-                has_header = COMMENT_HEADER in f.read()
-
-        # Check if file exists and ends with newline
-        needs_newline = False
-        if os.path.exists(gitignore_path):
-            with open(gitignore_path, "rb") as f:
-                f.seek(0, os.SEEK_END)
-                if f.tell() > 0:
-                    f.seek(-1, os.SEEK_END)
-                    needs_newline = f.read(1) != b"\n"
-
-        with open(gitignore_path, "a") as f:
-            if needs_newline:
-                f.write("\n")
-
-            # Only add comment header if it doesn't already exist
-            if not has_header:
-                f.write("\n" + COMMENT_HEADER + "\n")
-
-            for entry in entries_to_add:
-                f.write(entry + "\n")
-                print(f"Added to .gitignore: {entry}")
-                added.append(entry)
-
+        _rewrite_our_section(gitignore_path, merged)
+        for entry in entries_to_add:
+            print(f"Added to .gitignore: {entry}")
+            added.append(entry)
     except IOError as e:
         print_error(f"Failed to update .gitignore: {e}")
 
@@ -521,30 +587,27 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
 
 
 def remove_from_gitignore(repo_dir, entries, dry_run=False):
-    """Remove entries from .gitignore if they exist."""
+    """Remove entries from our managed section of .gitignore (if present)."""
     gitignore_path = os.path.join(repo_dir, ".gitignore")
     if not os.path.exists(gitignore_path):
         return []
-    with open(gitignore_path, "r") as f:
-        lines = f.readlines()
+
+    our_entries = _read_our_entries(gitignore_path)
     entries_set = set(entries)
-    removed = []
-    new_lines = []
-    for line in lines:
-        if line.strip() in entries_set:
-            removed.append(line.strip())
-            if not dry_run:
-                continue
-        new_lines.append(line)
-    if removed and not dry_run:
-        with open(gitignore_path, "w") as f:
-            f.writelines(new_lines)
-    for entry in removed:
-        if dry_run:
+    to_remove = our_entries & entries_set
+    if not to_remove:
+        return []
+
+    if dry_run:
+        for entry in sorted(to_remove):
             print(f"  Would remove from .gitignore: {entry}")
-        else:
-            print(f"Removed from .gitignore: {entry}")
-    return removed
+        return sorted(to_remove)
+
+    remaining = sorted(our_entries - to_remove)
+    _rewrite_our_section(gitignore_path, remaining)
+    for entry in sorted(to_remove):
+        print(f"Removed from .gitignore: {entry}")
+    return sorted(to_remove)
 
 
 def print_installing_title(name, bold=False):
@@ -2156,6 +2219,106 @@ def get_user_input(prompt, default=""):
         return default
 
 
+def _is_our_source(link_target):
+    """Does this symlink target belong to something setup.py installs?"""
+    markers = (FIREFOX_CLAUDE_OVERLAY, CLAUDE_SKILLS_DIR, MEDIA_SKILLS_DIR, ".dotfiles")
+    return any(m in link_target for m in markers)
+
+
+def _symlink_target_is_empty(path):
+    """True when the resolved target of ``path`` exists but has no content."""
+    if not os.path.exists(path):
+        return False
+    try:
+        if os.path.isdir(path):
+            return not os.listdir(path)
+        return os.path.getsize(path) == 0
+    except OSError:
+        return False
+
+
+def cleanup_stale_skills(target_skills_dir, target_dir, dry_run=False):
+    """
+    Remove stale skill entries that ``setup.py`` itself installed previously.
+
+    Only these are removed:
+      * broken symlinks whose target path is under one of our managed
+        sources (dotfiles overlay, claude-skills, media-skills). Broken
+        symlinks that point elsewhere are reported but preserved.
+      * empty directories whose ``.claude/skills/<name>/`` entry is tracked
+        in our managed section of the target's .gitignore (i.e. we created
+        the placeholder).
+
+    Everything else — self-contained skill directories the user populated,
+    symlinks to external sources, broken symlinks to paths outside our
+    managed tree — is left alone and reported so the user knows what's
+    there and where it came from.
+
+    The matching ``.claude/skills/<name>/`` entry in .gitignore is removed
+    for anything we do clean up.
+    """
+    if not os.path.isdir(target_skills_dir):
+        return []
+
+    managed_entries = _read_our_entries(os.path.join(target_dir, ".gitignore"))
+
+    stale_names = []
+    external = []  # (label, path) tuples — informational only
+    for name in sorted(os.listdir(target_skills_dir)):
+        path = os.path.join(target_skills_dir, name)
+        entry = f".claude/skills/{name}/"
+
+        if os.path.islink(path):
+            link_target = os.readlink(path)
+            broken = not os.path.exists(path)
+            ours = _is_our_source(link_target)
+            if broken and ours:
+                if dry_run:
+                    print(f"  Would remove broken symlink: {path}")
+                else:
+                    os.unlink(path)
+                    print(f"Removed broken symlink: {path}")
+                stale_names.append(name)
+            elif broken:
+                external.append((f"broken symlink -> {link_target}", path))
+            elif not ours:
+                empty_note = (
+                    " (target is empty)" if _symlink_target_is_empty(path) else ""
+                )
+                external.append(
+                    (f"external symlink -> {link_target}{empty_note}", path)
+                )
+            elif _symlink_target_is_empty(path):
+                # Managed symlink with an empty source — flag but don't touch;
+                # the source may be a submodule that isn't initialised yet.
+                external.append((f"managed symlink -> {link_target} (empty)", path))
+            # Live, populated symlinks into our managed sources: nothing to do.
+        elif os.path.isdir(path):
+            if not os.listdir(path) and entry in managed_entries:
+                if dry_run:
+                    print(f"  Would remove empty directory: {path}")
+                else:
+                    os.rmdir(path)
+                    print(f"Removed empty directory: {path}")
+                stale_names.append(name)
+            else:
+                # Self-contained skill (populated, or empty but not ours).
+                external.append(("self-contained skill", path))
+
+    if external:
+        print_hint(
+            "Skills not managed by setup.py (left as-is — install them elsewhere):"
+        )
+        for label, path in external:
+            print_hint(f"  {path}  [{label}]")
+
+    if stale_names:
+        entries = [f".claude/skills/{n}/" for n in stale_names]
+        remove_from_gitignore(target_dir, entries, dry_run=dry_run)
+
+    return stale_names
+
+
 def install_firefox_claude(target_dir=None, dry_run=False):
     """
     Install Firefox-specific Claude settings (hooks, skills) to a target project.
@@ -2248,10 +2411,12 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 personal_skill_names.add(skill)
                 step += 1
 
-        # Show renamed claude-skills cleanup
+        # Show renamed claude-skills cleanup — only flag symlinks that
+        # actually point at a claude-skills source, to avoid false positives
+        # for names that are re-used by personal or media skills.
         for old_name, new_name in CLAUDE_SKILLS_RENAME.items():
             old_path = os.path.join(target_skills_dir, old_name)
-            if os.path.islink(old_path):
+            if os.path.islink(old_path) and CLAUDE_SKILLS_DIR in os.readlink(old_path):
                 print(
                     f"  {step}. Remove stale (claude-skills): {old_name} (renamed to {new_name})"
                 )
@@ -2299,6 +2464,12 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 print(f"  {step}. Symlink (media-skills): {dst} -> {src}")
                 gitignore_entries.append(f".claude/skills/{skill}/")
                 step += 1
+
+        # Auto-clean stale skill symlinks / empty dirs
+        if os.path.isdir(target_skills_dir):
+            print(f"  {step}. Check for stale skills to clean up:")
+            cleanup_stale_skills(target_skills_dir, target_dir, dry_run=True)
+            step += 1
 
         # Settings
         src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, "settings.local.json")
@@ -2433,6 +2604,11 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             os.symlink(src, dst)
             print(f"Linked (media-skills): {skill}")
             gitignore_entries.append(f".claude/skills/{skill}/")
+
+    # Auto-clean stale skills (broken symlinks, empty dirs) left over from
+    # previous installs — e.g. skills that were renamed, deleted, or moved
+    # between source buckets.
+    cleanup_stale_skills(target_skills_dir, target_dir)
 
     # Handle settings.local.json
     src_settings = os.path.join(FIREFOX_CLAUDE_OVERLAY, "settings.local.json")
