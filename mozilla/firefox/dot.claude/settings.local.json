@@ -8,7 +8,7 @@
       "Bash(./mach vendor:*)",
       "Bash(./mach static-analysis:*)",
       "Bash(.claude/skills/sherlock/sherlock-config:*)",
-      "Bash(python3 .claude/skills/security-approval/bmo-sec-approval:*)",
+      "Bash(python3 .claude/skills/sec-approval/bmo-sec-approval:*)",
       "Bash(bmo-to-md:*)"
     ]
   },
