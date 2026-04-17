@@ -1,15 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls:*)",
       "Bash(./mach help:*)",
-      "Bash(searchfox-cli:*)",
-      "Bash(./.claude/hooks/should-format-lint.sh:*)",
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=2020856
+      // "Bash(./mach static-analysis:*)",
       "Bash(./mach vendor:*)",
-      "Bash(./mach static-analysis:*)",
+      "Bash(.claude/hooks/should-format-lint.sh:*)",
       "Bash(.claude/skills/sherlock/sherlock-config:*)",
+      "Bash(bmo-to-md:*)",
+      "Bash(ls:*)",
       "Bash(python3 .claude/skills/sec-approval/bmo-sec-approval:*)",
-      "Bash(bmo-to-md:*)"
+      "Bash(searchfox-cli:*)"
     ]
   },
   "model": "opusplan",
@@ -32,6 +33,7 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-format.sh",
             "timeout": 120
           },
+          // https://bugzilla.mozilla.org/show_bug.cgi?id=2020856
           // {
           //   "type": "command",
           //   "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-static-analysis.sh",
