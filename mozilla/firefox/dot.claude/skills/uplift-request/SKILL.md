@@ -113,8 +113,9 @@ single `AskUserQuestion` (multiSelect) using concrete versions from the
 calendar (e.g. "Beta 149", "ESR 140", "ESR 128"). Only offer ESR versions
 that are currently supported.
 
-One questionnaire may cover several channels; per-channel differences (risk,
-backport patches) are called out inside the answer.
+A single block may cover several channels when they share the same patch.
+See Step 6 for the block-grouping rule (one block per distinct patch
+variant, not per channel).
 
 ---
 
@@ -240,7 +241,21 @@ The form, per
 has nine fields (same set for Beta, Release, ESR):
 
 1. **User impact if declined** — user-facing consequence, not repro steps.
-2. **Is this code covered by automated tests?** — Yes / No / Unknown.
+   - For sec-\* bugs: **state the security impact explicitly**. Lead with
+     `sec-<rating> <class>` (e.g. "sec-high heap memory disclosure",
+     "sec-moderate UAF") and describe the concrete observable consequence
+     (what web content or an attacker can see/do). Do **not** sanitize this
+     field down to generic "returns incorrect data" — approvers are release
+     drivers who need to understand the severity they're signing off on, and
+     sec-approval has already gated this content.
+2. **Is this code covered by automated tests?** — Yes / No / Unknown. Answer
+   based on what is **currently landed on the target branch**, not on what the
+   uplift bundle will add once approved. If the test is attached/queued but
+   not yet in-tree on that branch, answer **No** and note "New test attached;
+   will land with the uplift." If the test is landed on trunk but the uplift
+   crosses into a release branch where it isn't yet backported, the answer for
+   that branch is still **No**. Only answer **Yes** when coverage already
+   exists on the target branch at the time of the approval request.
 3. **Has the fix been verified in Nightly?** — Yes / No (ask the user).
 4. **Needs manual test from QE?** — Yes / No; if Yes, provide/reference repro.
 5. **List of other uplifts needed** — dependent patches not on the target
@@ -257,19 +272,29 @@ Use the bug, the diff, and the `status-firefoxNN` flags to fill every field.
 Keep answers tight and factual — one sentence where possible.
 
 **For sec-\* bugs** (already sanitized by Step 4): keep the same caution in
-the *text* of these answers. No "security" / "exploit" / "vulnerability", no
-function names, no line numbers, no code snippets. Frame "user impact" and
-"risk" as generic correctness/stability consequences.
+the *text* of the risk/why-risky and test-coverage fields — no function
+names, no line numbers, no code snippets in those. The **User impact if
+declined** field is the explicit exception: it must name the sec rating and
+concrete security consequence so approvers can judge severity. Keep it
+factual and short, but do not under-sell it.
 
-**Per-channel differences**: if answers diverge across channels (different
-backport, different risk), draft one block per channel:
+**Group uplift blocks by patch identity, not by channel.** Produce one
+block per **distinct patch variant**, listing every channel that shares it:
 
-```
-### Uplift Request — Firefox {version} {Beta|Release|ESR NN}
-```
+- Same patch applies cleanly to Beta, Release, and ESR 140, but ESR 115 needs
+  a rebase → **2 blocks**: one headed
+  `### Uplift Request — Firefox Beta 150 / Release 149 / ESR 140`, another
+  headed `### Uplift Request — Firefox ESR 115`.
+- Same patch applies cleanly to every requested channel → **1 block** headed
+  with all the channels it covers.
+- Every channel needs a different patch → one block per channel.
 
-If answers are identical, one block with an explicit
-"Targets: Beta 149, ESR 140" header is acceptable.
+Default to "one block covering all requested channels" when the patch is
+small/structural and likely to cherry-pick cleanly. If backport conflicts
+surface later, split the block then. Rationale: each block maps to one
+attachment submission + approval-flag batch on Bugzilla — one block per
+patch is the natural grouping, and duplicating identical answer text across
+per-channel blocks is noise.
 
 ---
 
@@ -280,7 +305,7 @@ Write to the repository root as `uplift-request-bug-<bug_id>.md` (or
 between bullets, one answer per line:
 
 ```text
-### Uplift Request — Firefox <version> <channel>
+### Uplift Request — Firefox <channels this patch covers>
 * **User impact if declined**: <answer>
 * **Is this code covered by automated tests?**: <Yes/No/Unknown>
 * **Has the fix been verified in Nightly?**: <Yes/No>
@@ -294,8 +319,12 @@ between bullets, one answer per line:
 *Drafted with the assistance of Claude Code — reviewed and approved by the patch author.*
 ```
 
-For multiple channels, concatenate one block per channel separated by a
-single blank line. Use the `Write` tool, then tell the user the file path.
+The heading lists every channel the block's patch applies to — e.g.
+`### Uplift Request — Firefox Beta 150 / Release 149 / ESR 140 / ESR 115`
+for a clean-everywhere patch, or a single-channel heading for a
+rebased variant. When the request covers multiple distinct patches,
+concatenate one block per patch separated by a single blank line. Use the
+`Write` tool, then tell the user the file path.
 
 ---
 
@@ -320,20 +349,23 @@ Ask the user whether to post. Always dry-run first.
    Ask the user to confirm. If none match (e.g. raw-patch-only), ask for the
    attachment ID.
 
-3. **Dry-run** per channel:
+3. **Dry-run per block.** Each block from Step 6 corresponds to one
+   attachment and the channels that block covers — pass every channel flag
+   for that block in a single invocation:
 
    ```bash
    python3 .claude/skills/uplift-request/bmo-uplift-request \
        <bug_id> uplift-request-bug-<bug_id>.md \
-       --attachment <id> --beta --dry-run
+       --attachment <id> --beta --release --esr 140 --esr 115 --dry-run
    ```
 
-   Flags supported: `--beta`, `--release`, `--esr NN` (may be combined). Show
-   the dry-run output and confirm.
+   Flags supported: `--beta`, `--release`, `--esr NN` (combine all the
+   channels that share the block's patch). Show the dry-run output and
+   confirm.
 
-4. **Post** — re-run without `--dry-run`. For multiple channels on different
-   attachments, invoke the script once per attachment with the relevant
-   flags.
+4. **Post** — re-run without `--dry-run`. When the request has multiple
+   blocks (distinct patch variants on different attachments), invoke the
+   script once per block with that block's attachment and channel flags.
 
 5. Report the Bugzilla URL printed by the script.
 
