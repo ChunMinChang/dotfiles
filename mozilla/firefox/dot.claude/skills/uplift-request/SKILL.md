@@ -43,7 +43,9 @@ to test availability.
 
 Parse:
 
-- The first all-digit token is the **bug ID**.
+- The first all-digit token with **6 or more digits** and not immediately
+  following `--esr` is the **bug ID**. The 6-digit floor avoids collision
+  with ESR version numbers (`--esr 140`), which are 2–3 digits.
 - Any token containing `/` is the **bug report path** (a folder of markdown
   written by `bmo-to-md`).
 - `--beta`, `--release`, and `--esr NN` select target channels; multiple are
@@ -82,14 +84,17 @@ jj --version 2>/dev/null && echo "jj" || echo "git"
 ```bash
 git log --oneline origin/main..HEAD
 git log origin/main..HEAD --format=%B
-git diff origin/main..HEAD
+git diff --stat origin/main..HEAD   # overview first — the full diff can
+                                    # be large; read hunks selectively
+git diff origin/main..HEAD -- <file>  # for each file of interest
 ```
 
 **jj:**
 
 ```bash
 jj log -T builtin_log_detailed -r 'trunk()..@'
-jj diff -r 'trunk()..@'
+jj diff --stat -r 'trunk()..@'      # overview first
+jj diff -r 'trunk()..@' <file>      # for each file of interest
 ```
 
 Record: commit messages, every `Differential Revision: .../D<N>` trailer, and
@@ -206,9 +211,11 @@ This is a user-visible, hard-to-reverse action — always confirm before
 running any submit command.
 
 - **Phabricator (preferred)**: show the exact `moz-phab submit` command,
-  confirm, then run.
+  confirm, then run. `<base>` is the merge-base with the target branch —
+  typically `origin/main` for Nightly-bound work, or the relevant
+  `origin/release`/`origin/esrNN` tip for direct-to-branch uplifts.
   ```bash
-  moz-phab submit <base>..HEAD
+  moz-phab submit origin/main..HEAD
   ```
 - **Raw patch** (when Phabricator isn't appropriate): generate with
   `git format-patch` (or `jj` equivalent) and upload via the helper script.

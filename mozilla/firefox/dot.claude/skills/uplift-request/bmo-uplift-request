@@ -144,8 +144,16 @@ def format_flags(attachment):
 
 
 def get_active_attachments(bug_id, api_key):
-    """Return non-obsolete Phabricator + text/plain patch attachments."""
-    result = api("GET", f"bug/{bug_id}/attachment", api_key=api_key)
+    """Return non-obsolete Phabricator + text/plain patch attachments.
+
+    Excludes the base64 `data` field — we don't need full patch bodies for
+    listing/flag-setting, and raw-patch attachments can be multi-MB. The
+    summary almost always carries the D<N> identifier for Phabricator
+    attachments; extract_phab_revision falls back to (None) otherwise.
+    """
+    fields = "id,summary,flags,content_type,is_obsolete,file_name"
+    result = api("GET", f"bug/{bug_id}/attachment?include_fields={fields}",
+                 api_key=api_key)
     attachments = result.get("bugs", {}).get(str(bug_id), [])
     keep_ct = ("text/x-phabricator-request", "text/plain")
     return [
@@ -164,9 +172,14 @@ def list_attachments(bug_id, api_key):
     for a in atts:
         rev = extract_phab_revision(a)
         flags = format_flags(a)
-        kind = ("phab" if a.get("content_type") == "text/x-phabricator-request"
-                else "raw")
-        rev_str = f"{rev}  {PHAB}/{rev}" if rev else "(raw patch)"
+        is_phab = a.get("content_type") == "text/x-phabricator-request"
+        kind = "phab" if is_phab else "raw"
+        if rev:
+            rev_str = f"{rev}  {PHAB}/{rev}"
+        elif is_phab:
+            rev_str = "(no D-rev in summary)"
+        else:
+            rev_str = "(raw patch)"
         print(f"  Attachment {a['id']}  [{kind}]  {rev_str}")
         print(f"    {a.get('summary', '')}")
         if flags:
@@ -442,7 +455,13 @@ def main():
         label = f"{att_rev} " if att_rev else ""
         print(f"[dry-run] PUT /rest/bug/attachment/{attachment_id} "
               f"({label}{att_summary})")
-        print(json.dumps(payload, indent=2))
+        print(f"  flags   = {', '.join(n + '?' for n in flag_names)}")
+        print(f"  comment = (is_markdown=True, {len(comment)} chars)")
+        preview = comment if len(comment) < 200 else comment[:197] + "..."
+        print("  --- comment preview ---")
+        for line in preview.splitlines():
+            print(f"  | {line}")
+        print("  --- end preview ---")
         return
 
     api("PUT", f"bug/attachment/{attachment_id}",
