@@ -2,8 +2,6 @@
   "permissions": {
     "allow": [
       "Bash(./mach help:*)",
-      // https://bugzilla.mozilla.org/show_bug.cgi?id=2020856
-      // "Bash(./mach static-analysis:*)",
       "Bash(./mach vendor:*)",
       "Bash(.claude/hooks/should-format-lint.sh:*)",
       "Bash(.claude/skills/sherlock/sherlock-config:*)",
@@ -34,13 +32,7 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-format.sh",
             "timeout": 120
-          },
-          // https://bugzilla.mozilla.org/show_bug.cgi?id=2020856
-          // {
-          //   "type": "command",
-          //   "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-static-analysis.sh",
-          //   "timeout": 300
-          // }
+          }
         ]
       }
     ]
