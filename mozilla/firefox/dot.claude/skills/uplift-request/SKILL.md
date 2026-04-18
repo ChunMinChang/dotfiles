@@ -209,9 +209,22 @@ running any submit command.
   ```bash
   moz-phab submit <base>..HEAD
   ```
-- **Raw patch** (when Phabricator isn't appropriate): `git format-patch -1 HEAD`
-  (or `jj` equivalent) and attach via the BMO API using the helper script.
-  Ask the user to confirm the attachment summary.
+- **Raw patch** (when Phabricator isn't appropriate): generate with
+  `git format-patch` (or `jj` equivalent) and upload via the helper script.
+  The summary defaults to the patch Subject (with `[PATCH n/m]` stripped);
+  pass `--summary` to override. Always dry-run first.
+  ```bash
+  git format-patch -1 HEAD -o /tmp
+  python3 .claude/skills/uplift-request/bmo-uplift-request \
+      <bug_id> --attach /tmp/0001-*.patch --dry-run
+  # If the dry-run looks right, re-run without --dry-run.
+  ```
+  When re-submitting a sanitized version after Step 4 flagged the existing
+  attachment (scenario D), pass `--obsolete <old_attachment_id>` (repeatable)
+  so the stale patch is marked obsolete atomically with the upload. You can
+  also combine `--attach` with `--beta` / `--release` / `--esr NN` (and an
+  optional positional comment file) to upload the patch, post the uplift
+  form, and set approval flags in a single API call.
 
 After submission, re-list attachments to record the new IDs for Step 8.
 
