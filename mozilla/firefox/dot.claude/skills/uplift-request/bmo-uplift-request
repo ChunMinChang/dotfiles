@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+"""Request uplift approval on a Bugzilla attachment.
+
+Posts a comment to the bug and sets one or more of
+approval-mozilla-beta?, approval-mozilla-release?, and
+approval-mozilla-esr{NN}? on the specified attachment.
+
+Shares API-key config with the security-approval skill and bmo-to-md.
+
+Usage:
+    bmo-uplift-request <bug-id> <comment-file> [--attachment ID]
+        [--beta] [--release] [--esr NN]... [--flag NAME]... [--dry-run]
+    bmo-uplift-request <bug-id> --list
+    bmo-uplift-request --check-auth
+
+API key resolution (first match wins):
+    1. $BMO_API_KEY environment variable
+    2. api_key in ~/.config/bugzilla/config.toml
+    3. api_key in ~/.config/bmo-to-md/config.toml
+"""
+
+import argparse
+import base64
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+
+BMO = "https://bugzilla.mozilla.org"
+PHAB = "https://phabricator.services.mozilla.com"
+BMO_CONFIG = os.path.expanduser("~/.config/bugzilla/config.toml")
+BMO_TO_MD_CONFIG = os.path.expanduser("~/.config/bmo-to-md/config.toml")
+
+
+def _read_toml_api_key(path):
+    """Read api_key from a TOML file. Returns the value or None."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("api_key"):
+                    _, _, val = line.partition("=")
+                    val = val.strip().strip('"').strip("'")
+                    if val:
+                        return val
+    except OSError:
+        pass
+    return None
+
+
+def resolve_api_key():
+    """Resolve BMO API key without ever printing it.
+
+    Checks, in order:
+      1. $BMO_API_KEY environment variable
+      2. api_key in ~/.config/bugzilla/config.toml
+      3. api_key in ~/.config/bmo-to-md/config.toml
+    Returns (key, source) or (None, None).
+    """
+    env = os.environ.get("BMO_API_KEY", "").strip()
+    if env:
+        return env, "$BMO_API_KEY"
+    for path in (BMO_CONFIG, BMO_TO_MD_CONFIG):
+        val = _read_toml_api_key(path)
+        if val:
+            return val, path
+    return None, None
+
+
+def require_api_key():
+    key, _ = resolve_api_key()
+    if not key:
+        print("error: no Bugzilla API key found", file=sys.stderr)
+        print("Store your key in " + BMO_CONFIG
+              + " or set $BMO_API_KEY", file=sys.stderr)
+        sys.exit(1)
+    return key
+
+
+def check_auth():
+    """Print whether an API key is available (never prints the key)."""
+    key, source = resolve_api_key()
+    if key:
+        print(f"OK: API key found via {source}")
+    else:
+        print("No API key found")
+        print(f"Store your key in {BMO_CONFIG} or set $BMO_API_KEY")
+        sys.exit(1)
+
+
+def api(method, path, data=None, api_key=None):
+    url = f"{BMO}/rest/{path}"
+    body = json.dumps(data).encode() if data else None
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["X-BUGZILLA-API-KEY"] = api_key
+    req = urllib.request.Request(url, data=body, headers=headers,
+                                 method=method)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode(errors="replace")
+        print(f"error: {method} /rest/{path} -> HTTP {e.code}\n{err_body}",
+              file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"error: {e.reason}", file=sys.stderr)
+        sys.exit(1)
+
+
+def extract_phab_revision(attachment):
+    """Extract Phabricator revision ID (e.g. D290715) from attachment data."""
+    data = attachment.get("data", "")
+    if data:
+        try:
+            decoded = base64.b64decode(data).decode(errors="replace")
+            m = re.search(r'(D\d+)', decoded)
+            if m:
+                return m.group(1)
+        except Exception:
+            pass
+    summary = attachment.get("summary", "")
+    m = re.search(r'(D\d+)', summary)
+    if m:
+        return m.group(1)
+    return None
+
+
+def format_flags(attachment):
+    flags = attachment.get("flags", [])
+    if not flags:
+        return ""
+    return ", ".join(f"{f['name']}{f['status']}" for f in flags)
+
+
+def get_active_attachments(bug_id, api_key):
+    """Return non-obsolete Phabricator + text/plain patch attachments."""
+    result = api("GET", f"bug/{bug_id}/attachment", api_key=api_key)
+    attachments = result.get("bugs", {}).get(str(bug_id), [])
+    keep_ct = ("text/x-phabricator-request", "text/plain")
+    return [
+        a for a in attachments
+        if a.get("content_type") in keep_ct
+        and not a.get("is_obsolete")
+    ]
+
+
+def list_attachments(bug_id, api_key):
+    atts = get_active_attachments(bug_id, api_key)
+    if not atts:
+        print(f"No active patch attachments on bug {bug_id}")
+        return
+    print(f"Active patch attachments on bug {bug_id}:\n")
+    for a in atts:
+        rev = extract_phab_revision(a)
+        flags = format_flags(a)
+        kind = ("phab" if a.get("content_type") == "text/x-phabricator-request"
+                else "raw")
+        rev_str = f"{rev}  {PHAB}/{rev}" if rev else "(raw patch)"
+        print(f"  Attachment {a['id']}  [{kind}]  {rev_str}")
+        print(f"    {a.get('summary', '')}")
+        if flags:
+            print(f"    Flags: {flags}")
+        print()
+
+
+def find_single_phab_attachment(bug_id, api_key):
+    atts = [a for a in get_active_attachments(bug_id, api_key)
+            if a.get("content_type") == "text/x-phabricator-request"]
+    if not atts:
+        print(f"error: no active Phabricator attachments found on bug "
+              f"{bug_id}", file=sys.stderr)
+        print("hint: specify --attachment <id> manually, or use --list",
+              file=sys.stderr)
+        sys.exit(1)
+    if len(atts) > 1:
+        print(f"Multiple active Phabricator attachments on bug {bug_id}:",
+              file=sys.stderr)
+        for a in atts:
+            rev = extract_phab_revision(a) or "?"
+            flags = format_flags(a)
+            print(f"  {a['id']}: {rev}  {a.get('summary', '')}  [{flags}]",
+                  file=sys.stderr)
+        print("\nhint: specify --attachment <id> or use --list",
+              file=sys.stderr)
+        sys.exit(1)
+    return atts[0]
+
+
+def build_flag_names(args):
+    """Translate --beta/--release/--esr/--flag into flag-name strings."""
+    names = []
+    if args.beta:
+        names.append("approval-mozilla-beta")
+    if args.release:
+        names.append("approval-mozilla-release")
+    for ver in args.esr or []:
+        if not re.fullmatch(r"\d+", str(ver)):
+            print(f"error: --esr value must be a number, got {ver!r}",
+                  file=sys.stderr)
+            sys.exit(1)
+        names.append(f"approval-mozilla-esr{ver}")
+    for name in args.flag or []:
+        names.append(name)
+    # De-duplicate while preserving order.
+    seen = set()
+    out = []
+    for n in names:
+        if n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("bug_id", nargs="?", help="Bugzilla bug ID")
+    parser.add_argument("comment_file", nargs="?",
+                        help="Path to comment text file, or - for stdin")
+    parser.add_argument("--attachment", type=int, metavar="ID",
+                        help="Attachment ID to set approval flag(s) on")
+    parser.add_argument("--beta", action="store_true",
+                        help="Set approval-mozilla-beta?")
+    parser.add_argument("--release", action="store_true",
+                        help="Set approval-mozilla-release?")
+    parser.add_argument("--esr", action="append", metavar="NN",
+                        help="Set approval-mozilla-esr{NN}? (repeatable)")
+    parser.add_argument("--flag", action="append", metavar="NAME",
+                        help="Set an arbitrary flag by name (repeatable)")
+    parser.add_argument("--list", action="store_true", dest="list_attachments",
+                        help="List active patch attachments and exit")
+    parser.add_argument("--check-auth", action="store_true",
+                        help="Check if an API key is available and exit")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Show what would be done without posting")
+    args = parser.parse_args()
+
+    if args.check_auth:
+        check_auth()
+        return
+
+    if not args.bug_id:
+        parser.error("bug_id is required")
+    if not args.list_attachments:
+        if not args.comment_file:
+            parser.error("comment_file is required (unless using --list)")
+
+    flag_names = [] if args.list_attachments else build_flag_names(args)
+    if not args.list_attachments and not flag_names:
+        parser.error("at least one of --beta, --release, --esr NN, or "
+                     "--flag NAME is required")
+
+    api_key = require_api_key()
+
+    if args.list_attachments:
+        list_attachments(args.bug_id, api_key)
+        return
+
+    if args.comment_file == "-":
+        comment = sys.stdin.read()
+    else:
+        with open(args.comment_file) as f:
+            comment = f.read()
+    if not comment.strip():
+        print("error: comment file is empty", file=sys.stderr)
+        sys.exit(1)
+
+    if args.attachment:
+        attachment_id = args.attachment
+        result = api("GET", f"bug/attachment/{attachment_id}",
+                     api_key=api_key)
+        att = result.get("attachments", {}).get(str(attachment_id), {})
+    else:
+        att = find_single_phab_attachment(args.bug_id, api_key)
+        attachment_id = att["id"]
+    att_summary = att.get("summary", f"attachment {attachment_id}")
+    att_rev = extract_phab_revision(att) or ""
+
+    existing = {f.get("name"): f.get("status") for f in att.get("flags", [])}
+    for name in flag_names:
+        status = existing.get(name)
+        if status in ("+", "-", "?"):
+            print(f"warning: attachment {attachment_id} already has "
+                  f"{name}{status}", file=sys.stderr)
+
+    payload = {
+        "comment": comment,
+        "is_markdown": True,
+        "flags": [{"name": name, "status": "?"} for name in flag_names],
+    }
+
+    if args.dry_run:
+        label = f"{att_rev} " if att_rev else ""
+        print(f"[dry-run] PUT /rest/bug/attachment/{attachment_id} "
+              f"({label}{att_summary})")
+        print(json.dumps(payload, indent=2))
+        return
+
+    api("PUT", f"bug/attachment/{attachment_id}",
+        data=payload, api_key=api_key)
+    joined = ", ".join(f"{n}?" for n in flag_names)
+    print(f"{joined} set on attachment {attachment_id} ({att_summary})")
+    print(f"{BMO}/show_bug.cgi?id={args.bug_id}")
+
+
+if __name__ == "__main__":
+    main()
