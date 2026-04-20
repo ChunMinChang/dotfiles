@@ -540,7 +540,12 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
     gitignore_path = os.path.join(repo_dir, ".gitignore")
     added = []
 
-    our_entries = _read_our_entries(gitignore_path)
+    our_entries_ordered = []
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, "r") as f:
+            _, _, ours, _ = _split_gitignore_sections(f.readlines())
+        our_entries_ordered = [line.strip() for line in ours if line.strip()]
+    our_entries = set(our_entries_ordered)
 
     # Also treat entries that appear outside our section as "already ignored"
     # so we don't duplicate them.
@@ -565,13 +570,19 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
         for entry in already_ignored:
             print(f"  {entry}")
 
-    if not entries_to_add:
+    # Always re-sort our section so entries stay alphabetical even on
+    # idempotent re-runs or after branch switches that left the section stale.
+    needs_resort = our_entries_ordered != sorted(our_entries_ordered)
+
+    if not entries_to_add and not needs_resort:
         return added
 
     if dry_run:
         for entry in entries_to_add:
             print(f"  Would add to .gitignore: {entry}")
             added.append(entry)
+        if needs_resort and not entries_to_add:
+            print("  Would re-sort existing .gitignore section")
         return added
 
     merged = sorted(our_entries | set(entries_to_add))
@@ -580,6 +591,8 @@ def add_to_gitignore(repo_dir, entries, dry_run=False):
         for entry in entries_to_add:
             print(f"Added to .gitignore: {entry}")
             added.append(entry)
+        if needs_resort and not entries_to_add:
+            print("Re-sorted existing .gitignore section")
     except IOError as e:
         print_error(f"Failed to update .gitignore: {e}")
 
