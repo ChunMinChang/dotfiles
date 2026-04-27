@@ -1,12 +1,12 @@
 #!/bin/bash
-# Sync helper for alastor0325/Claude-Skills submodule
+# Sync helper for ChunMinChang/alwu-Fx-Claude-Skills submodule
 # Usage:
-#   ./mozilla/firefox/sync-claude-skills.sh pull   # pull latest from upstream
-#   ./mozilla/firefox/sync-claude-skills.sh status  # show current pinned commit
+#   ./mozilla/firefox/sync-alwu-claude-skills.sh pull   # pull latest from upstream
+#   ./mozilla/firefox/sync-alwu-claude-skills.sh status  # show current pinned commit
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-SUBMODULE="mozilla/firefox/claude-skills"
+SUBMODULE="mozilla/firefox/alwu-claude-skills"
 
 case "${1:-pull}" in
   pull)

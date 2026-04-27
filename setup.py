@@ -2209,10 +2209,10 @@ def show_claude_hooks():
 FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, "mozilla", "firefox", "dot.claude")
 MEDIA_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "media-skills")
 MEDIA_SKILLS_EXCLUDE = {"Template", "shared", ".git", ".github", "LICENSE", "README.md"}
-CLAUDE_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "claude-skills")
-CLAUDE_SKILLS_EXCLUDE = {".git", ".github", ".githooks", "CLAUDE.md", "README.md"}
+ALWU_CLAUDE_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "alwu-claude-skills")
+ALWU_CLAUDE_SKILLS_EXCLUDE = {".git", ".github", ".githooks", "CLAUDE.md", "README.md"}
 # Rename skills during install: {"original-name": "installed-name"}
-CLAUDE_SKILLS_RENAME = {
+ALWU_CLAUDE_SKILLS_RENAME = {
     "triage": "av-weekly-triage",
     "sec-approval": "sec-approval-draft",
 }
@@ -2234,7 +2234,7 @@ def get_user_input(prompt, default=""):
 
 def _is_our_source(link_target):
     """Does this symlink target belong to something setup.py installs?"""
-    markers = (FIREFOX_CLAUDE_OVERLAY, CLAUDE_SKILLS_DIR, MEDIA_SKILLS_DIR, ".dotfiles")
+    markers = (FIREFOX_CLAUDE_OVERLAY, ALWU_CLAUDE_SKILLS_DIR, MEDIA_SKILLS_DIR, ".dotfiles")
     return any(m in link_target for m in markers)
 
 
@@ -2256,7 +2256,7 @@ def cleanup_stale_skills(target_skills_dir, target_dir, dry_run=False):
 
     Only these are removed:
       * broken symlinks whose target path is under one of our managed
-        sources (dotfiles overlay, claude-skills, media-skills). Broken
+        sources (dotfiles overlay, alwu-claude-skills, media-skills). Broken
         symlinks that point elsewhere are reported but preserved.
       * empty directories whose ``.claude/skills/<name>/`` entry is tracked
         in our managed section of the target's .gitignore (i.e. we created
@@ -2424,39 +2424,39 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 personal_skill_names.add(skill)
                 step += 1
 
-        # Show renamed claude-skills cleanup — only flag symlinks that
-        # actually point at a claude-skills source, to avoid false positives
+        # Show renamed alwu-claude-skills cleanup — only flag symlinks that
+        # actually point at a alwu-claude-skills source, to avoid false positives
         # for names that are re-used by personal or media skills.
-        for old_name, new_name in CLAUDE_SKILLS_RENAME.items():
+        for old_name, new_name in ALWU_CLAUDE_SKILLS_RENAME.items():
             old_path = os.path.join(target_skills_dir, old_name)
-            if os.path.islink(old_path) and CLAUDE_SKILLS_DIR in os.readlink(old_path):
+            if os.path.islink(old_path) and ALWU_CLAUDE_SKILLS_DIR in os.readlink(old_path):
                 print(
-                    f"  {step}. Remove stale (claude-skills): {old_name} (renamed to {new_name})"
+                    f"  {step}. Remove stale (alwu-claude-skills): {old_name} (renamed to {new_name})"
                 )
                 remove_from_gitignore(
                     target_dir, [f".claude/skills/{old_name}/"], dry_run=True
                 )
                 step += 1
 
-        # List claude-skills to symlink (personal, higher priority than media-skills)
-        claude_skill_names = set()
-        if os.path.isdir(CLAUDE_SKILLS_DIR):
-            for skill in sorted(os.listdir(CLAUDE_SKILLS_DIR)):
-                if skill in CLAUDE_SKILLS_EXCLUDE:
+        # List alwu-claude-skills to symlink (personal, higher priority than media-skills)
+        alwu_claude_skill_names = set()
+        if os.path.isdir(ALWU_CLAUDE_SKILLS_DIR):
+            for skill in sorted(os.listdir(ALWU_CLAUDE_SKILLS_DIR)):
+                if skill in ALWU_CLAUDE_SKILLS_EXCLUDE:
                     continue
-                if not os.path.isdir(os.path.join(CLAUDE_SKILLS_DIR, skill)):
+                if not os.path.isdir(os.path.join(ALWU_CLAUDE_SKILLS_DIR, skill)):
                     continue
-                install_name = CLAUDE_SKILLS_RENAME.get(skill, skill)
+                install_name = ALWU_CLAUDE_SKILLS_RENAME.get(skill, skill)
                 if install_name in personal_skill_names:
                     print(f"  {step}. SKIP (conflict with personal): {install_name}")
                     step += 1
                     continue
-                src = os.path.join(CLAUDE_SKILLS_DIR, skill)
+                src = os.path.join(ALWU_CLAUDE_SKILLS_DIR, skill)
                 dst = os.path.join(target_skills_dir, install_name)
                 label = f"{skill} -> {install_name}" if skill != install_name else skill
-                print(f"  {step}. Symlink (claude-skills): {dst} -> {src} [{label}]")
+                print(f"  {step}. Symlink (alwu-claude-skills): {dst} -> {src} [{label}]")
                 gitignore_entries.append(f".claude/skills/{install_name}/")
-                claude_skill_names.add(install_name)
+                alwu_claude_skill_names.add(install_name)
                 step += 1
 
         # List media-skills to symlink (team-wide)
@@ -2466,9 +2466,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                     continue
                 if not os.path.isdir(os.path.join(MEDIA_SKILLS_DIR, skill)):
                     continue
-                if skill in personal_skill_names or skill in claude_skill_names:
+                if skill in personal_skill_names or skill in alwu_claude_skill_names:
                     print(
-                        f"  {step}. SKIP (conflict with personal/claude-skills): {skill}"
+                        f"  {step}. SKIP (conflict with personal/alwu-claude-skills): {skill}"
                     )
                     step += 1
                     continue
@@ -2549,32 +2549,32 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             gitignore_entries.append(f".claude/skills/{skill}/")
             personal_skill_names.add(skill)
 
-    # Clean up stale symlinks and gitignore entries from renamed claude-skills
+    # Clean up stale symlinks and gitignore entries from renamed alwu-claude-skills
     stale_gitignore = []
-    for old_name in CLAUDE_SKILLS_RENAME:
+    for old_name in ALWU_CLAUDE_SKILLS_RENAME:
         old_path = os.path.join(target_skills_dir, old_name)
         if os.path.islink(old_path):
             link_target = os.readlink(old_path)
-            if CLAUDE_SKILLS_DIR in link_target:
+            if ALWU_CLAUDE_SKILLS_DIR in link_target:
                 os.unlink(old_path)
                 stale_gitignore.append(f".claude/skills/{old_name}/")
-                print(f"Removed stale (claude-skills): {old_name}")
+                print(f"Removed stale (alwu-claude-skills): {old_name}")
     if stale_gitignore:
         remove_from_gitignore(target_dir, stale_gitignore)
 
-    # Symlink claude-skills (personal, higher priority than media-skills)
-    claude_skill_names = set()
-    if os.path.isdir(CLAUDE_SKILLS_DIR):
-        for skill in sorted(os.listdir(CLAUDE_SKILLS_DIR)):
-            if skill in CLAUDE_SKILLS_EXCLUDE:
+    # Symlink alwu-claude-skills (personal, higher priority than media-skills)
+    alwu_claude_skill_names = set()
+    if os.path.isdir(ALWU_CLAUDE_SKILLS_DIR):
+        for skill in sorted(os.listdir(ALWU_CLAUDE_SKILLS_DIR)):
+            if skill in ALWU_CLAUDE_SKILLS_EXCLUDE:
                 continue
-            src = os.path.join(CLAUDE_SKILLS_DIR, skill)
+            src = os.path.join(ALWU_CLAUDE_SKILLS_DIR, skill)
             if not os.path.isdir(src):
                 continue
-            install_name = CLAUDE_SKILLS_RENAME.get(skill, skill)
+            install_name = ALWU_CLAUDE_SKILLS_RENAME.get(skill, skill)
             if install_name in personal_skill_names:
                 print_warning(
-                    f"Skipping claude-skill '{install_name}' (conflicts with personal skill)"
+                    f"Skipping alwu-claude-skill '{install_name}' (conflicts with personal skill)"
                 )
                 continue
             dst = os.path.join(target_skills_dir, install_name)
@@ -2587,11 +2587,11 @@ def install_firefox_claude(target_dir=None, dry_run=False):
 
             os.symlink(src, dst)
             if skill != install_name:
-                print(f"Linked (claude-skills): {skill} as {install_name}")
+                print(f"Linked (alwu-claude-skills): {skill} as {install_name}")
             else:
-                print(f"Linked (claude-skills): {skill}")
+                print(f"Linked (alwu-claude-skills): {skill}")
             gitignore_entries.append(f".claude/skills/{install_name}/")
-            claude_skill_names.add(skill)
+            alwu_claude_skill_names.add(skill)
 
     # Symlink media-skills (team-wide)
     if os.path.isdir(MEDIA_SKILLS_DIR):
@@ -2601,9 +2601,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             src = os.path.join(MEDIA_SKILLS_DIR, skill)
             if not os.path.isdir(src):
                 continue
-            if skill in personal_skill_names or skill in claude_skill_names:
+            if skill in personal_skill_names or skill in alwu_claude_skill_names:
                 print_warning(
-                    f"Skipping media-skill '{skill}' (conflicts with personal/claude-skill)"
+                    f"Skipping media-skill '{skill}' (conflicts with personal/alwu-claude-skill)"
                 )
                 continue
             dst = os.path.join(target_skills_dir, skill)
@@ -2790,7 +2790,7 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
                 link_target = os.readlink(skill_path)
                 if (
                     FIREFOX_CLAUDE_OVERLAY in link_target
-                    or CLAUDE_SKILLS_DIR in link_target
+                    or ALWU_CLAUDE_SKILLS_DIR in link_target
                     or MEDIA_SKILLS_DIR in link_target
                     or ".dotfiles" in link_target
                 ):

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sync helper for mozilla/media-skills submodule
+# Sync helper for ChunMinChang/media-skills submodule
 # Usage:
 #   ./mozilla/firefox/sync-media-skills.sh pull   # pull latest from upstream
 #   ./mozilla/firefox/sync-media-skills.sh status  # show current pinned commit

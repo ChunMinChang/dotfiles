@@ -481,8 +481,8 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         with open(os.path.join(self.overlay_dir, "settings.local.json"), "w") as f:
             f.write('{"permissions":{"allow":[]}}')
 
-        # Build a minimal claude-skills directory
-        self.claude_dir = os.path.join(self.test_dir, "claude-skills")
+        # Build a minimal alwu-claude-skills directory
+        self.claude_dir = os.path.join(self.test_dir, "alwu-claude-skills")
         for name in ["bug-start", "spec-check"]:
             skill_dir = os.path.join(self.claude_dir, name)
             os.makedirs(skill_dir)
@@ -513,8 +513,8 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self._orig_overlay = setup.FIREFOX_CLAUDE_OVERLAY
         self._orig_media = setup.MEDIA_SKILLS_DIR
         self._orig_exclude = setup.MEDIA_SKILLS_EXCLUDE
-        self._orig_claude = setup.CLAUDE_SKILLS_DIR
-        self._orig_claude_exclude = setup.CLAUDE_SKILLS_EXCLUDE
+        self._orig_claude = setup.ALWU_CLAUDE_SKILLS_DIR
+        self._orig_claude_exclude = setup.ALWU_CLAUDE_SKILLS_EXCLUDE
         setup.FIREFOX_CLAUDE_OVERLAY = self.overlay_dir
         setup.MEDIA_SKILLS_DIR = self.media_dir
         setup.MEDIA_SKILLS_EXCLUDE = {
@@ -525,24 +525,24 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             "LICENSE",
             "README.md",
         }
-        setup.CLAUDE_SKILLS_DIR = self.claude_dir
-        setup.CLAUDE_SKILLS_EXCLUDE = {
+        setup.ALWU_CLAUDE_SKILLS_DIR = self.claude_dir
+        setup.ALWU_CLAUDE_SKILLS_EXCLUDE = {
             ".git",
             ".github",
             ".githooks",
             "CLAUDE.md",
             "README.md",
         }
-        self._orig_claude_rename = setup.CLAUDE_SKILLS_RENAME
-        setup.CLAUDE_SKILLS_RENAME = {}
+        self._orig_claude_rename = setup.ALWU_CLAUDE_SKILLS_RENAME
+        setup.ALWU_CLAUDE_SKILLS_RENAME = {}
 
     def tearDown(self):
         setup.FIREFOX_CLAUDE_OVERLAY = self._orig_overlay
         setup.MEDIA_SKILLS_DIR = self._orig_media
         setup.MEDIA_SKILLS_EXCLUDE = self._orig_exclude
-        setup.CLAUDE_SKILLS_DIR = self._orig_claude
-        setup.CLAUDE_SKILLS_EXCLUDE = self._orig_claude_exclude
-        setup.CLAUDE_SKILLS_RENAME = self._orig_claude_rename
+        setup.ALWU_CLAUDE_SKILLS_DIR = self._orig_claude
+        setup.ALWU_CLAUDE_SKILLS_EXCLUDE = self._orig_claude_exclude
+        setup.ALWU_CLAUDE_SKILLS_RENAME = self._orig_claude_rename
         shutil.rmtree(self.test_dir)
 
     def _install(self, **kwargs):
@@ -553,7 +553,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             return setup.install_firefox_claude(self.firefox_dir, **kwargs)
 
     def test_install_symlinks_all_skill_tiers(self):
-        """Personal, claude-skills, and media-skills all get symlinked."""
+        """Personal, alwu-claude-skills, and media-skills all get symlinked."""
         self._install()
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         # Personal skill
@@ -572,7 +572,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             self.assertIn(self.media_dir, os.readlink(path))
 
     def test_install_excludes_non_skill_entries(self):
-        """Excluded entries from media-skills and claude-skills are not symlinked."""
+        """Excluded entries from media-skills and alwu-claude-skills are not symlinked."""
         self._install()
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         # media-skills excludes
@@ -581,7 +581,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
                 os.path.exists(os.path.join(skills_dir, name)),
                 f"{name} should not be symlinked",
             )
-        # claude-skills excludes
+        # alwu-claude-skills excludes
         for name in ["CLAUDE.md"]:
             self.assertFalse(
                 os.path.exists(os.path.join(skills_dir, name)),
@@ -589,7 +589,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             )
 
     def test_install_personal_skill_takes_precedence_over_all(self):
-        """When a skill name conflicts, personal wins over claude-skills and media-skills."""
+        """When a skill name conflicts, personal wins over alwu-claude-skills and media-skills."""
         # Create conflicting skills in both tiers
         for d in [self.claude_dir, self.media_dir]:
             conflict_dir = os.path.join(d, "my-skill")
@@ -605,8 +605,8 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self.assertNotIn(self.claude_dir, os.readlink(skill_link))
         self.assertNotIn(self.media_dir, os.readlink(skill_link))
 
-    def test_install_claude_skills_take_precedence_over_media(self):
-        """When a skill exists in both claude-skills and media-skills, claude-skills wins."""
+    def test_install_alwu_claude_skills_take_precedence_over_media(self):
+        """When a skill exists in both alwu-claude-skills and media-skills, alwu-claude-skills wins."""
         # Create a skill with the same name in both
         for d in [self.claude_dir, self.media_dir]:
             conflict_dir = os.path.join(d, "shared-skill")
@@ -628,18 +628,18 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         # Personal skill still works
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "my-skill")))
 
-    def test_install_no_claude_skills_dir(self):
-        """Install works fine if claude-skills directory doesn't exist."""
-        setup.CLAUDE_SKILLS_DIR = os.path.join(self.test_dir, "nonexistent")
+    def test_install_no_alwu_claude_skills_dir(self):
+        """Install works fine if alwu-claude-skills directory doesn't exist."""
+        setup.ALWU_CLAUDE_SKILLS_DIR = os.path.join(self.test_dir, "nonexistent")
         self._install()
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         # Personal and media skills still work
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "my-skill")))
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "bugzilla-wrangler")))
 
-    def test_install_claude_skills_rename(self):
+    def test_install_alwu_claude_skills_rename(self):
         """Claude-skills with rename mapping are installed under the new name."""
-        setup.CLAUDE_SKILLS_RENAME = {"bug-start": "media-bug-start"}
+        setup.ALWU_CLAUDE_SKILLS_RENAME = {"bug-start": "media-bug-start"}
         self._install()
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         # Original name should NOT exist
@@ -663,7 +663,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             self.assertIn(".claude/skills/spec-check/", content)
 
     def test_uninstall_removes_all_skill_symlinks(self):
-        """Uninstall removes personal, claude-skill, and media-skill symlinks."""
+        """Uninstall removes personal, alwu-claude-skill, and media-skill symlinks."""
         self._install()
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         # Verify they exist first
@@ -694,13 +694,13 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "bug-start")))
 
     def test_dry_run_shows_all_skill_tiers(self):
-        """Dry run output mentions claude-skills and media-skills."""
+        """Dry run output mentions alwu-claude-skills and media-skills."""
         import io
 
         with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
             self._install(dry_run=True)
         output = mock_stdout.getvalue()
-        self.assertIn("claude-skills", output)
+        self.assertIn("alwu-claude-skills", output)
         self.assertIn("bug-start", output)
         self.assertIn("media-skills", output)
         self.assertIn("bugzilla-wrangler", output)
