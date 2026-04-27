@@ -2209,7 +2209,9 @@ def show_claude_hooks():
 FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, "mozilla", "firefox", "dot.claude")
 MEDIA_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "media-skills")
 MEDIA_SKILLS_EXCLUDE = {"Template", "shared", ".git", ".github", "LICENSE", "README.md"}
-ALWU_CLAUDE_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "alwu-claude-skills")
+ALWU_CLAUDE_SKILLS_DIR = os.path.join(
+    BASE_DIR, "mozilla", "firefox", "alwu-claude-skills"
+)
 ALWU_CLAUDE_SKILLS_EXCLUDE = {".git", ".github", ".githooks", "CLAUDE.md", "README.md"}
 # Rename skills during install: {"original-name": "installed-name"}
 ALWU_CLAUDE_SKILLS_RENAME = {
@@ -2234,7 +2236,12 @@ def get_user_input(prompt, default=""):
 
 def _is_our_source(link_target):
     """Does this symlink target belong to something setup.py installs?"""
-    markers = (FIREFOX_CLAUDE_OVERLAY, ALWU_CLAUDE_SKILLS_DIR, MEDIA_SKILLS_DIR, ".dotfiles")
+    markers = (
+        FIREFOX_CLAUDE_OVERLAY,
+        ALWU_CLAUDE_SKILLS_DIR,
+        MEDIA_SKILLS_DIR,
+        ".dotfiles",
+    )
     return any(m in link_target for m in markers)
 
 
@@ -2429,7 +2436,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
         # for names that are re-used by personal or media skills.
         for old_name, new_name in ALWU_CLAUDE_SKILLS_RENAME.items():
             old_path = os.path.join(target_skills_dir, old_name)
-            if os.path.islink(old_path) and ALWU_CLAUDE_SKILLS_DIR in os.readlink(old_path):
+            if os.path.islink(old_path) and ALWU_CLAUDE_SKILLS_DIR in os.readlink(
+                old_path
+            ):
                 print(
                     f"  {step}. Remove stale (alwu-claude-skills): {old_name} (renamed to {new_name})"
                 )
@@ -2454,7 +2463,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 src = os.path.join(ALWU_CLAUDE_SKILLS_DIR, skill)
                 dst = os.path.join(target_skills_dir, install_name)
                 label = f"{skill} -> {install_name}" if skill != install_name else skill
-                print(f"  {step}. Symlink (alwu-claude-skills): {dst} -> {src} [{label}]")
+                print(
+                    f"  {step}. Symlink (alwu-claude-skills): {dst} -> {src} [{label}]"
+                )
                 gitignore_entries.append(f".claude/skills/{install_name}/")
                 alwu_claude_skill_names.add(install_name)
                 step += 1
