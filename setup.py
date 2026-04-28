@@ -531,12 +531,28 @@ def append_to_next_line_after(name, pattern, value=""):
     file.close()
 
 
+def _bashify_path(path):
+    """Convert a Windows-native path to a form bash can parse safely.
+
+    Bash on Windows (Git Bash / MSYS) accepts forward-slash paths and
+    treats backslashes as escape characters even inside ``[ -r ... ]``
+    tests when the argument is unquoted. So C:\\Users\\foo\\bar gets
+    chewed to C:Usersfoobar and the test fails. Convert to forward
+    slashes (and we'll wrap the result in double quotes at the call
+    site for good measure).
+    """
+    if is_windows():
+        return path.replace("\\", "/")
+    return path
+
+
 def bash_export_command(path):
-    return "".join(["export PATH=", path, ":$PATH"])
+    return f'export PATH="{_bashify_path(path)}:$PATH"'
 
 
 def bash_load_command(path):
-    return "".join(["[ -r ", path, " ] && . ", path])
+    p = _bashify_path(path)
+    return f'[ -r "{p}" ] && . "{p}"'
 
 
 def append_nonexistent_lines_to_file(file, lines, tracker=None):
@@ -877,6 +893,55 @@ def dotfiles_link(tracker=None):
 
 
 # Link dot.* to ~/.*
+def _migrate_legacy_bashrc_loaders(bashrc_path):
+    """Rewrite old Windows-backslash loader lines to forward-slash form.
+
+    Earlier versions of setup.py wrote loader lines like
+        [ -r C:\\Users\\cchang\\dotfiles\\dot.bashrc ] && . C:\\Users\\...
+    into ~/.bashrc. Bash on Windows treats backslashes as escape
+    characters inside an unquoted [ -r ... ] test, so the path got
+    chewed to ``C:Userscchangdotfilesdot.bashrc``, the test was
+    always false, and dot.bashrc / aliases / etc. never loaded.
+
+    Detect these legacy lines and rewrite them in place to the new
+    quoted forward-slash form. No-op on macOS/Linux.
+    """
+    if not is_windows() or not os.path.exists(bashrc_path):
+        return
+    try:
+        with open(bashrc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except (IOError, UnicodeDecodeError):
+        return
+
+    pattern = re.compile(
+        r"\[\s+-r\s+(?P<p1>[A-Za-z]:[^\s\]\"]+)\s+\]\s*&&\s*\.\s+(?P<p2>[A-Za-z]:[^\s\"]+)"
+    )
+
+    def fix(match):
+        p1 = match.group("p1").replace("\\", "/")
+        p2 = match.group("p2").replace("\\", "/")
+        if p1 != p2:
+            return match.group(0)
+        return f'[ -r "{p1}" ] && . "{p1}"'
+
+    new_content, count = pattern.subn(fix, content)
+    if count == 0 or new_content == content:
+        return
+    if DRY_RUN:
+        print_dry_run(
+            "Would migrate {} legacy loader line(s) in {}".format(count, bashrc_path)
+        )
+        return
+    with open(bashrc_path, "w", encoding="utf-8") as f:
+        f.write(new_content)
+    print(
+        "Migrated {} legacy loader line(s) in {} to forward-slash form".format(
+            count, bashrc_path
+        )
+    )
+
+
 def bash_link(tracker=None):
     print_installing_title("bash startup scripts")
     print_verbose("bash_link() starting")
@@ -885,6 +950,11 @@ def bash_link(tracker=None):
     if not ensure_symlink_capability():
         print_error("Symlink creation unavailable; skipping bash startup links")
         return False
+
+    # Heal up any legacy backslash-formatted loader lines from older
+    # setup.py runs before re-checking what to append, so we don't
+    # leave broken duplicates around.
+    _migrate_legacy_bashrc_loaders(os.path.join(HOME_DIR, ".bashrc"))
 
     platform_files = {
         "Darwin": ["dot.bashrc", "dot.zshrc", "dot.settings_darwin"],
