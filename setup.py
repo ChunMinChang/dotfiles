@@ -23,7 +23,7 @@ if platform.system() == "Windows":
 
 def load_jsonc(path):
     """Load a JSON file that may contain // line comments and trailing commas."""
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         lines = f.readlines()
     stripped = []
     for line in lines:
@@ -1748,8 +1748,10 @@ exit 0
             print("Creating pre-commit hook: {}".format(precommit_hook))
             # Atomic write: write to .tmp then rename, so an interrupted
             # run can never leave a 0-byte hook that git refuses to spawn.
+            # encoding=utf-8 because the hook content has unicode glyphs
+            # (->, check, cross, skip) that cp1252 can't encode on Windows.
             tmp_hook = precommit_hook + ".tmp"
-            with open(tmp_hook, "w") as f:
+            with open(tmp_hook, "w", encoding="utf-8", newline="\n") as f:
                 f.write(hook_content)
             os.chmod(tmp_hook, 0o755)
             os.replace(tmp_hook, precommit_hook)
@@ -2267,7 +2269,7 @@ def claude_security_init(tracker, dry_run=False):
         shutil.copy(claude_config, backup)
         print_hint(f"Backed up config to: {backup}")
 
-        with open(claude_config, "r") as f:
+        with open(claude_config, "r", encoding="utf-8") as f:
             config = json.load(f)
     else:
         config = {}
@@ -2298,7 +2300,7 @@ def claude_security_init(tracker, dry_run=False):
 
     # 4. Write back atomically
     temp_file = claude_config + ".tmp"
-    with open(temp_file, "w") as f:
+    with open(temp_file, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
     os.replace(temp_file, claude_config)
 
@@ -2355,7 +2357,7 @@ def claude_security_remove(dry_run=False):
     print_hint(f"Backed up config to: {backup}")
 
     # Load config
-    with open(claude_config, "r") as f:
+    with open(claude_config, "r", encoding="utf-8") as f:
         config = json.load(f)
 
     # Remove security hooks
@@ -2410,7 +2412,7 @@ def show_claude_hooks():
         print_warning("No Claude config found at ~/.claude.json")
         return True
 
-    with open(claude_config, "r") as f:
+    with open(claude_config, "r", encoding="utf-8") as f:
         config = json.load(f)
 
     if "hooks" not in config or not config["hooks"]:
@@ -2937,7 +2939,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 existing[key] = new_settings[key]
 
         # Write merged settings
-        with open(target_settings, "w") as f:
+        with open(target_settings, "w", encoding="utf-8") as f:
             json.dump(existing, f, indent=2)
         print(f"Merged settings: {target_settings}")
 
