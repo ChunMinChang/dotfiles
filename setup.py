@@ -2133,13 +2133,13 @@ def claude_security_init(tracker, dry_run=False):
     Merges hooks into ~/.claude.json without overwriting existing hooks.
 
     The hook command points directly at the in-repo script
-    ``<repo>/.claude/hooks/security-read-blocker.py``. No deployed
-    copy or extra ``$HOME`` directory is created. Block events are
-    appended to ``~/.claude/security-blocks.log``.
+    ``<repo>/claude/security-read-blocker.py``. No deployed copy or
+    extra ``$HOME`` directory is created. Block events are appended
+    to ``~/.claude/security-blocks.log``.
     """
     print_title("Claude Code Security Hooks")
 
-    hook_path = os.path.join(BASE_DIR, ".claude", "hooks", "security-read-blocker.py")
+    hook_path = os.path.join(BASE_DIR, "claude", "security-read-blocker.py")
     claude_config = os.path.join(get_home_dir(), ".claude.json")
     legacy_dir = os.path.join(get_home_dir(), ".dotfiles-claude-hooks")
     log_file = os.path.join(get_home_dir(), ".claude", "security-blocks.log")

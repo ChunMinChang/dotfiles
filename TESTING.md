@@ -146,7 +146,7 @@ Tests failed: 10
 **Purpose**: Validates Claude Code security hooks functionality.
 
 **When to run**:
-- After modifying `.claude/hooks/security-read-blocker.py`
+- After modifying `claude/security-read-blocker.py`
 - After modifying Claude security functions in `setup.py`
 - Before committing changes to security hooks
 - When testing on a new platform

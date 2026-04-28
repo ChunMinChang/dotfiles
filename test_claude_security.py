@@ -69,7 +69,7 @@ def print_section(title):
 # directly from the repo (no deployed copy), so this is also where the
 # "installed" command in ~/.claude.json points.
 HOOK_SCRIPT_SOURCE = (
-    Path(__file__).resolve().parent / '.claude' / 'hooks' / 'security-read-blocker.py'
+    Path(__file__).resolve().parent / 'claude' / 'security-read-blocker.py'
 )
 
 
