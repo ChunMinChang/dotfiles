@@ -2132,32 +2132,32 @@ def claude_security_init(tracker, dry_run=False):
     Install Claude Code security hooks (system-wide).
     Merges hooks into ~/.claude.json without overwriting existing hooks.
 
-    The hook script is symlinked from the dotfiles repo (rather than
-    copied) so edits to the source propagate without re-running setup.
+    The hook command points directly at the in-repo script
+    ``<repo>/.claude/hooks/security-read-blocker.py``. No deployed
+    copy or extra ``$HOME`` directory is created. Block events are
+    appended to ``~/.claude/security-blocks.log``.
     """
     print_title("Claude Code Security Hooks")
 
-    if not dry_run and not ensure_symlink_capability():
-        print_error("Symlink creation unavailable; skipping claude security hooks")
-        return False
-
-    hooks_dir = os.path.join(get_home_dir(), ".dotfiles-claude-hooks")
-    source_hook = os.path.join(BASE_DIR, ".claude", "hooks", "security-read-blocker.py")
-    dest_hook = os.path.join(hooks_dir, "security-read-blocker.py")
+    hook_path = os.path.join(BASE_DIR, ".claude", "hooks", "security-read-blocker.py")
     claude_config = os.path.join(get_home_dir(), ".claude.json")
+    legacy_dir = os.path.join(get_home_dir(), ".dotfiles-claude-hooks")
+    log_file = os.path.join(get_home_dir(), ".claude", "security-blocks.log")
 
     if dry_run:
         print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
-        print(f"  1. Create directory: {hooks_dir}")
-        print(f"  2. Symlink hook script: {dest_hook} -> {source_hook}")
+        print(f"  1. Use hook script in-place: {hook_path}")
 
         if os.path.exists(claude_config):
             print(
-                f"  3. Backup: {claude_config} -> {claude_config}.backup-claude-security"
+                f"  2. Backup: {claude_config} -> {claude_config}.backup-claude-security"
             )
-            print(f"  4. Merge security hooks into: {claude_config}")
+            print(f"  3. Merge security hooks into: {claude_config}")
         else:
-            print(f"  3. Create: {claude_config} with security hooks")
+            print(f"  2. Create: {claude_config} with security hooks")
+
+        if os.path.isdir(legacy_dir):
+            print(f"  4. Clean up legacy dir: {legacy_dir}")
 
         print(f"\n{colors.HINT}Would add to ~/.claude.json:{colors.END}")
         security_hook_config = {
@@ -2166,7 +2166,7 @@ def claude_security_init(tracker, dry_run=False):
                     {
                         "matcher": "Read|Bash|Grep|Glob",
                         "hooks": [
-                            {"type": "command", "command": str(dest_hook), "timeout": 5}
+                            {"type": "command", "command": str(hook_path), "timeout": 5}
                         ],
                     }
                 ]
@@ -2176,79 +2176,76 @@ def claude_security_init(tracker, dry_run=False):
         print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
         return True
 
-    # 1. Create hooks directory (still needed for the log file)
-    os.makedirs(hooks_dir, exist_ok=True)
-    print(f"Created directory: {hooks_dir}")
-
-    # 2. Symlink hook script from the repo so edits propagate without
-    # re-running setup. link() handles dry-run, tracker, and replacing
-    # any existing symlink (or stale copy from older installs).
-    if not os.path.exists(source_hook):
-        print_error(f"Hook script not found: {source_hook}")
+    # 1. Verify the in-repo hook is present.
+    if not os.path.exists(hook_path):
+        print_error(f"Hook script not found: {hook_path}")
         return False
 
-    # If a previous install left a regular file (pre-symlink era), replace
-    # it so the new symlink can take its place.
-    if os.path.exists(dest_hook) and not os.path.islink(dest_hook):
-        print_hint(f"Replacing legacy copy at {dest_hook} with a symlink")
-        os.unlink(dest_hook)
-
-    if not link(source_hook, dest_hook, tracker):
-        return False
-
-    # 3. Backup and update ~/.claude.json
+    # 2. Backup and load ~/.claude.json
     if os.path.exists(claude_config):
-        # Backup
         backup = os.path.dirname(claude_config) + "/.claude.json.backup-claude-security"
         shutil.copy(claude_config, backup)
         print_hint(f"Backed up config to: {backup}")
 
-        # Load existing config
         with open(claude_config, "r") as f:
             config = json.load(f)
     else:
         config = {}
         print_hint("Creating new ~/.claude.json")
 
-    # 4. Merge security hooks (non-destructive)
+    # 3. Merge security hooks (non-destructive). Replace any prior
+    # security-read-blocker.py entry (e.g. pointing at the legacy
+    # ~/.dotfiles-claude-hooks/ path) so the command field stays
+    # pointed at the current in-repo script.
     if "hooks" not in config:
         config["hooks"] = {}
-
-    # Add PreToolUse hook
-    security_hook = {
-        "matcher": "Read|Bash|Grep|Glob",
-        "hooks": [{"type": "command", "command": str(dest_hook), "timeout": 5}],
-    }
-
     if "PreToolUse" not in config["hooks"]:
         config["hooks"]["PreToolUse"] = []
 
-    # Check if already installed (avoid duplicates)
-    already_installed = any(
-        "security-read-blocker.py" in str(h.get("hooks", [{}])[0].get("command", ""))
-        for h in config["hooks"].get("PreToolUse", [])
-    )
+    def _entry_is_ours(entry):
+        return any(
+            "security-read-blocker.py" in str(h.get("command", ""))
+            for h in entry.get("hooks", [])
+        )
 
-    if already_installed:
-        print_hint("Security hooks already installed")
-        return True
+    config["hooks"]["PreToolUse"] = [
+        e for e in config["hooks"]["PreToolUse"] if not _entry_is_ours(e)
+    ]
+    config["hooks"]["PreToolUse"].append({
+        "matcher": "Read|Bash|Grep|Glob",
+        "hooks": [{"type": "command", "command": str(hook_path), "timeout": 5}],
+    })
 
-    # Append our hook
-    config["hooks"]["PreToolUse"].append(security_hook)
-
-    # 5. Write back atomically
+    # 4. Write back atomically
     temp_file = claude_config + ".tmp"
     with open(temp_file, "w") as f:
         json.dump(config, f, indent=2)
-
     os.rename(temp_file, claude_config)
 
+    # 5. Migrate away from the legacy ~/.dotfiles-claude-hooks/ directory
+    # if a previous install left it behind. Move any existing log file
+    # into ~/.claude/ so audit history is preserved.
+    if os.path.isdir(legacy_dir):
+        legacy_script = os.path.join(legacy_dir, "security-read-blocker.py")
+        legacy_log = os.path.join(legacy_dir, "security-blocks.log")
+        if os.path.lexists(legacy_script):
+            os.unlink(legacy_script)
+        if os.path.exists(legacy_log) and not os.path.exists(log_file):
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            shutil.move(legacy_log, log_file)
+            print_hint(f"Moved legacy log to {log_file}")
+        try:
+            os.rmdir(legacy_dir)
+            print_hint(f"Removed legacy directory: {legacy_dir}")
+        except OSError:
+            print_warning(
+                f"Legacy dir {legacy_dir} is non-empty; left in place"
+            )
+
     print("✓ Claude Code security hooks installed")
-    print_hint(f"  Hook script: {dest_hook}")
+    print_hint(f"  Hook script: {hook_path}")
     print_hint(f"  Config file: {claude_config}")
-    print_hint(
-        f'  Log file: {os.path.join(hooks_dir, "security-blocks.log")} (created on first block)'
-    )
+    print_hint(f"  Log file:    {log_file} (created on first block)")
     print("")
     print_warning("IMPORTANT: Restart Claude Code for hooks to take effect")
 
@@ -3034,9 +3031,15 @@ def show_claude_security_log():
     """Show blocked access log from security hooks."""
     print_title("Claude Security Blocks Log")
 
-    log_file = os.path.join(
+    log_file = os.path.join(get_home_dir(), ".claude", "security-blocks.log")
+    legacy_log = os.path.join(
         get_home_dir(), ".dotfiles-claude-hooks", "security-blocks.log"
     )
+
+    # Fall back to the legacy location if the new file doesn't exist yet
+    # but a pre-migration log is still around.
+    if not os.path.exists(log_file) and os.path.exists(legacy_log):
+        log_file = legacy_log
 
     if not os.path.exists(log_file):
         print_hint(f"No log file found at: {log_file}")

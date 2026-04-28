@@ -26,9 +26,9 @@ if platform.system() == "Windows":
             pass
 
 # Configuration
-HOOKS_DIR_ENV = "DOTFILES_CLAUDE_HOOKS_DIR"
-HOOKS_DIR = Path(os.getenv(HOOKS_DIR_ENV, str(Path.home() / '.dotfiles-claude-hooks')))
-LOG_FILE = HOOKS_DIR / 'security-blocks.log'
+LOG_DIR_ENV = "DOTFILES_CLAUDE_SECURITY_LOG_DIR"
+LOG_DIR = Path(os.getenv(LOG_DIR_ENV, str(Path.home() / '.claude')))
+LOG_FILE = LOG_DIR / 'security-blocks.log'
 DISABLE_ENV = "DOTFILES_CLAUDE_SECURITY_DISABLED"
 WHITELIST_ENV = "DOTFILES_CLAUDE_SECURITY_WHITELIST"
 

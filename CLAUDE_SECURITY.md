@@ -68,12 +68,14 @@ python setup.py --claude-security --dry-run
 ```
 
 The installation:
-1. Creates `~/.dotfiles-claude-hooks/` directory
-2. Copies `security-read-blocker.py` hook script
-3. Makes the hook executable
-4. Backs up existing `~/.claude.json` to `~/.claude.json.backup-claude-security`
-5. Merges security hooks into `~/.claude.json` (non-destructive)
-6. Prints installation confirmation with file paths
+1. Backs up existing `~/.claude.json` to `~/.claude.json.backup-claude-security`
+2. Merges a `PreToolUse` entry into `~/.claude.json` whose `command`
+   points directly at `<repo>/.claude/hooks/security-read-blocker.py`.
+   No deployed copy is made; edits to the in-repo script take effect
+   on the next Claude Code session restart.
+3. If a previous install left a `~/.dotfiles-claude-hooks/` directory,
+   migrates the log to `~/.claude/security-blocks.log` and removes it.
+4. Prints installation confirmation with file paths.
 
 **IMPORTANT**: You must restart Claude Code after installation for hooks to take effect.
 
@@ -149,7 +151,8 @@ PORT=3000
 
 ### Logging
 
-Every blocked attempt is logged to `~/.dotfiles-claude-hooks/security-blocks.log`:
+Every blocked attempt is logged to `~/.claude/security-blocks.log`
+(override with `DOTFILES_CLAUDE_SECURITY_LOG_DIR`):
 
 ```json
 {"timestamp": "2026-01-09T12:34:56", "tool_name": "Read", "file_path": "~/.ssh/id_rsa", "reason": "Matches sensitive pattern: ~/.ssh/id_*"}
@@ -195,7 +198,7 @@ The hook is registered in your Claude Code configuration:
         "hooks": [
           {
             "type": "command",
-            "command": "/home/user/.dotfiles-claude-hooks/security-read-blocker.py",
+            "command": "/home/user/dotfiles/.claude/hooks/security-read-blocker.py",
             "timeout": 5
           }
         ]
@@ -205,13 +208,19 @@ The hook is registered in your Claude Code configuration:
 }
 ```
 
-### `~/.dotfiles-claude-hooks/`
+The `command` field points directly at the in-repo hook script.
+The dotfiles install does not copy or symlink the hook elsewhere —
+edits to `<repo>/.claude/hooks/security-read-blocker.py` are picked
+up the next time Claude Code starts a session.
+
+### Log file
 
 ```
-~/.dotfiles-claude-hooks/
-├── security-read-blocker.py    # Hook script
-└── security-blocks.log         # Log file (created on first block)
+~/.claude/security-blocks.log    # Append-only JSON-lines, created on first block
 ```
+
+Override the location by exporting `DOTFILES_CLAUDE_SECURITY_LOG_DIR`
+before launching Claude Code.
 
 ## Whitelisting Files
 
@@ -229,7 +238,7 @@ unset DOTFILES_CLAUDE_SECURITY_DISABLED
 
 ### Option 2: Modify Hook Script
 
-Edit `~/.dotfiles-claude-hooks/security-read-blocker.py` and add to `SAFE_PATTERNS`:
+Edit `<repo>/.claude/hooks/security-read-blocker.py` and add to `SAFE_PATTERNS`:
 
 ```python
 SAFE_PATTERNS = [
@@ -245,20 +254,20 @@ After modifying, restart Claude Code.
 ### Hook Not Blocking Files
 
 1. **Check hook is installed**: `python setup.py --show-claude-hooks`
-2. **Verify file exists**: `ls -la ~/.dotfiles-claude-hooks/security-read-blocker.py`
-3. **Check permissions**: `ls -l ~/.dotfiles-claude-hooks/security-read-blocker.py` (should be executable)
+2. **Verify file exists**: `ls -la <repo>/.claude/hooks/security-read-blocker.py`
+3. **Check permissions**: should be executable on Linux/macOS
 4. **Restart Claude Code**: Hooks only load on startup
 5. **Test hook manually**:
    ```bash
    echo '{"tool_name":"Read","tool_input":{"file_path":"~/.ssh/id_rsa"}}' | \
-     ~/.dotfiles-claude-hooks/security-read-blocker.py
+     <repo>/.claude/hooks/security-read-blocker.py
    echo $?  # Should be 2 (blocked)
    ```
 
 ### Hook Blocking Too Much
 
 1. **Check what's blocked**: `python setup.py --show-claude-security-log`
-2. **Review patterns**: `grep SENSITIVE_PATTERNS ~/.dotfiles-claude-hooks/security-read-blocker.py`
+2. **Review patterns**: `grep SENSITIVE_PATTERNS <repo>/.claude/hooks/security-read-blocker.py`
 3. **Whitelist if needed**: Add to `SAFE_PATTERNS` in hook script
 4. **Use override**: Export `DOTFILES_CLAUDE_SECURITY_DISABLED=true` temporarily
 
@@ -322,7 +331,7 @@ python3 test_claude_security.py 2>&1 | grep "Hook blocks SSH keys"
 ### Best Practices
 
 1. **Install on all machines**: Run `python setup.py --claude-security` on every machine you use Claude Code
-2. **Review logs periodically**: Check `~/.dotfiles-claude-hooks/security-blocks.log` for unexpected blocks
+2. **Review logs periodically**: Check `~/.claude/security-blocks.log` for unexpected blocks
 3. **Keep patterns updated**: If you add new credential files, update `SENSITIVE_PATTERNS` in the hook script
 4. **Restart after changes**: Always restart Claude Code after modifying hooks or `~/.claude.json`
 5. **Use override sparingly**: Only disable security when absolutely necessary and re-enable immediately after
@@ -331,7 +340,7 @@ python3 test_claude_security.py 2>&1 | grep "Hook blocks SSH keys"
 
 ### Adding Custom Patterns
 
-Edit `~/.dotfiles-claude-hooks/security-read-blocker.py`:
+Edit `<repo>/.claude/hooks/security-read-blocker.py`:
 
 ```python
 SENSITIVE_PATTERNS = [
@@ -349,21 +358,21 @@ The hook script can be used as a reference for other security tools:
 ```bash
 # Test a file path
 echo '{"tool_name":"Read","tool_input":{"file_path":"/path/to/test"}}' | \
-  ~/.dotfiles-claude-hooks/security-read-blocker.py
+  <repo>/.claude/hooks/security-read-blocker.py
 ```
 
 ### Monitoring Usage
 
 ```bash
 # Count blocks
-wc -l ~/.dotfiles-claude-hooks/security-blocks.log
+wc -l ~/.claude/security-blocks.log
 
 # Most blocked files
-jq -r .file_path ~/.dotfiles-claude-hooks/security-blocks.log | sort | uniq -c | sort -rn
+jq -r .file_path ~/.claude/security-blocks.log | sort | uniq -c | sort -rn
 
 # Recent blocks (last hour)
 jq -r 'select(.timestamp > (now - 3600 | strftime("%Y-%m-%dT%H:%M:%S")))' \
-  ~/.dotfiles-claude-hooks/security-blocks.log
+  ~/.claude/security-blocks.log
 ```
 
 ## License

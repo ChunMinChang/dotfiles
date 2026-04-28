@@ -65,41 +65,55 @@ def print_section(title):
     print(f"{Colors.BLUE}{'='*60}{Colors.END}")
 
 
-# Resolve the hook script: prefer the installed copy (so we exercise the
-# real deployment), but fall back to the in-repo source so behavior tests
-# can run before `setup.py --claude-security` has been executed.
-HOOK_SCRIPT_INSTALLED = Path.home() / '.dotfiles-claude-hooks' / 'security-read-blocker.py'
+# Resolve the in-repo hook script. The hook is invoked by Claude Code
+# directly from the repo (no deployed copy), so this is also where the
+# "installed" command in ~/.claude.json points.
 HOOK_SCRIPT_SOURCE = (
     Path(__file__).resolve().parent / '.claude' / 'hooks' / 'security-read-blocker.py'
 )
 
 
 def get_hook_script():
-    """Return path to the hook script: installed if present, else source."""
-    if HOOK_SCRIPT_INSTALLED.exists():
-        return HOOK_SCRIPT_INSTALLED
+    """Return the path to the hook script, or None if missing."""
     if HOOK_SCRIPT_SOURCE.exists():
         return HOOK_SCRIPT_SOURCE
     return None
 
 
+def is_security_hook_installed():
+    """True if ~/.claude.json contains a security-read-blocker hook entry."""
+    config_file = Path.home() / '.claude.json'
+    if not config_file.exists():
+        return False
+    try:
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+    except Exception:
+        return False
+    for entry in config.get('hooks', {}).get('PreToolUse', []):
+        for hook in entry.get('hooks', []):
+            if 'security-read-blocker.py' in hook.get('command', ''):
+                return True
+    return False
+
+
 # Session-level temp dir for the hook's log file. The hook reads
-# DOTFILES_CLAUDE_HOOKS_DIR; pointing it here keeps tests from writing
-# into the user's real ~/.dotfiles-claude-hooks/security-blocks.log.
-_TEST_HOOKS_DIR = tempfile.mkdtemp(prefix="claude_security_test_")
-atexit.register(lambda: shutil.rmtree(_TEST_HOOKS_DIR, ignore_errors=True))
+# DOTFILES_CLAUDE_SECURITY_LOG_DIR; pointing it here keeps tests from
+# writing into the user's real ~/.claude/security-blocks.log.
+_TEST_LOG_DIR = tempfile.mkdtemp(prefix="claude_security_test_")
+atexit.register(lambda: shutil.rmtree(_TEST_LOG_DIR, ignore_errors=True))
 
 
 def hook_env(extra=None):
-    """Build a subprocess env that points the hook at an isolated hooks dir.
+    """Build a subprocess env that points the hook at an isolated log dir.
 
-    Always sets DOTFILES_CLAUDE_HOOKS_DIR to a session-level temp dir so
-    the hook never writes to the user's real install location. Caller
-    can pass ``extra`` to layer in additional vars (or override the
-    hooks dir for log-file inspection).
+    Always sets DOTFILES_CLAUDE_SECURITY_LOG_DIR to a session-level
+    temp dir so the hook never writes to the user's real log file.
+    Caller can pass ``extra`` to layer in additional vars (or override
+    the log dir for per-test inspection).
     """
     env = os.environ.copy()
-    env["DOTFILES_CLAUDE_HOOKS_DIR"] = _TEST_HOOKS_DIR
+    env["DOTFILES_CLAUDE_SECURITY_LOG_DIR"] = _TEST_LOG_DIR
     if extra:
         env.update(extra)
     return env
@@ -135,7 +149,7 @@ def test_hook_script_blocks_ssh_keys():
                 input=json.dumps(hook_input),
                 capture_output=True,
                 text=True,
-                env=hook_env({"DOTFILES_CLAUDE_HOOKS_DIR": tmp}),
+                env=hook_env({"DOTFILES_CLAUDE_SECURITY_LOG_DIR": tmp}),
             )
 
         if result.returncode == 2:  # Exit code 2 = blocked
@@ -436,7 +450,7 @@ def test_logging_creates_log_file():
                 input=json.dumps(hook_input),
                 capture_output=True,
                 text=True,
-                env=hook_env({"DOTFILES_CLAUDE_HOOKS_DIR": tmp_hooks_dir}),
+                env=hook_env({"DOTFILES_CLAUDE_SECURITY_LOG_DIR": tmp_hooks_dir}),
             )
 
             if log_file.exists():
@@ -622,16 +636,16 @@ def test_setup_show_security_log():
 # =============================================================================
 
 def test_hook_installation_creates_files():
-    """Test that installation creates the deployed hook script."""
+    """Test that installation registers the hook in ~/.claude.json."""
     print_section("Test Suite 4: Hook Installation and Merging")
     global TESTS_RUN
     TESTS_RUN += 1
 
-    if HOOK_SCRIPT_INSTALLED.exists():
-        print_pass(f"Hook script installed at {HOOK_SCRIPT_INSTALLED}")
+    if is_security_hook_installed():
+        print_pass("Security hook is registered in ~/.claude.json")
     else:
         print_skip(
-            "Hook script not installed (run `setup.py --claude-security` first)"
+            "Hook not installed (run `setup.py --claude-security` first)"
         )
 
 def test_hook_installation_backs_up_config():
@@ -639,7 +653,7 @@ def test_hook_installation_backs_up_config():
     global TESTS_RUN
     TESTS_RUN += 1
 
-    if not HOOK_SCRIPT_INSTALLED.exists():
+    if not is_security_hook_installed():
         print_skip("Hook not installed; backup check is post-install only")
         return
 
@@ -655,7 +669,7 @@ def test_hook_merges_with_existing_hooks():
     global TESTS_RUN
     TESTS_RUN += 1
 
-    if not HOOK_SCRIPT_INSTALLED.exists():
+    if not is_security_hook_installed():
         print_skip("Hook not installed; merge check is post-install only")
         return
 
