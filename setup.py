@@ -58,9 +58,36 @@ def get_home_dir():
 
     On macOS/Linux this is $HOME. On Windows os.path.expanduser falls
     back to %USERPROFILE% when HOME is unset (cmd / PowerShell). Under
-    Git Bash / MSYS2, $HOME is set and is returned (POSIX-style path).
+    Git Bash / MSYS2, $HOME is set as a POSIX path; we normalize it to
+    Windows native form so os.symlink etc. accept it.
     """
-    return os.path.expanduser("~")
+    return normalize_path(os.path.expanduser("~"))
+
+
+def normalize_path(path):
+    """Normalize an MSYS/Cygwin POSIX path to a Windows native path.
+
+    On Windows, paths sourced from bash (config.sh, $HOME under MSYS,
+    etc.) come back as ``/c/Users/foo`` — Python's ``os.symlink`` and
+    friends interpret that as ``C:\\c\\Users\\foo``, which doesn't
+    exist. Convert to ``C:\\Users\\foo``. No-ops on macOS/Linux and
+    on already-native Windows paths.
+    """
+    if not is_windows() or not path:
+        return path
+    # /cygdrive/c/... -> C:\...
+    m = re.match(r"^/cygdrive/([a-zA-Z])(/.*)?$", path)
+    if m:
+        drive = m.group(1).upper()
+        rest = (m.group(2) or "").replace("/", "\\")
+        return f"{drive}:{rest}" if rest else f"{drive}:\\"
+    # /c/... -> C:\... (MSYS / Git Bash convention)
+    m = re.match(r"^/([a-zA-Z])(/.*)?$", path)
+    if m:
+        drive = m.group(1).upper()
+        rest = (m.group(2) or "").replace("/", "\\")
+        return f"{drive}:{rest}" if rest else f"{drive}:\\"
+    return path
 
 
 # Global variables
@@ -135,12 +162,15 @@ def load_config():
             print_verbose("Failed to source config.sh, using defaults")
             return defaults
 
-        # Parse the output to extract config values
+        # Parse the output to extract config values. config.sh is
+        # sourced via bash, so under MSYS/Git Bash on Windows the paths
+        # come back POSIX-style (/c/Users/...). Normalize so the rest
+        # of setup.py can hand them to os.symlink / open / etc.
         config = defaults.copy()
         for line in result.stdout.strip().split("\n"):
             if "=" in line:
                 key, value = line.split("=", 1)
-                config[key] = value
+                config[key] = normalize_path(value)
 
         print_verbose("Config loaded from config.sh")
         return config
@@ -1022,19 +1052,19 @@ def firefox_init(tracker=None):
     print_installing_title("firefox alias and machrc")
     config = get_config()
     machrc = config["DOTFILES_MACHRC_PATH"]
-    if os.path.isfile(machrc):
-        print_fail(
-            "".join(
-                [
-                    "{} exists! Abort!\n".format(machrc),
-                    "Apply default settings for now.",
-                ]
-            )
-        )
-    else:
+    if os.path.islink(machrc) or not os.path.exists(machrc):
         path = os.path.join(BASE_DIR, "mozilla", "firefox", "machrc")
         if not link(path, machrc, tracker):
             return False
+    else:
+        # Existing regular file (e.g. created by `./mach bootstrap`).
+        # Don't overwrite — it likely has machine-specific settings the
+        # user wants to keep (mach_telemetry opt-in, etc.).
+        print_warning(
+            "{} already exists; keeping it. ".format(machrc)
+            + "Remove it manually and re-run --mozilla firefox if you "
+            + "want the dotfiles version instead."
+        )
 
     bashrc = os.path.join(HOME_DIR, ".bashrc")
     if not os.path.isfile(bashrc):
