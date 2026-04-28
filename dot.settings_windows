@@ -30,3 +30,16 @@ fi
 # Trash dir: the Recycle Bin isn't directly mountable, so default to a
 # regular directory under $HOME. Override via DOTFILES_TRASH_DIR_WINDOWS.
 TRASH="${DOTFILES_TRASH_DIR:-$HOME/.Trash}"
+
+# Add tool dirs that Windows installers populate but that are NOT on
+# the default Git Bash PATH:
+#   - pip3 --user puts binaries in %APPDATA%\Python\PythonXX\Scripts
+#   - npm -g puts binaries in %APPDATA%\npm
+# Without these, freshly-installed ruff / black / markdownlint etc.
+# aren't reachable from Git Bash even though pip/npm reported success.
+for _scripts_dir in "$HOME"/AppData/Roaming/Python/Python*/Scripts; do
+  [ -d "$_scripts_dir" ] && PATH="$_scripts_dir:$PATH"
+done
+unset _scripts_dir
+[ -d "$HOME/AppData/Roaming/npm" ] && PATH="$HOME/AppData/Roaming/npm:$PATH"
+export PATH
