@@ -13,7 +13,12 @@ export LSCOLORS="gxfxcxdxcxegedabagacad"
 
 # Platform-dependent settings
 # ====================================================================
-PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) PLATFORM=windows ;;
+  Darwin)               PLATFORM=darwin ;;
+  Linux)                PLATFORM=linux ;;
+  *)                    PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]') ;;
+esac
 SETTINGS_PREFIX=$HOME/.settings_
 SETTINGS_PLATFORM=$SETTINGS_PREFIX$PLATFORM
 [ -r "$SETTINGS_PLATFORM" ] && . "$SETTINGS_PLATFORM"

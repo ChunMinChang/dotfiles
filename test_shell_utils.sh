@@ -100,6 +100,20 @@ TESTS_RUN=$((TESTS_RUN + 1))
 echo -n "  git/utils.sh syntax: "
 if bash -n "$SCRIPT_DIR/git/utils.sh" 2>/dev/null; then test_pass; else test_fail "syntax error"; fi
 
+TESTS_RUN=$((TESTS_RUN + 1))
+echo -n "  dot.bashrc syntax: "
+if bash -n "$SCRIPT_DIR/dot.bashrc" 2>/dev/null; then test_pass; else test_fail "syntax error"; fi
+
+# PLATFORM normalization (set by dot.bashrc)
+echo -e "\n${YELLOW}Test Suite 7: Platform Detection${NC}"
+TESTS_RUN=$((TESTS_RUN + 1))
+echo -n "  dot.bashrc sets PLATFORM to a known value: "
+detected_platform=$(bash -c "source '$SCRIPT_DIR/dot.bashrc' >/dev/null 2>&1; echo \$PLATFORM")
+case "$detected_platform" in
+  windows|darwin|linux) test_pass ;;
+  *) test_fail "PLATFORM='$detected_platform' (expected windows/darwin/linux)" ;;
+esac
+
 # Summary
 echo -e "\n${BLUE}====================================\nTest Summary\n====================================${NC}\n"
 echo "Tests run:    $TESTS_RUN"

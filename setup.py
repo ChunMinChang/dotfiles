@@ -7,6 +7,18 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+
+# On Windows the default stdout/stderr encoding is cp1252, which cannot
+# encode the unicode glyphs we use in status output (->, check, cross).
+# Reconfigure to utf-8 so prints work uniformly across cmd, PowerShell,
+# Git Bash, and subprocess-captured runs.
+if platform.system() == "Windows":
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, OSError):
+            pass
 
 
 def load_jsonc(path):
@@ -25,13 +37,43 @@ def load_jsonc(path):
     return json.loads(text)
 
 
+# Platform helpers
+# ------------------------------------------------------------------------------
+
+
+def is_windows():
+    return platform.system() == "Windows"
+
+
+def is_macos():
+    return platform.system() == "Darwin"
+
+
+def is_linux():
+    return platform.system() == "Linux"
+
+
+def get_home_dir():
+    """Return the current user's home directory across platforms.
+
+    On macOS/Linux this is $HOME. On Windows os.path.expanduser falls
+    back to %USERPROFILE% when HOME is unset (cmd / PowerShell). Under
+    Git Bash / MSYS2, $HOME is set and is returned (POSIX-style path).
+    """
+    return os.path.expanduser("~")
+
+
 # Global variables
 # ------------------------------------------------------------------------------
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-HOME_DIR = os.environ["HOME"]
+HOME_DIR = get_home_dir()
 VERBOSE = False  # Set to True with -v/--verbose flag
 DRY_RUN = False  # Set to True with --dry-run flag
+
+# Cached result of can_create_symlinks() so the Dev Mode prompt only
+# fires once per setup.py run (e.g. --all).
+_SYMLINK_CHECK_DONE = None
 
 # Configuration paths loaded from config.sh
 CONFIG = None  # Lazy-loaded config dictionary
@@ -72,6 +114,7 @@ def load_config():
             HOME_DIR, ".local", "share", "Trash", "files"
         ),
         "DOTFILES_TRASH_DIR_DARWIN": os.path.join(HOME_DIR, ".Trash"),
+        "DOTFILES_TRASH_DIR_WINDOWS": os.path.join(HOME_DIR, ".Trash"),
         "DOTFILES_MACHRC_PATH": os.path.join(HOME_DIR, ".mozbuild", "machrc"),
         "DOTFILES_CARGO_ENV_PATH": os.path.join(HOME_DIR, ".cargo", "env"),
     }
@@ -276,6 +319,77 @@ def rollback_changes(tracker):
         return True
 
 
+def can_create_symlinks():
+    """Probe whether the current process can create symlinks.
+
+    Returns True on macOS/Linux. On Windows, attempts os.symlink in a
+    temp directory and returns False on OSError (WinError 1314 when
+    Developer Mode is off and the process is unelevated).
+    """
+    if not is_windows():
+        return True
+    tmpdir = tempfile.mkdtemp()
+    try:
+        target = os.path.join(tmpdir, "t")
+        link_path = os.path.join(tmpdir, "l")
+        with open(target, "w") as f:
+            f.write("")
+        try:
+            os.symlink(target, link_path)
+            return True
+        except OSError:
+            return False
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def ensure_symlink_capability():
+    """Block symlink-creating operations on Windows when Dev Mode is off.
+
+    Returns True if symlinks work (now or after the user enabled them),
+    False if the user declined. Result is cached so the prompt only
+    fires once per setup.py run.
+    """
+    global _SYMLINK_CHECK_DONE
+    if _SYMLINK_CHECK_DONE is not None:
+        return _SYMLINK_CHECK_DONE
+
+    if can_create_symlinks():
+        _SYMLINK_CHECK_DONE = True
+        return True
+
+    print_warning("Symlinks are not available on this Windows install.")
+    print_hint(
+        "To enable: Settings -> System -> For developers -> "
+        "turn on 'Developer Mode'. Alternatively run this script as "
+        "Administrator. Symlinks let dotfile changes propagate "
+        "without re-running setup."
+    )
+    while True:
+        try:
+            response = (
+                input("Have you enabled Developer Mode? [y/N/abort]: ")
+                .strip()
+                .lower()
+            )
+        except (EOFError, KeyboardInterrupt):
+            print()
+            _SYMLINK_CHECK_DONE = False
+            return False
+
+        if response in ("", "n", "no", "abort"):
+            _SYMLINK_CHECK_DONE = False
+            return False
+        if response in ("y", "yes"):
+            if can_create_symlinks():
+                _SYMLINK_CHECK_DONE = True
+                return True
+            print_warning(
+                "Still cannot create symlinks. You may need to "
+                "restart your terminal after enabling Developer Mode."
+            )
+
+
 # Symbolically link source to target
 def link(source, target, tracker=None):
     print_verbose("link() called: source={}, target={}".format(source, target))
@@ -322,7 +436,7 @@ def link(source, target, tracker=None):
 
 # Check if `name` exists
 def is_tool(name):
-    cmd = "where" if platform.system() == "Windows" else "which"
+    cmd = "where" if is_windows() else "which"
     try:
         r = subprocess.check_output([cmd, name], stderr=subprocess.DEVNULL)
         print("{} is found in {}".format(name, r.decode("utf-8")))
@@ -686,6 +800,9 @@ def print_title(message):
 def dotfiles_link(tracker=None):
     print_installing_title("dotfile path")
     print_verbose("dotfiles_link() starting")
+    if not ensure_symlink_capability():
+        print_error("Symlink creation unavailable; skipping dotfile path link")
+        return False
     result = link(BASE_DIR, os.path.join(HOME_DIR, ".dotfiles"), tracker)
     print_verbose("dotfiles_link() returning: {}".format(result))
     return result
@@ -697,12 +814,17 @@ def bash_link(tracker=None):
     print_verbose("bash_link() starting")
     print_verbose("Platform: {}".format(platform.system()))
 
+    if not ensure_symlink_capability():
+        print_error("Symlink creation unavailable; skipping bash startup links")
+        return False
+
     platform_files = {
         "Darwin": ["dot.bashrc", "dot.zshrc", "dot.settings_darwin"],
         "Linux": ["dot.bashrc", "dot.settings_linux"],
+        "Windows": ["dot.bashrc", "dot.settings_windows"],
     }
 
-    if platform.system() == "Darwin":
+    if is_macos():
         v, _, _ = platform.mac_ver()
         version_parts = v.split(".")[:2]
         try:
@@ -712,12 +834,15 @@ def bash_link(tracker=None):
             # If version parsing fails, assume modern macOS (use zshrc)
             major, minor = 11, 0
 
-        platform_files[platform.system()].append(
+        platform_files["Darwin"].append(
             "dot.zshrc" if (major, minor) >= (10, 15) else "dot.bash_profile"
         )
 
-    # files = filter(lambda f: f.startswith('dot.'), os.listdir(BASE_DIR))
-    files = platform_files[platform.system()]
+    current_platform = platform.system()
+    if current_platform not in platform_files:
+        print_error("Unsupported platform: {}".format(current_platform))
+        return False
+    files = platform_files[current_platform]
     print_verbose("Files to process: {}".format(files))
     errors = []
     skipped = []
@@ -860,6 +985,17 @@ def mozilla_init(mozilla_arg, tracker=None):
         print_verbose("mozilla_arg is None, skipping Mozilla tools")
         return None  # None = skipped, not failure
 
+    if is_windows():
+        print_warning(
+            "Mozilla toolkit aliases are Linux/macOS-only "
+            "(Firefox dev on Windows uses mozilla-build directly). Skipping."
+        )
+        return None
+
+    if not ensure_symlink_capability():
+        print_error("Symlink creation unavailable; skipping mozilla toolkit")
+        return False
+
     print_verbose("mozilla_arg: {}".format(mozilla_arg))
 
     funcs = {
@@ -968,7 +1104,7 @@ def pernosco_init(tracker=None):
     print_installing_title("pernosco-submit (optional)")
 
     # Check platform - pernosco is Linux only
-    if platform.system() != "Linux":
+    if not is_linux():
         print_warning("pernosco-submit is Linux only, skipping")
         return None  # Skipped, not failure
 
@@ -1176,7 +1312,7 @@ def install_shellcheck(tracker=None):
 
     # Check if sudo is available
     has_sudo = False
-    if platform.system() == "Linux":
+    if is_linux():
         try:
             result = subprocess.run(
                 ["sudo", "-n", "true"], capture_output=True, timeout=5
@@ -1187,7 +1323,7 @@ def install_shellcheck(tracker=None):
 
     # Install based on platform
     try:
-        if platform.system() == "Linux":
+        if is_linux():
             if not has_sudo:
                 print_warning("Sudo access required for shellcheck on Linux")
                 print("Please install manually: sudo apt-get install shellcheck")
@@ -1208,7 +1344,7 @@ def install_shellcheck(tracker=None):
                 print_error("Failed to install shellcheck: {}".format(result.stderr))
                 return False
 
-        elif platform.system() == "Darwin":
+        elif is_macos():
             if not is_tool("brew"):
                 print_error("Homebrew not found. Please install from https://brew.sh")
                 print("Then install shellcheck: brew install shellcheck")
@@ -1227,6 +1363,13 @@ def install_shellcheck(tracker=None):
             else:
                 print_error("Failed to install shellcheck: {}".format(result.stderr))
                 return False
+        elif is_windows():
+            print_warning(
+                "Auto-install not supported on Windows. "
+                "Install via scoop ('scoop install shellcheck') or chocolatey "
+                "('choco install shellcheck')."
+            )
+            return None  # Skipped
         else:
             print_warning("Unsupported platform for automatic shellcheck installation")
             print(
@@ -1703,7 +1846,7 @@ def verify_symlinks():
     ]
 
     # Add platform-specific symlinks
-    if platform.system() == "Linux":
+    if is_linux():
         symlinks_to_check.append(
             (
                 os.path.join(HOME_DIR, ".settings_linux"),
@@ -1711,11 +1854,19 @@ def verify_symlinks():
                 False,
             )  # Optional
         )
-    elif platform.system() == "Darwin":
+    elif is_macos():
         symlinks_to_check.append(
             (
                 os.path.join(HOME_DIR, ".settings_darwin"),
                 os.path.join(BASE_DIR, "dot.settings_darwin"),
+                False,
+            )  # Optional
+        )
+    elif is_windows():
+        symlinks_to_check.append(
+            (
+                os.path.join(HOME_DIR, ".settings_windows"),
+                os.path.join(BASE_DIR, "dot.settings_windows"),
                 False,
             )  # Optional
         )
@@ -1755,13 +1906,17 @@ def verify_file_readability():
     ]
 
     # Add platform-specific files
-    if platform.system() == "Linux":
+    if is_linux():
         files_to_check.append(
             (os.path.join(BASE_DIR, "dot.settings_linux"), False)  # Optional
         )
-    elif platform.system() == "Darwin":
+    elif is_macos():
         files_to_check.append(
             (os.path.join(BASE_DIR, "dot.settings_darwin"), False)  # Optional
+        )
+    elif is_windows():
+        files_to_check.append(
+            (os.path.join(BASE_DIR, "dot.settings_windows"), False)  # Optional
         )
 
     issues = []
@@ -1787,10 +1942,12 @@ def verify_bash_syntax():
     ]
 
     # Add platform-specific files
-    if platform.system() == "Linux":
+    if is_linux():
         bash_files.append(os.path.join(BASE_DIR, "dot.settings_linux"))
-    elif platform.system() == "Darwin":
+    elif is_macos():
         bash_files.append(os.path.join(BASE_DIR, "dot.settings_darwin"))
+    elif is_windows():
+        bash_files.append(os.path.join(BASE_DIR, "dot.settings_windows"))
 
     issues = []
     for filepath in bash_files:
@@ -1977,10 +2134,10 @@ def claude_security_init(tracker, dry_run=False):
     """
     print_title("Claude Code Security Hooks")
 
-    hooks_dir = os.path.join(os.path.expanduser("~"), ".dotfiles-claude-hooks")
+    hooks_dir = os.path.join(get_home_dir(), ".dotfiles-claude-hooks")
     source_hook = os.path.join(BASE_DIR, ".claude", "hooks", "security-read-blocker.py")
     dest_hook = os.path.join(hooks_dir, "security-read-blocker.py")
-    claude_config = os.path.join(os.path.expanduser("~"), ".claude.json")
+    claude_config = os.path.join(get_home_dir(), ".claude.json")
 
     if dry_run:
         print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
@@ -2089,7 +2246,7 @@ def claude_security_remove(dry_run=False):
     """Remove Claude Code security hooks from ~/.claude.json."""
     print_title("Remove Claude Security Hooks")
 
-    claude_config = os.path.join(os.path.expanduser("~"), ".claude.json")
+    claude_config = os.path.join(get_home_dir(), ".claude.json")
 
     if not os.path.exists(claude_config):
         print_warning("No Claude config found at ~/.claude.json")
@@ -2157,7 +2314,7 @@ def show_claude_hooks():
     """Show all hooks in ~/.claude.json with source identification."""
     print_title("Current Claude Hooks")
 
-    claude_config = os.path.join(os.path.expanduser("~"), ".claude.json")
+    claude_config = os.path.join(get_home_dir(), ".claude.json")
 
     if not os.path.exists(claude_config):
         print_warning("No Claude config found at ~/.claude.json")
@@ -2345,6 +2502,12 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     Uses symlinks for easy management across multiple repos.
     """
     print_title("Install Firefox Claude Settings")
+
+    if not dry_run and not ensure_symlink_capability():
+        print_error(
+            "Symlink creation unavailable; cannot install Firefox Claude settings"
+        )
+        return False
 
     # Verify overlay exists
     if not os.path.isdir(FIREFOX_CLAUDE_OVERLAY):
@@ -2859,7 +3022,7 @@ def show_claude_security_log():
     print_title("Claude Security Blocks Log")
 
     log_file = os.path.join(
-        os.path.expanduser("~"), ".dotfiles-claude-hooks", "security-blocks.log"
+        get_home_dir(), ".dotfiles-claude-hooks", "security-blocks.log"
     )
 
     if not os.path.exists(log_file):
@@ -2913,12 +3076,16 @@ def claude_session_sync_init(tracker, dry_run=False):
     """Install claude-session-sync tool."""
     print_title("Claude Session Sync")
 
+    if not dry_run and not ensure_symlink_capability():
+        print_error("Symlink creation unavailable; skipping claude-session-sync")
+        return False
+
     source_script = os.path.join(BASE_DIR, "claude", "session_sync.py")
     dest_bin = os.path.join(
         get_config()["DOTFILES_LOCAL_BIN_DIR"], "claude-session-sync"
     )
     template_file = os.path.join(BASE_DIR, "claude", "CLAUDE.md.template")
-    claude_md = os.path.join(os.path.expanduser("~"), ".claude", "CLAUDE.md")
+    claude_md = os.path.join(get_home_dir(), ".claude", "CLAUDE.md")
 
     if dry_run:
         print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")

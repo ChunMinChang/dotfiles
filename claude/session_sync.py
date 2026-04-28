@@ -21,8 +21,19 @@ import shutil
 # Constants
 # ---------------------------------------------------------------------------
 
+
+def get_home_dir():
+    """Return the current user's home directory across platforms.
+
+    On Windows, os.path.expanduser falls back to %USERPROFILE% when
+    HOME is unset (cmd / PowerShell). Under Git Bash / MSYS2 $HOME is
+    set and is returned (POSIX-style path).
+    """
+    return os.path.expanduser("~")
+
+
 MANIFEST_FILENAME = ".claude-sync-manifest.json"
-CLAUDE_PROJECTS_DIR = os.path.join(os.path.expanduser("~"), ".claude", "projects")
+CLAUDE_PROJECTS_DIR = os.path.join(get_home_dir(), ".claude", "projects")
 TRANSCRIPT_DIR_ENV = "CLAUDE_TRANSCRIPT_DIR"
 
 # ---------------------------------------------------------------------------

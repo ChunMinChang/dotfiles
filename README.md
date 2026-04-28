@@ -1,7 +1,8 @@
 # Personal Dotfiles
 
-Cross-platform shell configuration for Linux and macOS
-with enhanced git workflows and Mozilla Firefox development tools.
+Cross-platform shell configuration for Linux, macOS, and
+Windows (Git Bash / mozilla-build MSYS2) with enhanced git
+workflows and Mozilla Firefox development tools.
 
 ## Quick Start
 
@@ -22,7 +23,15 @@ bash uninstall.sh                  # Remove dotfiles
 ## What Gets Installed
 
 **Symlinks:** `~/.dotfiles`, `~/.bashrc`, `~/.settings_{platform}`
-(+ `~/.zshrc` on macOS)
+(+ `~/.zshrc` on macOS).
+On Windows, `{platform}` is `windows` (Git Bash / MSYS2 / Cygwin).
+
+**Windows note:** `setup.py` creates symlinks, which require either
+Developer Mode (Settings → System → For developers → Developer Mode)
+or running the script as Administrator. The installer will probe
+symlink capability and prompt before any symlink-creating step.
+Mozilla toolkit aliases are skipped on Windows; Firefox dev on
+Windows uses `mozilla-build` directly.
 
 **Git config:** `git/config` included via `~/.gitconfig`
 

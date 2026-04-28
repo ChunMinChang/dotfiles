@@ -39,8 +39,18 @@
 
 **Platform detection:**
 
-- Uses `uname -s | tr '[:upper:]' '[:lower:]'`
-- Loads appropriate `~/.settings_{platform}` file
+- `dot.bashrc` normalizes `uname -s` via a case statement
+  (`MINGW*|MSYS*|CYGWIN*` → `windows`, `Darwin` → `darwin`,
+  `Linux` → `linux`). Loads `~/.settings_{platform}` accordingly.
+- Python side: `is_windows() / is_macos() / is_linux()` and
+  `get_home_dir()` helpers in `setup.py` (top of file). All HOME
+  resolution goes through `get_home_dir()`; tests can still assign
+  `setup.HOME_DIR` directly to mock home.
+- `can_create_symlinks()` probes via trial-symlink in a temp dir;
+  `ensure_symlink_capability()` is the gate for symlink-creating
+  steps and prompts the user to enable Developer Mode on Windows.
+  Result is cached in `_SYMLINK_CHECK_DONE` so the prompt fires
+  only once per `setup.py` invocation.
 
 **Naming conventions:**
 

@@ -23,6 +23,56 @@ from unittest.mock import patch
 import setup
 
 
+requires_symlinks = unittest.skipUnless(
+    setup.can_create_symlinks(),
+    "requires symlink capability (Developer Mode on Windows)",
+)
+
+
+class TestPlatformHelpers(unittest.TestCase):
+    """Tests for is_windows / is_macos / is_linux / get_home_dir."""
+
+    def test_one_platform_helper_is_true(self):
+        """Exactly one of is_windows/is_macos/is_linux is True per host."""
+        flags = [setup.is_windows(), setup.is_macos(), setup.is_linux()]
+        self.assertEqual(sum(1 for f in flags if f), 1)
+
+    @patch("setup.platform.system", return_value="Windows")
+    def test_is_windows(self, _mock):
+        self.assertTrue(setup.is_windows())
+        self.assertFalse(setup.is_macos())
+        self.assertFalse(setup.is_linux())
+
+    @patch("setup.platform.system", return_value="Darwin")
+    def test_is_macos(self, _mock):
+        self.assertFalse(setup.is_windows())
+        self.assertTrue(setup.is_macos())
+        self.assertFalse(setup.is_linux())
+
+    @patch("setup.platform.system", return_value="Linux")
+    def test_is_linux(self, _mock):
+        self.assertFalse(setup.is_windows())
+        self.assertFalse(setup.is_macos())
+        self.assertTrue(setup.is_linux())
+
+    def test_get_home_dir_returns_string(self):
+        home = setup.get_home_dir()
+        self.assertIsInstance(home, str)
+        self.assertTrue(home)
+        # Should not contain a literal '~' (expansion happened)
+        self.assertNotIn("~", home)
+
+
+class TestSymlinkCapabilityProbe(unittest.TestCase):
+    """Tests for can_create_symlinks() probe."""
+
+    def test_can_create_symlinks_non_windows(self):
+        """On macOS/Linux this returns True unconditionally."""
+        with patch("setup.is_windows", return_value=False):
+            self.assertTrue(setup.can_create_symlinks())
+
+
+@requires_symlinks
 class TestLinkFunction(unittest.TestCase):
     """Test the link() function for symlink creation"""
 
@@ -219,6 +269,7 @@ class TestAppendNonexistentLinesToFile(unittest.TestCase):
         self.assertIn("new_line", content)
 
 
+@requires_symlinks
 class TestVerifySymlinks(unittest.TestCase):
     """Test the verify_symlinks() function"""
 
@@ -454,6 +505,7 @@ class TestClaudeSecurityIntegration(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
 
 
+@requires_symlinks
 class TestInstallFirefoxClaude(unittest.TestCase):
     """Test install/uninstall of Firefox Claude settings including skills."""
 

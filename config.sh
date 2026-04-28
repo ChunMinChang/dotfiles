@@ -31,6 +31,9 @@
 # Trash directory on macOS
 : "${DOTFILES_TRASH_DIR_DARWIN:=$HOME/.Trash}"
 
+# Trash directory on Windows (Git Bash / MSYS2 / Cygwin)
+: "${DOTFILES_TRASH_DIR_WINDOWS:=$HOME/.Trash}"
+
 # ==============================================================================
 # User Configuration Override
 # ==============================================================================
@@ -61,6 +64,9 @@ case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
     ;;
   darwin*)
     export DOTFILES_TRASH_DIR="$DOTFILES_TRASH_DIR_DARWIN"
+    ;;
+  mingw*|msys*|cygwin*)
+    export DOTFILES_TRASH_DIR="$DOTFILES_TRASH_DIR_WINDOWS"
     ;;
   *)
     export DOTFILES_TRASH_DIR="$HOME/.Trash"  # Default fallback

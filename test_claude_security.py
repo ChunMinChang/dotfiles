@@ -8,12 +8,22 @@ Run with: python test_claude_security.py
 """
 
 import os
+import platform
 import sys
 import json
 import shutil
 import tempfile
 import subprocess
 from pathlib import Path
+
+# Reconfigure Windows stdout/stderr to utf-8 so unicode glyphs in test
+# output (check / cross marks) don't crash on cp1252 consoles.
+if platform.system() == "Windows":
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, OSError):
+            pass
 
 # Test result tracking
 TESTS_RUN = 0
