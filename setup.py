@@ -782,7 +782,7 @@ def print_verbose(message):
 def print_dry_run(message):
     """Print dry-run action (only when DRY_RUN=True)"""
     if DRY_RUN:
-        print(colors.HINT + "[DRY-RUN] " + colors.END + message)
+        print(colors.HINT + "[DRY-RUN]" + colors.END + " " + message)
 
 
 def print_title(message):
