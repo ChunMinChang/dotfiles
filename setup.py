@@ -1,5 +1,6 @@
 import argparse
 import fileinput
+import glob
 import json
 import os
 import platform
@@ -472,7 +473,16 @@ def is_tool(name):
         print("{} is found in {}".format(name, r.decode("utf-8")))
         return True
     except subprocess.CalledProcessError:
-        # Command not found (expected when tool is not installed)
+        # Not on PATH. On Windows, also probe the directories where
+        # pip3 --user and npm -g land binaries — those aren't on the
+        # default Git Bash PATH until a new shell sources our updated
+        # dot.settings_windows, so on re-runs of setup.py the parent
+        # shell still doesn't see freshly-installed tools.
+        if is_windows():
+            found = _find_windows_tool(name)
+            if found:
+                print("{} is found in {}".format(name, found))
+                return True
         return False
     except FileNotFoundError:
         # which/where command itself not found
@@ -482,6 +492,32 @@ def is_tool(name):
         # Unexpected error - log it for debugging
         print_warning("Error checking for {}: {}".format(name, str(e)))
         return False
+
+
+def _find_windows_tool(name):
+    """Search well-known Windows install locations for a tool binary.
+
+    Covers pip3 --user (per-version Python user-base Scripts) and
+    npm -g (~/AppData/Roaming/npm). Returns the first matching path
+    or None.
+    """
+    home = get_home_dir()
+    # pip3 --user: ~/AppData/Roaming/Python/PythonXX/Scripts/<name>.exe
+    for scripts_dir in glob.glob(
+        os.path.join(home, "AppData", "Roaming", "Python", "Python*", "Scripts")
+    ):
+        for ext in (".exe", ""):
+            candidate = os.path.join(scripts_dir, name + ext)
+            if os.path.exists(candidate):
+                return candidate
+    # npm -g: ~/AppData/Roaming/npm/<name>{.cmd,.exe,}
+    npm_dir = os.path.join(home, "AppData", "Roaming", "npm")
+    if os.path.isdir(npm_dir):
+        for ext in (".cmd", ".exe", ""):
+            candidate = os.path.join(npm_dir, name + ext)
+            if os.path.exists(candidate):
+                return candidate
+    return None
 
 
 def append_to_next_line_after(name, pattern, value=""):
