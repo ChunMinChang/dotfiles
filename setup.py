@@ -985,13 +985,6 @@ def mozilla_init(mozilla_arg, tracker=None):
         print_verbose("mozilla_arg is None, skipping Mozilla tools")
         return None  # None = skipped, not failure
 
-    if is_windows():
-        print_warning(
-            "Mozilla toolkit aliases are Linux/macOS-only "
-            "(Firefox dev on Windows uses mozilla-build directly). Skipping."
-        )
-        return None
-
     if not ensure_symlink_capability():
         print_error("Symlink creation unavailable; skipping mozilla toolkit")
         return False
@@ -1072,7 +1065,6 @@ def tools_init(tracker=None):
 
 def rust_init(tracker=None):
     print_installing_title("rust settings")
-    error_messages = ["\tRun ./mach bootstrap.py under firefox to fix it."]
 
     bashrc = os.path.join(HOME_DIR, ".bashrc")
     if not os.path.isfile(bashrc):
@@ -1082,9 +1074,13 @@ def rust_init(tracker=None):
     config = get_config()
     cargo_env = config["DOTFILES_CARGO_ENV_PATH"]
     if not os.path.isfile(cargo_env):
-        error_messages.insert(0, "{} does not exist! Abort!".format(cargo_env))
-        print_fail("".join(error_messages))
-        return False
+        print_warning(
+            "Skipping rust settings: {} does not exist. ".format(cargo_env)
+            + "This is normal if cargo was installed without rustup "
+            + "(e.g., via mozilla-build bootstrap). Run "
+            + "`./mach bootstrap.py` under firefox if you need rustup."
+        )
+        return None  # Skipped, not failure
 
     result = append_nonexistent_lines_to_file(
         bashrc, [bash_load_command(cargo_env)], tracker
