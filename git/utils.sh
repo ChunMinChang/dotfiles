@@ -188,7 +188,15 @@ function CreateGitBranchForPullRequest {
 # Show git branch in prompt.
 # ------------------------------------------------
 function ParseGitBranch {
-  git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
+  # Use `command git` to bypass any user-defined alias for `git`.
+  # mozilla-build, for example, sets `alias git="EDITOR=nano.exe git"`,
+  # which gets baked into this function body at sourcing time when
+  # expand_aliases is on, producing
+  #     EDITOR=nano.exe git branch ...
+  # That has been observed to interact badly with PS1 command
+  # substitution at prompt-display time on some shells. `command git`
+  # sidesteps it entirely.
+  command git branch 2> /dev/null | command sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
 }
 
 # Rename a branch locally and on remote
