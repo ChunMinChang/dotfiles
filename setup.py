@@ -1291,6 +1291,42 @@ def install_shellcheck(tracker=None):
         print("shellcheck is already installed")
         return True
 
+    # Pre-check the platform-appropriate prerequisite before prompting
+    has_sudo = False
+    if is_linux():
+        try:
+            result = subprocess.run(
+                ["sudo", "-n", "true"], capture_output=True, timeout=5
+            )
+            has_sudo = result.returncode == 0
+        except Exception:
+            has_sudo = False
+        if not has_sudo:
+            print_warning(
+                "Skipping shellcheck: passwordless sudo not available. "
+                "Install manually: sudo apt-get install shellcheck."
+            )
+            return None  # Skipped
+    elif is_macos():
+        if not is_tool("brew"):
+            print_warning(
+                "Skipping shellcheck: Homebrew not found. Install from "
+                "https://brew.sh, then run `brew install shellcheck`."
+            )
+            return None  # Skipped
+    elif is_windows():
+        print_warning(
+            "Skipping shellcheck: auto-install not supported on Windows. "
+            "Install via `scoop install shellcheck` or `choco install shellcheck`."
+        )
+        return None  # Skipped
+    else:
+        print_warning(
+            "Skipping shellcheck: unsupported platform for automatic install. "
+            "See https://github.com/koalaman/shellcheck#installing"
+        )
+        return None  # Skipped
+
     # Display info and prompt user
     print_tool_prompt(
         "ShellCheck",
@@ -1310,26 +1346,9 @@ def install_shellcheck(tracker=None):
         print("Skipping shellcheck installation")
         return None  # Skipped
 
-    # Check if sudo is available
-    has_sudo = False
-    if is_linux():
-        try:
-            result = subprocess.run(
-                ["sudo", "-n", "true"], capture_output=True, timeout=5
-            )
-            has_sudo = result.returncode == 0
-        except Exception:
-            has_sudo = False
-
     # Install based on platform
     try:
         if is_linux():
-            if not has_sudo:
-                print_warning("Sudo access required for shellcheck on Linux")
-                print("Please install manually: sudo apt-get install shellcheck")
-                print("Or configure passwordless sudo for this session")
-                return None  # Skipped
-
             print("Installing shellcheck via apt-get...")
             result = subprocess.run(
                 ["sudo", "apt-get", "install", "-y", "shellcheck"],
@@ -1345,11 +1364,6 @@ def install_shellcheck(tracker=None):
                 return False
 
         elif is_macos():
-            if not is_tool("brew"):
-                print_error("Homebrew not found. Please install from https://brew.sh")
-                print("Then install shellcheck: brew install shellcheck")
-                return False
-
             print("Installing shellcheck via homebrew...")
             result = subprocess.run(
                 ["brew", "install", "shellcheck"],
@@ -1363,19 +1377,6 @@ def install_shellcheck(tracker=None):
             else:
                 print_error("Failed to install shellcheck: {}".format(result.stderr))
                 return False
-        elif is_windows():
-            print_warning(
-                "Auto-install not supported on Windows. "
-                "Install via scoop ('scoop install shellcheck') or chocolatey "
-                "('choco install shellcheck')."
-            )
-            return None  # Skipped
-        else:
-            print_warning("Unsupported platform for automatic shellcheck installation")
-            print(
-                "Please install manually: https://github.com/koalaman/shellcheck#installing"
-            )
-            return None  # Skipped
 
     except subprocess.TimeoutExpired:
         print_error("Installation timed out")
@@ -1393,6 +1394,14 @@ def install_ruff(tracker=None):
     if is_tool("ruff"):
         print("ruff is already installed")
         return True
+
+    # Pre-check the prerequisite before bothering the user with a prompt
+    if not is_tool("pip3"):
+        print_warning(
+            "Skipping ruff: pip3 not found. Install Python 3 + pip and "
+            "re-run setup, or run `pip3 install --user ruff` manually."
+        )
+        return None  # Skipped
 
     # Display info and prompt user
     print_tool_prompt(
@@ -1415,10 +1424,6 @@ def install_ruff(tracker=None):
 
     # Install via pip
     try:
-        if not is_tool("pip3"):
-            print_error("pip3 not found. Please install Python 3 and pip first.")
-            return False
-
         print("Installing ruff via pip...")
         result = subprocess.run(
             ["pip3", "install", "--user", "ruff"],
@@ -1451,6 +1456,14 @@ def install_black(tracker=None):
         print("black is already installed")
         return True
 
+    # Pre-check the prerequisite before bothering the user with a prompt
+    if not is_tool("pip3"):
+        print_warning(
+            "Skipping black: pip3 not found. Install Python 3 + pip and "
+            "re-run setup, or run `pip3 install --user black` manually."
+        )
+        return None  # Skipped
+
     # Display info and prompt user
     print_tool_prompt(
         "Black",
@@ -1472,10 +1485,6 @@ def install_black(tracker=None):
 
     # Install via pip
     try:
-        if not is_tool("pip3"):
-            print_error("pip3 not found. Please install Python 3 and pip first.")
-            return False
-
         print("Installing black via pip...")
         result = subprocess.run(
             ["pip3", "install", "--user", "black"],
@@ -1508,6 +1517,15 @@ def install_markdownlint(tracker=None):
         print("markdownlint is already installed")
         return True
 
+    # Pre-check the prerequisite before bothering the user with a prompt
+    if not is_tool("npm"):
+        print_warning(
+            "Skipping markdownlint: requires npm (Node.js). "
+            "Install from https://nodejs.org/ and re-run setup, or run "
+            "`npm install -g markdownlint-cli` manually later."
+        )
+        return None  # Skipped
+
     # Display info and prompt user
     print_tool_prompt(
         "Markdownlint",
@@ -1520,7 +1538,6 @@ def install_markdownlint(tracker=None):
             "Pre-commit hook will skip markdown validation",
             "Documentation formatting issues may go unnoticed",
             "You can manually install later with: npm install -g markdownlint-cli",
-            "Note: Requires Node.js and npm (heavier dependency)",
         ],
     )
 
@@ -1530,12 +1547,6 @@ def install_markdownlint(tracker=None):
 
     # Install via npm
     try:
-        if not is_tool("npm"):
-            print_warning("npm not found. markdownlint requires Node.js and npm.")
-            print("Install Node.js from: https://nodejs.org/")
-            print("Then install markdownlint: npm install -g markdownlint-cli")
-            return None  # Skipped
-
         print("Installing markdownlint-cli via npm (may take a while)...")
         result = subprocess.run(
             ["npm", "install", "-g", "markdownlint-cli"],
@@ -1709,11 +1720,13 @@ exit 0
             print_hint("Hook would warn about issues but allow commits to proceed")
         else:
             print("Creating pre-commit hook: {}".format(precommit_hook))
-            with open(precommit_hook, "w") as f:
+            # Atomic write: write to .tmp then rename, so an interrupted
+            # run can never leave a 0-byte hook that git refuses to spawn.
+            tmp_hook = precommit_hook + ".tmp"
+            with open(tmp_hook, "w") as f:
                 f.write(hook_content)
-
-            # Make executable
-            os.chmod(precommit_hook, 0o755)
+            os.chmod(tmp_hook, 0o755)
+            os.replace(tmp_hook, precommit_hook)
 
             print(colors.OK + "✓ Pre-commit hook installed successfully" + colors.END)
             print_hint("Hook is project-local (only for this dotfiles repo)")
