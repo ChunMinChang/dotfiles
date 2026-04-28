@@ -47,17 +47,23 @@ SENSITIVE_PATTERNS = [
     "~/.git-credentials",
     "~/.config/gh/hosts.yml",
     "*/.git-credentials",
-    
+    "~/AppData/Local/GitCredentialManager/*",
+
     # API tokens
     "~/.netrc",
     "~/.npmrc",
     "~/.pypirc",
-    
+
     # Password managers
     "~/.password-store/*",
     "~/Library/Keychains/*",
     "~/.mozilla/firefox/*/key*.db",
+    "~/.mozilla/firefox/*/logins.json",
+    "~/AppData/Roaming/Mozilla/Firefox/Profiles/*/key*.db",
+    "~/AppData/Roaming/Mozilla/Firefox/Profiles/*/logins.json",
     "~/.config/1Password/*",
+    "~/AppData/Local/Microsoft/Credentials/*",
+    "~/AppData/Roaming/Microsoft/Credentials/*",
     
     # Containers & clusters
     "~/.docker/config.json",
