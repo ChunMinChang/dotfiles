@@ -2131,8 +2131,15 @@ def claude_security_init(tracker, dry_run=False):
     """
     Install Claude Code security hooks (system-wide).
     Merges hooks into ~/.claude.json without overwriting existing hooks.
+
+    The hook script is symlinked from the dotfiles repo (rather than
+    copied) so edits to the source propagate without re-running setup.
     """
     print_title("Claude Code Security Hooks")
+
+    if not dry_run and not ensure_symlink_capability():
+        print_error("Symlink creation unavailable; skipping claude security hooks")
+        return False
 
     hooks_dir = os.path.join(get_home_dir(), ".dotfiles-claude-hooks")
     source_hook = os.path.join(BASE_DIR, ".claude", "hooks", "security-read-blocker.py")
@@ -2142,16 +2149,15 @@ def claude_security_init(tracker, dry_run=False):
     if dry_run:
         print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
         print(f"  1. Create directory: {hooks_dir}")
-        print(f"  2. Copy hook script: {source_hook} → {dest_hook}")
-        print(f"  3. Make executable: {dest_hook}")
+        print(f"  2. Symlink hook script: {dest_hook} -> {source_hook}")
 
         if os.path.exists(claude_config):
             print(
-                f"  4. Backup: {claude_config} → {claude_config}.backup-claude-security"
+                f"  3. Backup: {claude_config} -> {claude_config}.backup-claude-security"
             )
-            print(f"  5. Merge security hooks into: {claude_config}")
+            print(f"  4. Merge security hooks into: {claude_config}")
         else:
-            print(f"  4. Create: {claude_config} with security hooks")
+            print(f"  3. Create: {claude_config} with security hooks")
 
         print(f"\n{colors.HINT}Would add to ~/.claude.json:{colors.END}")
         security_hook_config = {
@@ -2170,18 +2176,25 @@ def claude_security_init(tracker, dry_run=False):
         print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
         return True
 
-    # 1. Create hooks directory
+    # 1. Create hooks directory (still needed for the log file)
     os.makedirs(hooks_dir, exist_ok=True)
     print(f"Created directory: {hooks_dir}")
 
-    # 2. Copy hook script
+    # 2. Symlink hook script from the repo so edits propagate without
+    # re-running setup. link() handles dry-run, tracker, and replacing
+    # any existing symlink (or stale copy from older installs).
     if not os.path.exists(source_hook):
         print_error(f"Hook script not found: {source_hook}")
         return False
 
-    shutil.copy(source_hook, dest_hook)
-    os.chmod(dest_hook, 0o755)  # Make executable
-    print(f"Installed hook script: {dest_hook}")
+    # If a previous install left a regular file (pre-symlink era), replace
+    # it so the new symlink can take its place.
+    if os.path.exists(dest_hook) and not os.path.islink(dest_hook):
+        print_hint(f"Replacing legacy copy at {dest_hook} with a symlink")
+        os.unlink(dest_hook)
+
+    if not link(source_hook, dest_hook, tracker):
+        return False
 
     # 3. Backup and update ~/.claude.json
     if os.path.exists(claude_config):
