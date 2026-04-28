@@ -21,6 +21,8 @@ allowed-tools:
   - TaskCreate
   - EnterPlanMode
   - ExitPlanMode
+  - Agent
+  - Skill
 ---
 
 # Sherlock: Root Cause Analysis
@@ -66,6 +68,46 @@ Parse the arguments:
 8. **NEVER read, parse, or print any API key** — all API access goes through
    `sherlock-config` or `bmo-to-md`. Never read TOML config files containing keys.
    Never use `python3` to parse config files.
+9. **Delegate research, not synthesis** — subagents do bounded fact-finding
+   (bug fetch, code path tracing, git archaeology). The main agent decides
+   what the facts mean. Never let a subagent declare the root cause.
+10. **Three hypotheses minimum** — single-hypothesis RCAs anchor too early.
+    Step 1.3b.5 is mandatory; do not skip it even when one cause feels obvious.
+11. **The reviewer is independent** — when `solution-review` returns `revise`
+    or `redesign`, do not argue with the verdict. Either fix the solution,
+    escalate to the user (for `redesign`), or loop back to Phase 1 (for
+    `reject` / `needs-more-info`).
+
+---
+
+## Subagent delegation policy
+
+The main agent's context is reserved for **synthesis** — connecting evidence,
+forming and pruning hypotheses, deciding what is verified vs assumed,
+articulating the root cause. Bounded research tasks are delegated to
+subagents so the main context stays focused.
+
+**Delegate** to a subagent when the task is:
+- **Bounded**: clear input, clear output shape, no interactive judgment.
+- **Voluminous**: produces a lot of intermediate text (raw bug comments,
+  searchfox dumps, git log archaeology) that the main agent does not need
+  in full.
+- **Parallelizable**: e.g., trace Firefox + library simultaneously.
+
+**Do NOT delegate**:
+- Hypothesis selection or pruning.
+- "What does this evidence mean for the root cause?"
+- Phase Gate / user-facing decisions.
+- The Self-Critique Pass (Step 1.10.5).
+- Any step that requires judging two competing claims.
+
+The specific delegation points in this skill are Steps 1.1–1.2, 1.5, and
+1.6, called out inline below. Each invocation must:
+- Pass inputs as **file paths and explicit values** — not as "the bug we're
+  investigating".
+- Specify the **output shape** so the main agent knows what to expect.
+- Include the framing: *"return the requested artifact only; do not draw
+  conclusions about the root cause."*
 
 ---
 
@@ -251,12 +293,69 @@ Pin a searchfox revision for the entire session so all links are permanent:
 
 ### Step 1.1: Understand the Bug
 
-Extract from the bug report:
-- Bug title and description
+**Delegate** the raw collection of bug context to a subagent so the main
+context is not flooded with bug comments, duplicate descriptions, and
+Treeherder JSON. The main agent works only from the structured digest the
+subagent returns.
+
+```
+Agent(
+  subagent_type: "general-purpose",
+  description: "Bug context digest for bug <id>",
+  prompt: <see template below>,
+)
+```
+
+Prompt template (substitute `<bug_id>`, `<output-dir>`, `<repo-root>`):
+
+```
+You are gathering raw context for a Firefox bug investigation. Return a
+structured digest only — do NOT diagnose or speculate about root cause.
+
+Inputs:
+- Bug ID: <bug_id>
+- Output directory: <output-dir>
+- Repo root: <repo-root>
+- Sherlock config helper: <repo-root>/.claude/skills/sherlock/sherlock-config
+
+Tasks:
+1. Run `<sherlock-config> --fetch-bug <bug_id> -o <output-dir>/bug-<id>-report`
+   for the main bug.
+2. Parse duplicates from the bug report; for each, run the same fetch into
+   `<output-dir>/bug-<dup_id>-report`.
+3. Run `<sherlock-config> --fetch-attachments <bug_id> -o <output-dir>/bug-<id>-attachments`.
+4. Fetch the Treeherder failure-distribution endpoint:
+   `https://treeherder.mozilla.org/api/failuresbybug/?startday=YYYY-MM-DD&endday=YYYY-MM-DD&tree=all&bug=<bug_id>`
+   for the last 7 days.
+
+Return a single markdown digest (NOT the raw artifacts) with these sections:
+- **Identity**: title, component, severity, priority, status, public/private,
+  sec-* keywords (if any), depends/blocks list.
+- **STR & expected vs actual**: condensed.
+- **Attachments**: one line each (filename, size, type, brief purpose).
+- **Duplicates**: for each, one paragraph of *new* information not in the
+  main bug.
+- **Treeherder**: platforms, suites, build types, failure rate
+  (consistent / intermittent + count), trees, date range. If no
+  Treeherder hits, say so.
+- **Pointers**: relative paths to the fetched artifact directories so the
+  main agent can read them on demand.
+
+Hard rules:
+- Do NOT propose a root cause.
+- Do NOT speculate about which code is responsible.
+- Do NOT include the full text of bug comments — distill to the key facts.
+- Do NOT touch any API key file.
+```
+
+The main agent reads only the returned digest. Raw artifacts stay on disk
+for later targeted reads (e.g., a specific attachment).
+
+After receiving the digest, extract for the analysis doc:
+- Bug title and description (condensed)
 - Component
 - Steps to reproduce (STR)
 - Expected vs actual behavior
-- Recent comments and discussion
 - Attached testcases or reproduction scripts
 - Keywords (check for `sec-*` keywords: sec-high, sec-moderate, sec-low, sec-critical)
 - Related bugs, duplicates, depends/blocks
@@ -266,30 +365,24 @@ MUST include a **Security Rating** section.
 
 ### Step 1.2: Check Duplicates and Related Bugs
 
-If the bug lists any duplicates, fetch each using:
-```bash
-.claude/skills/sherlock/sherlock-config --fetch-bug <duplicate_id> -o <output-dir>/bug-<duplicate_id>-report
-```
-Or MCP for public bugs.
+The Step 1.1 digest already includes duplicate fetches and a "Duplicates"
+section. Read that section.
 
-Duplicates often contain:
+Duplicates are valuable when they contain:
 - Additional STR or reproduction scripts
 - Independent stack traces that confirm or refine the root cause
 - Attached testcases (`testcase` keyword)
 - Commenter analysis that narrows the failure condition
 - Different affected versions or platforms
 
-Merge all findings. If a duplicate adds a meaningfully different perspective,
-note it under **Related Context** in the analysis doc.
+If the digest's duplicate summary is thin and a duplicate seems important,
+read the raw report from `<output-dir>/bug-<duplicate_id>-report/` directly
+— targeted Read, not full re-ingestion. If a duplicate adds a meaningfully
+different perspective, note it under **Related Context** in the analysis doc.
 
 ### Step 1.3: Failure Pattern Analysis
 
-Fetch the Treeherder API for failure distribution (last 7 days relative to today):
-```
-WebFetch: https://treeherder.mozilla.org/api/failuresbybug/?startday=YYYY-MM-DD&endday=YYYY-MM-DD&tree=all&bug=<id>
-```
-
-Extract:
+The Step 1.1 digest has the Treeherder block. From it, extract:
 - **Platforms** (e.g., Windows 11 only → OS-specific; Linux+Mac → cross-platform)
 - **Test suites** (e.g., `mochitest-media-wmfme` → Windows Media Foundation Engine)
 - **Build types** (debug/asan/opt)
@@ -331,6 +424,29 @@ The plan should cover:
 Present the plan to the user for review. The user may refine the hypothesis,
 suggest additional code areas, or redirect the investigation. Use `ExitPlanMode`
 after the user approves or provides feedback.
+
+### Step 1.3b.5: Build the Hypothesis Tree
+
+Before committing to a single line of investigation, **enumerate at least
+three** candidate root-cause hypotheses — even when one already feels
+obvious. Single-hypothesis RCAs anchor too early; the cost of generating two
+extra candidates is minutes, the cost of anchoring on the wrong one is hours.
+
+For each hypothesis, fill in:
+
+| Hypothesis | Failure mechanism | Confirming evidence | Refuting evidence | Probe cost |
+|------------|-------------------|---------------------|-------------------|------------|
+| H1 ({short name}) | {how the bug would manifest if this were the cause} | {what we'd see in code/logs/test if true} | {what we'd see if false} | {minutes / hours / build required} |
+| H2 ({short name}) | ... | ... | ... | ... |
+| H3 ({short name}) | ... | ... | ... | ... |
+
+Pick the hypothesis with the highest **confirm/refute ratio per unit of
+probe cost** as the **primary**; keep the others alive in reserve. Save
+this table to the analysis doc under a `## Hypothesis Tree` section so
+reviewers can see what was considered and pruned.
+
+When investigation surfaces evidence that revives a pruned hypothesis, do
+not silently re-anchor — re-rank the table and update the analysis doc.
 
 ### Step 1.3c: Create Firefox Working Branch
 
@@ -377,15 +493,67 @@ For third-party libraries, consult `references/upstream-libs.md`.
 Read `references/source-permalinks.md` for URL patterns. For EVERY code reference,
 produce a revision-pinned link using `$SHERLOCK_REV`.
 
-Format as a numbered trace:
+**Delegate** the raw tracing to one or two subagents in parallel — Firefox
+side and (when applicable) library side. The main agent receives the
+finished trace and decides what to believe; raw searchfox dumps stay in the
+subagent's context.
+
 ```
-1. [`Class::Method`](https://searchfox.org/firefox-main/rev/<hash>/path#line) — description
-2. [`Next::Call`](link) — what happens, with evidence
+Agent(
+  subagent_type: "general-purpose",
+  description: "Code path trace: <hypothesis short name> (Firefox)",
+  prompt: <see template below>,
+)
 ```
 
-For third-party code, use upstream permanent links from `references/upstream-libs.md`:
-1. Read vendored revision: `git show HEAD:media/<lib>/moz.yaml | grep revision`
-2. Construct upstream URL using the forge pattern from the library table
+When Step 1.5b is also active, dispatch a second subagent for the library
+trace **in parallel** in the same message.
+
+Prompt template (substitute the placeholders):
+
+```
+You are producing a code path trace for a Firefox root-cause investigation.
+Return the trace only — do NOT decide what the root cause is.
+
+Inputs:
+- Repo root: <repo-root>
+- Searchfox revision: <SHERLOCK_REV>
+- Entry symbol(s) / file(s): <list>
+- Hypothesis to trace: <one sentence — the failure mechanism the trace
+  should illuminate>
+- Side: <"firefox" | "library: <name> @ <upstream_revision>">
+
+Tasks:
+1. Use `searchfox-cli` (Firefox side) or upstream-permalink construction
+   (library side, see references/upstream-libs.md) to find the call path.
+2. Read each function in the path (do not skim — read the body).
+3. Produce a numbered trace, every step pinned to a revision-permalink.
+   Each step gets a one-line evidence note: what happens, what the function
+   returns, what state it mutates.
+
+Output shape:
+- A markdown numbered list, one entry per step.
+- Each entry: `[`Class::Method`](permalink#Lline) — one-line description`
+  followed by a sub-bullet with concrete evidence (what it does / where it
+  fails / what it returns).
+- After the trace, a 3-line "Notable observations" block flagging anything
+  that looks suspicious (early return on error swallowed, missing nullcheck,
+  unusual lifetime). DO NOT declare these as root cause; just flag.
+
+Hard rules:
+- Every link must be revision-pinned. Never use trunk URLs.
+- Do not invent line numbers. If you can't open a file, say so.
+- Do not propose fixes.
+- Do not declare root cause.
+```
+
+For third-party code, the subagent uses upstream permalinks. To find the
+vendored revision: `git show HEAD:media/<lib>/moz.yaml | grep revision` —
+include this in the subagent prompt as the upstream revision pin.
+
+After the subagent(s) return, the main agent integrates the traces into the
+analysis doc and reasons about which steps in the path correspond to the
+primary hypothesis from Step 1.3b.5.
 
 ### Step 1.5b: Third-Party Library Sub-Workflow (Conditional)
 
@@ -747,34 +915,69 @@ covered within the branch workflow:
 - **Branch B**: done in B1 (Firefox integration code)
 - **Branch C**: done in C1 (both layers)
 
-After identifying the root cause code, study HOW and WHY it was introduced:
+After identifying the root cause code, study HOW and WHY it was introduced.
+**Delegate** the archaeology to a subagent — heavy git-history reads stay
+out of main context. The main agent reads the returned summary and
+integrates it into the analysis doc.
 
-1. **Find the introducing commit:**
-   ```bash
-   git log --oneline --follow -S "<key_symbol>" -- <file> | head -10
-   git blame -L <line>,<line> <file>
-   ```
-   Or jj equivalents:
-   ```bash
-   jj annotate <file>
-   jj log -r 'ancestors(trunk())' -T builtin_log_oneline -s -- <file> | head -30
-   ```
+```
+Agent(
+  subagent_type: "general-purpose",
+  description: "Design intention archaeology: <symbol/file>",
+  prompt: <see template below>,
+)
+```
 
-2. **Read the full commit message and linked bug** for the introducing change.
-   Understand: what problem was this code originally solving? What was the design
-   rationale? What constraints or tradeoffs did the author face?
+Prompt template:
 
-3. **Study the surrounding function/module design:**
-   - What is the function's contract? (preconditions, postconditions)
-   - What invariants does the module maintain?
-   - Are there related functions that follow the same pattern?
-   - Is this part of a larger state machine or protocol?
+```
+You are doing git-history archaeology for a Firefox root-cause analysis.
+Return a structured Design Intention block; do NOT propose root cause or
+fixes.
 
-4. **Document in the analysis doc** under "Design Intention":
-   - Original purpose of the code
-   - Design constraints/tradeoffs the author faced
-   - Why the current approach was chosen
-   - How the root cause violates the original design intention (or reveals a gap)
+Inputs:
+- Repo root: <repo-root>
+- Files: <list of file paths>
+- Key symbols: <list — functions / classes / fields / state values>
+- Searchfox revision: <SHERLOCK_REV>
+
+Tasks:
+1. Find the introducing commit for each key symbol:
+   - `git log --oneline --follow -S "<symbol>" -- <file>` (head -10)
+   - `git blame -L <line>,<line> <file>` for the candidate region
+   - jj equivalents: `jj annotate <file>`,
+     `jj log -r 'ancestors(trunk())' -T builtin_log_oneline -s -- <file>`
+2. Read the introducing commit message in full. Follow the linked Bugzilla
+   bug (use `<repo-root>/.claude/skills/sherlock/sherlock-config --fetch-bug`).
+3. Read 2-3 commits before and after for context — was this a series? What
+   constraint shifted?
+4. Summarize the function's contract from the code: preconditions,
+   postconditions, invariants, threading expectations, ownership.
+5. Note related functions that follow the same pattern (or break it).
+
+Return a Design Intention block with:
+- **Introducing commit**: hash, summary, linked bug.
+- **Original purpose**: what problem this code was solving.
+- **Design rationale**: why this approach was chosen (cite commit message
+  and bug discussion).
+- **Constraints / tradeoffs**: what limited the design.
+- **Function contract**: preconditions, postconditions, invariants.
+- **Related code**: other places using the same pattern.
+- **Drift signals**: any sign the code has been patched ad-hoc since
+  introduction (multiple followup commits, comments referring to
+  workarounds, dead branches).
+
+Hard rules:
+- Cite commit hashes and bug numbers.
+- Do NOT claim how this relates to the current root cause — that is the
+  main agent's job. Stick to historical facts.
+- Do NOT propose fixes.
+```
+
+The main agent then writes the Design Intention section in the analysis
+doc, adding the sentence the subagent declined to write: **how the current
+root cause relates to (violates / reveals a gap in / drifts from) the
+original design intention**. That synthesis is reserved for the main agent.
 
 This understanding is critical for Phase 2: solutions that respect the original
 design intention are more likely to be correct and maintainable than patches that
@@ -966,6 +1169,38 @@ The upstream report must:
 - Use ONLY upstream permanent links
 - Be self-contained and suitable for filing with the library's issue tracker
 
+### Step 1.10.5: Self-Critique Pass
+
+Before presenting Phase 1 to the user, the main agent does a focused
+self-critique. This is **not delegated** — it is the moment to apply
+judgment to your own work.
+
+Run through this checklist mechanically:
+
+- [ ] **Verified Claims still verify**: for every claim labeled as Verified
+  in the analysis doc, re-open the cited file at the cited line and confirm
+  it says what you claimed. If the line shifted, update the link.
+- [ ] **Links are revision-pinned**: grep the analysis doc for
+  `firefox-main/source/` (trunk) and replace any hits with `$SHERLOCK_REV`
+  links. Same for any unpinned upstream URLs.
+- [ ] **Proof test actually FAILs**: re-read `bug-<id>-test-run.log`. If the
+  log shows PASS or an error in test setup rather than a clean FAIL on the
+  bug, the test is not yet a proof.
+- [ ] **Hypothesis Tree still ranks correctly**: walk the table from Step
+  1.3b.5. For each pruned hypothesis, ask: did any evidence collected
+  since 1.3b.5 revive it? If yes, re-rank and update the doc.
+- [ ] **Assumptions are honest**: every claim that could not be verified
+  against code or logs is labeled `[Assumption]`. No claim says
+  "always" / "never" / "only" without code evidence.
+- [ ] **Design Intention closes the loop**: the Design Intention section
+  ends with a sentence stating how the root cause relates to the original
+  design (violation / gap / drift). Without that sentence, Phase 2 has
+  nothing to design against.
+
+If any check fails: loop back to the relevant step and re-do the work
+before the gate. The user's time is more valuable than yours; do not
+present an analysis that has known gaps.
+
 ---
 
 ## Phase Gate: User Review
@@ -1002,7 +1237,7 @@ Then enter plan mode:
 EnterPlanMode
 ```
 
-### Step 2.2: Propose Solutions
+### Step 2.2: Draft Solutions
 
 Draft solutions in the plan file. For each viable approach, present:
 - **Description** of the approach
@@ -1018,21 +1253,83 @@ Draft solutions in the plan file. For each viable approach, present:
 - Solutions should respect the **design intention** documented in Phase 1.
 - For third-party library issues: present both upstream and Firefox-side fix strategies.
 
-### Step 2.3: Discussion Loop
+These are **drafts**. They go in front of the independent reviewer (Step
+2.3) before they go in front of the user.
+
+### Step 2.3: Mandatory Independent Review
+
+Sherlock does not present its own first-draft solutions to the user. Before
+the user sees anything, the drafts go through the `solution-review` skill,
+which spawns an isolated reviewer with no shared memory and asks for an
+independent second opinion — including the freedom to propose a redesign
+that the original drafts missed.
+
+Invoke the review skill:
+
+```
+Skill(
+  skill: "solution-review",
+  args: "<absolute path to bug-<id>-analysis.md> <absolute path to plan/draft solutions doc>"
+)
+```
+
+The skill will:
+1. Spawn the `solution-reviewer` subagent.
+2. The reviewer reads the analysis doc and the draft solutions, verifies
+   citations against source, and writes a structured review to
+   `<output-dir>/bug-<id>-review.md`.
+3. Return a 4-line summary (verdict + headline + path + iteration).
+
+Do **not** invoke the reviewer multiple times in parallel; one review per
+draft set. Do **not** pass conclusions to the reviewer — the skill enforces
+file-path-only inputs.
+
+### Step 2.4: Consider the Review
+
+Read the review doc at `<output-dir>/bug-<id>-review.md`. Handle by verdict:
+
+| Verdict | Action |
+|---------|--------|
+| `approve` | Proceed to Step 2.5. |
+| `approve-with-concerns` | Apply the cited concerns to the drafts. If changes are non-trivial, re-invoke `solution-review` (Step 2.3). Otherwise proceed. |
+| `revise <option>` | Apply the cited changes to that option. If the diff is non-trivial, re-invoke `solution-review`. Otherwise proceed. |
+| `redesign` | **Stop. Do not silently expand scope.** The reviewer has proposed a structurally different fix that resolves the root cause and other latent issues. Surface the redesign to the user explicitly: include the latent-issue list and the scope estimate from the review doc, and ask whether to (a) pursue the redesign (loop back to Phase 1 with the broader scope so the analysis doc captures the new framing), (b) take a smaller fix anyway (note the redesign in *Related Context* for future work), or (c) split into two changes. Do not proceed until the user picks a direction. |
+| `reject` | Loop back to Phase 1 Step 1.4 with the reviewer's open questions. Likely the root cause needs more work. |
+| `needs-more-info` | Answer the reviewer's open questions (may require more Phase 1 work or a user clarification), then re-invoke. |
+
+When you re-invoke the reviewer after revisions, treat that as a separate
+review run — the review doc gets a `-N` suffix, both reviews are kept on disk.
+
+### Step 2.5: Present Solutions to User
+
+Now — and only now — present the (revised, reviewed) solutions to the user.
+The presentation must include:
+
+1. The vetted solutions (description, pros, cons, effort, risk).
+2. An **Independent review** subsection citing the verdict, headline
+   finding, and a relative link to the review doc on disk. Do not paraphrase
+   the review's reasoning — let the user read it directly if they want
+   detail.
+
+### Step 2.6: Discussion Loop
 
 Interactive discussion with the user. They may:
 - Ask for more detail on a solution
 - Reject all solutions and ask for alternatives
 - Request more Phase 1 research (loop back to relevant step)
 - Share their own analysis or opinions
-- Ask you to do further research
+- Disagree with the reviewer (in which case: ask the user to articulate
+  why, and decide together whether to override the verdict — do not
+  argue with the reviewer in the analysis doc)
 
-**Do NOT update the analysis doc during discussion.** It remains stable ground —
-the last agreed-upon state. Only update when the user gives explicit approval.
+**Do NOT update the analysis doc during discussion.** It remains stable
+ground — the last agreed-upon state. Only update when the user gives
+explicit approval.
 
-### Step 2.4: Write Solutions to Analysis Doc
+### Step 2.7: Write Solutions to Analysis Doc
 
-Only on explicit user signal ("write it down", "update the doc", "document this", etc.).
+Only on explicit user signal ("write it down", "update the doc",
+"document this", etc.).
 
 Exit plan mode first:
 ```
@@ -1042,7 +1339,11 @@ ExitPlanMode
 Then append the **## Proposed Solutions** section to the analysis doc with:
 - Each option described with pros/cons
 - Comparison table (Pros, Cons, Effort, Risk columns)
-- Agreed Approach section documenting the selected solution and reasoning
+- **Independent Review** subsection: verdict + headline finding + link to
+  the review doc on disk
+- **Agreed Approach** section documenting the selected solution and
+  reasoning, including any explicit user override of the reviewer's verdict
+  (and why)
 
 ---
 
@@ -1062,3 +1363,11 @@ Then append the **## Proposed Solutions** section to the analysis doc with:
   - **Branch A** (library bug): library test + Firefox test, upstream fix
   - **Branch B** (Firefox integration): Firefox test only, integration fix
   - **Branch C** (split): both tests, fixes in both layers
+- **Subagent dispatch is parallel-friendly**: when both Step 1.5 (Firefox
+  trace) and Step 1.5b (library trace) apply, dispatch both tracer
+  subagents in the same message so they run concurrently. Same for any
+  independent design-intention archaeology tasks.
+- **Read the review doc, don't restate it**: when surfacing the
+  `solution-review` result to the user, link the review doc instead of
+  paraphrasing — paraphrasing dilutes the reviewer's exact wording and
+  defeats the point of the independent second opinion.
