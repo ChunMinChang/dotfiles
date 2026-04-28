@@ -1822,13 +1822,34 @@ def dev_tools_init(dev_tools_arg, tracker=None):
         result = tools[tool_name](tracker)
         results[tool_name] = result
 
-    # Set up pre-commit hooks
-    print("")
-    print(
-        "Pre-commit hooks will run the installed tools automatically before each commit."
-    )
-    hook_result = setup_precommit_hooks(tracker)
-    results["pre-commit-hook"] = hook_result
+    # Pre-commit hook is only meaningful when at least one validation
+    # tool is available (shellcheck/ruff/black/markdownlint already
+    # present, or one we just installed). Otherwise it's a no-op that
+    # only echoes "skipping" lines on every commit.
+    any_tool_available = any(is_tool(t) for t in tools)
+    if any_tool_available:
+        print("")
+        print(
+            "Pre-commit hooks will run the installed tools automatically before each commit."
+        )
+        hook_result = setup_precommit_hooks(tracker)
+        # Treat a hook-install hiccup as a warning, not a failure: the
+        # hook is project-local to the dotfiles repo and not having it
+        # doesn't break anything else, so don't trigger a full rollback
+        # over it.
+        if hook_result is False:
+            print_warning(
+                "Pre-commit hook setup failed; continuing without it. "
+                "Re-run setup.py --dev-tools later to retry."
+            )
+            results["pre-commit-hook"] = None
+        else:
+            results["pre-commit-hook"] = hook_result
+    else:
+        print_hint(
+            "No validation tools installed; skipping pre-commit hook setup."
+        )
+        results["pre-commit-hook"] = None
 
     # Determine overall success
     # None = skipped (ok), False = failed, True = succeeded
