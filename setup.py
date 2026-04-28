@@ -473,16 +473,7 @@ def is_tool(name):
         print("{} is found in {}".format(name, r.decode("utf-8")))
         return True
     except subprocess.CalledProcessError:
-        # Not on PATH. On Windows, also probe the directories where
-        # pip3 --user and npm -g land binaries — those aren't on the
-        # default Git Bash PATH until a new shell sources our updated
-        # dot.settings_windows, so on re-runs of setup.py the parent
-        # shell still doesn't see freshly-installed tools.
-        if is_windows():
-            found = _find_windows_tool(name)
-            if found:
-                print("{} is found in {}".format(name, found))
-                return True
+        # Command not found (expected when tool is not installed)
         return False
     except FileNotFoundError:
         # which/where command itself not found
@@ -494,30 +485,41 @@ def is_tool(name):
         return False
 
 
-def _find_windows_tool(name):
-    """Search well-known Windows install locations for a tool binary.
+def _augment_path_for_windows_tools():
+    """Prepend pip3 --user and npm -g bin dirs to this process's PATH.
 
-    Covers pip3 --user (per-version Python user-base Scripts) and
-    npm -g (~/AppData/Roaming/npm). Returns the first matching path
-    or None.
+    Mirrors what dot.settings_windows adds at shell startup, so that
+    `where`/`which` from inside setup.py finds freshly-installed
+    tools even when the parent shell hasn't sourced the updated
+    dotfiles config yet (typical on re-runs from the same terminal
+    session). Keep the directory list in sync with the PATH block in
+    dot.settings_windows.
+
+    Idempotent and a no-op on macOS/Linux.
     """
+    if not is_windows():
+        return
     home = get_home_dir()
-    # pip3 --user: ~/AppData/Roaming/Python/PythonXX/Scripts/<name>.exe
+    dirs_to_add = []
+    # pip3 --user: ~/AppData/Roaming/Python/PythonXX/Scripts
     for scripts_dir in glob.glob(
         os.path.join(home, "AppData", "Roaming", "Python", "Python*", "Scripts")
     ):
-        for ext in (".exe", ""):
-            candidate = os.path.join(scripts_dir, name + ext)
-            if os.path.exists(candidate):
-                return candidate
-    # npm -g: ~/AppData/Roaming/npm/<name>{.cmd,.exe,}
+        if os.path.isdir(scripts_dir):
+            dirs_to_add.append(scripts_dir)
+    # npm -g: ~/AppData/Roaming/npm
     npm_dir = os.path.join(home, "AppData", "Roaming", "npm")
     if os.path.isdir(npm_dir):
-        for ext in (".cmd", ".exe", ""):
-            candidate = os.path.join(npm_dir, name + ext)
-            if os.path.exists(candidate):
-                return candidate
-    return None
+        dirs_to_add.append(npm_dir)
+
+    existing = os.environ.get("PATH", "")
+    existing_parts = existing.split(os.pathsep) if existing else []
+    new_parts = [d for d in dirs_to_add if d not in existing_parts]
+    if new_parts:
+        os.environ["PATH"] = os.pathsep.join(new_parts + existing_parts)
+
+
+_augment_path_for_windows_tools()
 
 
 def append_to_next_line_after(name, pattern, value=""):
