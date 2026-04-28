@@ -2254,7 +2254,7 @@ def claude_security_init(tracker, dry_run=False):
     temp_file = claude_config + ".tmp"
     with open(temp_file, "w") as f:
         json.dump(config, f, indent=2)
-    os.rename(temp_file, claude_config)
+    os.replace(temp_file, claude_config)
 
     # 5. Migrate away from the legacy ~/.dotfiles-claude-hooks/ directory
     # if a previous install left it behind. Move any existing log file
@@ -2344,7 +2344,7 @@ def claude_security_remove(dry_run=False):
         with open(temp_file, "w") as f:
             json.dump(config, f, indent=2)
 
-        os.rename(temp_file, claude_config)
+        os.replace(temp_file, claude_config)
 
         print(f"✓ Removed {removed_count} security hook(s)")
         print_hint("Restart Claude Code for changes to take effect")
