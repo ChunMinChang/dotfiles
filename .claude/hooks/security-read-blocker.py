@@ -8,14 +8,27 @@ Part of: dotfiles (github.com/chunminchang/dotfiles)
 """
 
 import json
+import platform
 import sys
 import os
 from pathlib import Path
 from datetime import datetime
 from fnmatch import fnmatch
 
+# Reconfigure stdout/stderr to utf-8 on Windows so unicode glyphs (the
+# lock emoji in the block message, etc.) don't crash on cp1252 consoles
+# when this hook runs under Claude Code's subprocess on Windows.
+if platform.system() == "Windows":
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, OSError):
+            pass
+
 # Configuration
-LOG_FILE = Path.home() / '.dotfiles-claude-hooks' / 'security-blocks.log'
+HOOKS_DIR_ENV = "DOTFILES_CLAUDE_HOOKS_DIR"
+HOOKS_DIR = Path(os.getenv(HOOKS_DIR_ENV, str(Path.home() / '.dotfiles-claude-hooks')))
+LOG_FILE = HOOKS_DIR / 'security-blocks.log'
 DISABLE_ENV = "DOTFILES_CLAUDE_SECURITY_DISABLED"
 WHITELIST_ENV = "DOTFILES_CLAUDE_SECURITY_WHITELIST"
 
@@ -138,14 +151,19 @@ def is_sensitive_env_file(file_path):
 
 
 def is_whitelisted(file_path):
-    """Check if path is in whitelist."""
+    """Check if path is in whitelist.
+
+    Whitelist entries are separated by os.pathsep (`:` on Unix, `;` on
+    Windows) so that absolute Windows paths like ``C:\\Users\\...`` are
+    not mis-split on the drive-letter colon.
+    """
     whitelist = os.getenv(WHITELIST_ENV, "")
     if not whitelist:
         return False
-    
+
     expanded_path = os.path.expanduser(file_path)
-    return expanded_path in [os.path.expanduser(p.strip()) 
-                              for p in whitelist.split(':') if p.strip()]
+    return expanded_path in [os.path.expanduser(p.strip())
+                              for p in whitelist.split(os.pathsep) if p.strip()]
 
 
 def log_block(hook_input, file_path, reason):

@@ -29,6 +29,18 @@ requires_symlinks = unittest.skipUnless(
 )
 
 
+def normalize_link_target(target):
+    """Normalize an os.readlink() return value for cross-platform compare.
+
+    On Windows, os.readlink can return absolute paths prefixed with
+    ``\\\\?\\`` (extended-length namespace). Strip that, and compare
+    via samefile() semantics by going through os.path.normpath.
+    """
+    if target.startswith("\\\\?\\"):
+        target = target[4:]
+    return os.path.normpath(target)
+
+
 class TestPlatformHelpers(unittest.TestCase):
     """Tests for is_windows / is_macos / is_linux / get_home_dir."""
 
@@ -97,7 +109,10 @@ class TestLinkFunction(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertTrue(os.path.islink(self.target))
-        self.assertEqual(os.readlink(self.target), self.source)
+        self.assertEqual(
+            normalize_link_target(os.readlink(self.target)),
+            os.path.normpath(self.source),
+        )
 
     def test_link_source_not_exists(self):
         """Test that link() returns False when source doesn't exist"""
@@ -119,7 +134,10 @@ class TestLinkFunction(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertTrue(os.path.islink(self.target))
-        self.assertEqual(os.readlink(self.target), self.source)
+        self.assertEqual(
+            normalize_link_target(os.readlink(self.target)),
+            os.path.normpath(self.source),
+        )
 
     def test_link_with_directory(self):
         """Test that link() works with directory source"""
@@ -699,8 +717,9 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         # Renamed version should be symlinked to the original source
         renamed = os.path.join(skills_dir, "media-bug-start")
         self.assertTrue(os.path.islink(renamed))
-        self.assertIn(self.claude_dir, os.readlink(renamed))
-        self.assertTrue(os.readlink(renamed).endswith("/bug-start"))
+        link_target = normalize_link_target(os.readlink(renamed))
+        self.assertIn(os.path.normpath(self.claude_dir), link_target)
+        self.assertEqual(os.path.basename(link_target), "bug-start")
 
     def test_install_gitignore_includes_all_skills(self):
         """Claude-skill and media-skill entries appear in .gitignore."""
