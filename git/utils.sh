@@ -334,6 +334,15 @@ function GitDeleteBranch {
 }
 
 function BranchInPrompt {
+  # Idempotent: skip if PS1 already has our ParseGitBranch substitution.
+  # Sourcing ~/.bashrc multiple times would otherwise pile up duplicate
+  # `$(ParseGitBranch)` entries, which can interact badly with other
+  # tools that munge PS1 (e.g. Git for Windows' __git_ps1) and produce
+  # "syntax error near unexpected token `)'" at prompt-display time.
+  case "$PS1" in
+    *'$(ParseGitBranch)'*) return ;;
+  esac
+
   # Detect shell and use appropriate escape sequences
   # bash uses \[ \] for non-printing characters
   # zsh uses %{ %} for non-printing characters
