@@ -1826,8 +1826,28 @@ def dev_tools_init(dev_tools_arg, tracker=None):
     # tool is available (shellcheck/ruff/black/markdownlint already
     # present, or one we just installed). Otherwise it's a no-op that
     # only echoes "skipping" lines on every commit.
-    any_tool_available = any(is_tool(t) for t in tools)
-    if any_tool_available:
+    #
+    # `is_tool` alone isn't sufficient on Windows: pip3 --user installs
+    # land in %APPDATA%\Python\PythonXX\Scripts\, which isn't on the
+    # default Git Bash PATH, so a freshly-installed ruff/black would
+    # appear missing. Trust the install_* return values (True == we
+    # just put it in place) in addition to the on-PATH check.
+    just_installed = any(v is True for v in results.values())
+    any_on_path = any(is_tool(t) for t in tools)
+    if just_installed or any_on_path:
+        # On Windows, warn if the just-installed tools aren't yet on
+        # PATH so the user knows the hook will skip them at commit
+        # time until they fix it.
+        if is_windows() and just_installed and not any_on_path:
+            scripts_hint = (
+                "%APPDATA%\\Python\\PythonXX\\Scripts (pip3 --user) and/or "
+                "%APPDATA%\\npm (npm -g)"
+            )
+            print_warning(
+                "Tools were installed but none are on PATH. "
+                f"Add {scripts_hint} to PATH so the pre-commit "
+                "hook can find them."
+            )
         print("")
         print(
             "Pre-commit hooks will run the installed tools automatically before each commit."
