@@ -342,27 +342,38 @@ function GitDeleteBranch {
 }
 
 function BranchInPrompt {
-  # Idempotent: skip if PS1 already has our ParseGitBranch substitution.
-  # Sourcing ~/.bashrc multiple times would otherwise pile up duplicate
-  # `$(ParseGitBranch)` entries, which can interact badly with other
-  # tools that munge PS1 (e.g. Git for Windows' __git_ps1) and produce
-  # "syntax error near unexpected token `)'" at prompt-display time.
-  case "$PS1" in
-    *'$(ParseGitBranch)'*) return ;;
-  esac
-
-  # Detect shell and use appropriate escape sequences
-  # bash uses \[ \] for non-printing characters
-  # zsh uses %{ %} for non-printing characters
   if [ -n "$ZSH_VERSION" ]; then
-    # zsh
+    # zsh: idempotent, skip if already added
+    case "$PS1" in
+      *'$(ParseGitBranch)'*) return ;;
+    esac
     local GREEN="%{$(tput setaf 2)%}"
     local DEFAULT="%{$(tput sgr0)%}"
     PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
   elif [ -n "$BASH_VERSION" ]; then
-    # bash
-    local GREEN="\[\033[0;32m\]"
-    local DEFAULT="\[\033[0m\]"
-    PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
+    # bash: drive the substitution from PROMPT_COMMAND instead of
+    # embedding $(ParseGitBranch) directly into PS1. Some bash builds
+    # (notably MSYS2 5.2.21 under mozilla-build) emit
+    #   "command substitution: line 1: syntax error near unexpected token `)'"
+    # at prompt-display time when PS1 contains $(ParseGitBranch),
+    # even though the substitution itself is well-formed and the
+    # function works when called normally. PROMPT_COMMAND runs as
+    # ordinary shell code with no PS1-specific expansion quirks, so
+    # we compute the branch there and splice the literal result into
+    # PS1 before bash renders it.
+    case "$PROMPT_COMMAND" in
+      *_dotfiles_set_branch_prompt*) return ;;  # idempotent
+    esac
+    _dotfiles_original_ps1="$PS1"
+    _dotfiles_set_branch_prompt() {
+      local branch
+      branch=$(ParseGitBranch)
+      if [ -n "$branch" ]; then
+        PS1='\[\033[0;32m\]'"$branch"'\[\033[0m\]'"$_dotfiles_original_ps1"
+      else
+        PS1="$_dotfiles_original_ps1"
+      fi
+    }
+    PROMPT_COMMAND="_dotfiles_set_branch_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
   fi
 }
