@@ -68,7 +68,7 @@ isolated review per skill run.
 
 ```text
 Agent(
-  subagent_type: "red-pen-reviewer",
+  subagent_type: "red-pen-critic",
   description: "Independent review of bug-<id> solutions",
   prompt: <see template below>,
 )

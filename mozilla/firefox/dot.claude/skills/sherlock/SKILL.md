@@ -1274,7 +1274,7 @@ Skill(
 ```
 
 The skill will:
-1. Spawn the `red-pen-reviewer` subagent.
+1. Spawn the `red-pen-critic` subagent.
 2. The reviewer reads the analysis doc and the draft solutions, verifies
    citations against source, and writes a structured review to
    `<output-dir>/bug-<id>-review.md`.
