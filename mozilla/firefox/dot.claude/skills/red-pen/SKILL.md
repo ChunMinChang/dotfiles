@@ -1,10 +1,10 @@
 ---
-name: solution-review
+name: red-pen
 description: >
-  Independent review of a proposed root-cause-analysis solution. Spawns an
-  isolated reviewer with no shared memory; returns a structured review doc
-  with verdict, alternatives, and concerns. Reusable from any RCA/bugfix
-  skill (sherlock, fuzzbug-fix, triage) and standalone.
+  RedPen — independent review of a proposed root-cause-analysis solution.
+  Spawns an isolated reviewer with no shared memory; returns a structured
+  review doc with verdict, alternatives, and concerns. Reusable from any
+  RCA/bugfix skill (sherlock, fuzzbug-fix, triage) and standalone.
 argument-hint: "<analysis-doc-path> [solutions-doc-path] [output-path]"
 allowed-tools:
   - Agent
@@ -13,7 +13,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-# Solution Review
+# RedPen
 
 Get an **independent second opinion** on a proposed RCA solution before it
 goes in front of a human reviewer or the user.
@@ -67,7 +67,7 @@ isolated review per skill run.
 
 ```
 Agent(
-  subagent_type: "solution-reviewer",
+  subagent_type: "red-pen-reviewer",
   description: "Independent review of bug-<id> solutions",
   prompt: <see template below>,
 )

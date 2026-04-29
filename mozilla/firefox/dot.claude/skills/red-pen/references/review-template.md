@@ -1,4 +1,4 @@
-# Solution Review — Bug {bug_id}
+# RedPen Review — Bug {bug_id}
 
 > Review of: [`{analysis-doc-basename}`]({relative-path-to-analysis-doc})
 > Reviewed: {YYYY-MM-DD}
@@ -130,7 +130,7 @@ restores an invariant, eliminates a class of bug, etc.}
 > One of:
 > - `accept` — caller proceeds with the proposed solution unchanged.
 > - `revise <option-id>` — caller applies the cited changes to that option,
->   then re-invokes solution-review if the changes are non-trivial.
+>   then re-invokes red-pen if the changes are non-trivial.
 > - `adopt-alternative` — caller replaces proposed solutions with the *Better
 >   alternative* above (after user confirmation if scope ≥ ii).
 > - `pursue-redesign` — caller escalates the redesign proposal to the user

@@ -73,7 +73,7 @@ Parse the arguments:
    what the facts mean. Never let a subagent declare the root cause.
 10. **Three hypotheses minimum** — single-hypothesis RCAs anchor too early.
     Step 1.3b.5 is mandatory; do not skip it even when one cause feels obvious.
-11. **The reviewer is independent** — when `solution-review` returns `revise`
+11. **The reviewer is independent** — when `red-pen` returns `revise`
     or `redesign`, do not argue with the verdict. Either fix the solution,
     escalate to the user (for `redesign`), or loop back to Phase 1 (for
     `reject` / `needs-more-info`).
@@ -1259,7 +1259,7 @@ These are **drafts**. They go in front of the independent reviewer (Step
 ### Step 2.3: Mandatory Independent Review
 
 Sherlock does not present its own first-draft solutions to the user. Before
-the user sees anything, the drafts go through the `solution-review` skill,
+the user sees anything, the drafts go through the `red-pen` skill,
 which spawns an isolated reviewer with no shared memory and asks for an
 independent second opinion — including the freedom to propose a redesign
 that the original drafts missed.
@@ -1268,13 +1268,13 @@ Invoke the review skill:
 
 ```
 Skill(
-  skill: "solution-review",
+  skill: "red-pen",
   args: "<absolute path to bug-<id>-analysis.md> <absolute path to plan/draft solutions doc>"
 )
 ```
 
 The skill will:
-1. Spawn the `solution-reviewer` subagent.
+1. Spawn the `red-pen-reviewer` subagent.
 2. The reviewer reads the analysis doc and the draft solutions, verifies
    citations against source, and writes a structured review to
    `<output-dir>/bug-<id>-review.md`.
@@ -1291,8 +1291,8 @@ Read the review doc at `<output-dir>/bug-<id>-review.md`. Handle by verdict:
 | Verdict | Action |
 |---------|--------|
 | `approve` | Proceed to Step 2.5. |
-| `approve-with-concerns` | Apply the cited concerns to the drafts. If changes are non-trivial, re-invoke `solution-review` (Step 2.3). Otherwise proceed. |
-| `revise <option>` | Apply the cited changes to that option. If the diff is non-trivial, re-invoke `solution-review`. Otherwise proceed. |
+| `approve-with-concerns` | Apply the cited concerns to the drafts. If changes are non-trivial, re-invoke `red-pen` (Step 2.3). Otherwise proceed. |
+| `revise <option>` | Apply the cited changes to that option. If the diff is non-trivial, re-invoke `red-pen`. Otherwise proceed. |
 | `redesign` | **Stop. Do not silently expand scope.** The reviewer has proposed a structurally different fix that resolves the root cause and other latent issues. Surface the redesign to the user explicitly: include the latent-issue list and the scope estimate from the review doc, and ask whether to (a) pursue the redesign (loop back to Phase 1 with the broader scope so the analysis doc captures the new framing), (b) take a smaller fix anyway (note the redesign in *Related Context* for future work), or (c) split into two changes. Do not proceed until the user picks a direction. |
 | `reject` | Loop back to Phase 1 Step 1.4 with the reviewer's open questions. Likely the root cause needs more work. |
 | `needs-more-info` | Answer the reviewer's open questions (may require more Phase 1 work or a user clarification), then re-invoke. |
@@ -1368,6 +1368,6 @@ Then append the **## Proposed Solutions** section to the analysis doc with:
   subagents in the same message so they run concurrently. Same for any
   independent design-intention archaeology tasks.
 - **Read the review doc, don't restate it**: when surfacing the
-  `solution-review` result to the user, link the review doc instead of
+  `red-pen` result to the user, link the review doc instead of
   paraphrasing — paraphrasing dilutes the reviewer's exact wording and
   defeats the point of the independent second opinion.
