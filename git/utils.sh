@@ -365,13 +365,15 @@ function BranchInPrompt {
       *_dotfiles_set_branch_prompt*) return ;;  # idempotent
     esac
     _dotfiles_original_ps1="$PS1"
-    # Split the original PS1 at its last "\n" (the one before the $/#
-    # input line) so we can splice the branch in between, keeping it
-    # on the same line as the cwd: "user@host /dir (branch)\n$ ".
+    # Split the original PS1 at its first "\n" (the one separating
+    # the terminal-title escape from the user-visible prompt line)
+    # so we can splice the branch immediately after it. That puts
+    # the branch at the start of the visible line, matching the
+    # convention on Linux/macOS: "(branch) user@host /dir".
     # If there's no "\n", fall back to prepending.
-    if [ "${_dotfiles_original_ps1%\\n*}" != "$_dotfiles_original_ps1" ]; then
-      _dotfiles_ps1_head="${_dotfiles_original_ps1%\\n*}"
-      _dotfiles_ps1_tail='\n'"${_dotfiles_original_ps1##*\\n}"
+    if [ "${_dotfiles_original_ps1%%\\n*}" != "$_dotfiles_original_ps1" ]; then
+      _dotfiles_ps1_head="${_dotfiles_original_ps1%%\\n*}"'\n'
+      _dotfiles_ps1_tail="${_dotfiles_original_ps1#*\\n}"
     else
       _dotfiles_ps1_head=""
       _dotfiles_ps1_tail="$_dotfiles_original_ps1"
@@ -380,7 +382,7 @@ function BranchInPrompt {
       local branch
       branch=$(ParseGitBranch)
       if [ -n "$branch" ]; then
-        PS1="$_dotfiles_ps1_head"' \[\033[0;32m\]'"$branch"'\[\033[0m\]'"$_dotfiles_ps1_tail"
+        PS1="$_dotfiles_ps1_head"'\[\033[0;32m\]'"$branch"'\[\033[0m\] '"$_dotfiles_ps1_tail"
       else
         PS1="$_dotfiles_original_ps1"
       fi
