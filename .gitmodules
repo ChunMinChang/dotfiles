@@ -5,3 +5,4 @@
 [submodule "mozilla/firefox/alwu-claude-skills"]
 	path = mozilla/firefox/alwu-claude-skills
 	url = https://github.com/ChunMinChang/alwu-Fx-Claude-Skills
+	branch = fix-skill-frontmatter
