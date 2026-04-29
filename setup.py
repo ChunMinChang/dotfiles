@@ -2671,7 +2671,8 @@ def warn_if_missing_symlink_privilege():
         "    2. Local Policies -> User Rights Assignment -> Create symbolic links\n"
         "    3. Add User or Group... -> add your account\n"
         "    4. Sign out and back in (privilege only enters new logon tokens)\n"
-        '    5. Verify: `"$WINDIR/System32/whoami.exe" /priv | grep -i symlink`'
+        "    5. Verify (double slash defeats MSYS path translation):\n"
+        '       `"$WINDIR/System32/whoami.exe" //priv | grep -i symlink`'
     )
 
 
