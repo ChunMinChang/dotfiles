@@ -2645,7 +2645,14 @@ def has_symlink_create_privilege():
         )
     except (subprocess.CalledProcessError, OSError):
         return True
-    return "SeCreateSymbolicLinkPrivilege" in result.stdout
+    # The privilege must be present *and* Enabled. UAC's filtered admin token
+    # holds it as Disabled, which Win32 APIs requiring it still reject with
+    # ERROR_PRIVILEGE_NOT_HELD. ("Enabled" is not a substring of "Disabled",
+    # so a plain `in` check distinguishes the two states.)
+    for line in result.stdout.splitlines():
+        if "SeCreateSymbolicLinkPrivilege" in line:
+            return "Enabled" in line
+    return False
 
 
 def warn_if_missing_symlink_privilege():
@@ -2660,19 +2667,23 @@ def warn_if_missing_symlink_privilege():
     if has_symlink_create_privilege():
         return
     print_warning(
-        "Your Windows account is missing SeCreateSymbolicLinkPrivilege.\n"
+        "SeCreateSymbolicLinkPrivilege is not Enabled in this Windows token.\n"
         "  Developer Mode lets Python's os.symlink (and MSYS `ln -s`) create\n"
         "  symlinks, but git for Windows still requires the explicit privilege.\n"
         "  Without it, `git checkout` / `git worktree add` will fail with\n"
         '  "Permission denied" on every tracked .claude/skills/* symlink in\n'
         "  worktrees you create from a branch that committed them.\n"
-        "  One-time fix (requires admin):\n"
-        "    1. Win+R -> secpol.msc\n"
+        "  Check current state in Git Bash (double slash defeats MSYS path conv):\n"
+        '    "$WINDIR/System32/whoami.exe" //priv | grep -i symbolic\n'
+        "  If it prints nothing -> privilege is missing; grant it:\n"
+        "    1. Win+R -> secpol.msc  (admin)\n"
         "    2. Local Policies -> User Rights Assignment -> Create symbolic links\n"
         "    3. Add User or Group... -> add your account\n"
-        "    4. Sign out and back in (privilege only enters new logon tokens)\n"
-        "    5. Verify (double slash defeats MSYS path translation):\n"
-        '       `"$WINDIR/System32/whoami.exe" //priv | grep -i symlink`'
+        "    4. Sign out and back in (the privilege only enters new tokens)\n"
+        "  If it prints `... Disabled` -> your account is in Administrators and\n"
+        "  UAC is filtering the privilege out of the unelevated token. Either:\n"
+        "    - launch Git Bash via Run as Administrator (gets elevated token), or\n"
+        "    - remove your account from the local Administrators group."
     )
 
 
