@@ -1372,19 +1372,25 @@ def pernosco_init(tracker=None):
 
 
 def _install_cargo_tool(
-    display_name, binary_name, install_args, benefits, consequences, timeout=900
+    display_name, binary_name, install_args, benefits, consequences
 ):
     """Install a Rust CLI tool via ``cargo install`` with the standard prompt flow.
 
     ``install_args`` is the list of arguments after ``cargo install`` — e.g.
-    ``["searchfox-cli"]`` for crates.io or
-    ``["--git", "<url>", "--locked"]`` for a git source. ``binary_name`` is
-    the executable that ends up on PATH after install (used for the
-    "already installed" early-out).
+    ``["searchfox-cli"]`` for crates.io or ``["--git", "<url>"]`` for a git
+    source. ``binary_name`` is the executable that ends up on PATH after
+    install (used for the "already installed" early-out).
+
+    Cargo output streams directly to the terminal rather than being captured.
+    First-time installs can take 5-15 minutes and produce a lot of compile
+    progress; capturing leaves the user staring at a frozen prompt and
+    eats the actual error message on failure. No timeout for the same
+    reason — the user can Ctrl-C an interactive cargo invocation.
 
     Returns True on install (or already installed), False on failure, None
     if skipped (cargo missing or user declined). Mirrors the style of
-    install_ruff / install_black / install_markdownlint.
+    install_ruff / install_black / install_markdownlint, except for the
+    streaming-output departure.
     """
     print_installing_title(display_name)
 
@@ -1406,32 +1412,30 @@ def _install_cargo_tool(
         print(f"Skipping {display_name} installation")
         return None
 
+    print(
+        f"Installing {display_name} via cargo (downloads + compiles, "
+        "may take several minutes; cargo output streams below)..."
+    )
     try:
-        print(
-            f"Installing {display_name} via cargo (downloads + compiles, "
-            "may take several minutes)..."
+        # Don't capture output — let cargo's progress / error messages stream
+        # straight to the user's terminal.
+        result = subprocess.run(["cargo", "install"] + install_args)
+    except FileNotFoundError as e:
+        print_error(f"Failed to invoke cargo for {display_name}: {e}")
+        return False
+
+    if result.returncode == 0:
+        print(colors.OK + f"✓ {display_name} installed successfully" + colors.END)
+        print_hint(
+            "Binary is in ~/.cargo/bin (added to PATH by ~/.cargo/env, "
+            "which --mozilla rust sources from .bashrc)."
         )
-        result = subprocess.run(
-            ["cargo", "install"] + install_args,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        if result.returncode == 0:
-            print(colors.OK + f"✓ {display_name} installed successfully" + colors.END)
-            print_hint(
-                "Binary is in ~/.cargo/bin (added to PATH by ~/.cargo/env, "
-                "which --mozilla rust sources from .bashrc)."
-            )
-            return True
-        print_error(f"Failed to install {display_name}: {result.stderr.strip()}")
-        return False
-    except subprocess.TimeoutExpired:
-        print_error(f"{display_name} install timed out after {timeout}s")
-        return False
-    except Exception as e:
-        print_error(f"Failed to install {display_name}: {e}")
-        return False
+        return True
+    print_error(
+        f"Failed to install {display_name} (cargo exit {result.returncode}). "
+        "See cargo output above for the actual error."
+    )
+    return False
 
 
 def install_searchfox_cli(tracker=None):
