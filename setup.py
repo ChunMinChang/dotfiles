@@ -2617,6 +2617,76 @@ def _symlink_target_is_empty(path):
         return False
 
 
+def ensure_target_core_symlinks(target_dir, dry_run=False):
+    """Ensure ``core.symlinks=true`` in the target git repo.
+
+    Git for Windows ships with system-level ``core.symlinks=false``. When a
+    branch tracks symlink-typed entries (mode 120000) — e.g. a private
+    ``claude-settings`` branch with the installed ``.claude/skills/*`` symlinks
+    committed — a fresh worktree of that branch checks them out as plain text
+    files containing the link target string, not as actual symlinks. Claude
+    Code then can't follow them and the skills silently disappear in every
+    worktree except the one ``setup.py`` ran in.
+
+    Setting ``core.symlinks=true`` in the repo's local config (shared across
+    all worktrees) prevents that. No-op if the target isn't a git work tree
+    or the value is already true. Local-only — never touches global/system
+    git config.
+    """
+    git_marker = os.path.join(target_dir, ".git")
+    if not os.path.exists(git_marker):
+        return  # Not a git work tree; nothing to configure.
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", target_dir, "config", "--local", "--get", "core.symlinks"],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        print_warning(
+            "git not found on PATH; skipping core.symlinks check for " f"{target_dir}"
+        )
+        return
+
+    current = result.stdout.strip().lower() if result.returncode == 0 else ""
+    if current == "true":
+        return
+
+    label = (
+        current or "unset (falls back to system default, typically false on Windows)"
+    )
+    if dry_run:
+        print(
+            f"  Would run: git -C {target_dir} config core.symlinks true "
+            f"(currently: {label})"
+        )
+        return
+
+    try:
+        subprocess.run(
+            ["git", "-C", target_dir, "config", "core.symlinks", "true"],
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print_warning(
+            f"Failed to set core.symlinks=true in {target_dir}: {e}\n"
+            f"  Run manually: git -C {target_dir} config core.symlinks true"
+        )
+        return
+
+    print(f"Set core.symlinks=true in {target_dir} (was {label})")
+    print_hint(
+        "  Without this, worktrees of this repo would check out tracked\n"
+        "  symlinks (e.g. .claude/skills/*) as plain text files containing\n"
+        "  the link target — Claude Code can't follow those, so skills\n"
+        "  disappear in every other worktree.\n"
+        "  Existing worktrees with broken pseudo-symlinks can be repaired\n"
+        "  by deleting the offending files and running:\n"
+        "    git -C <worktree> checkout -- .claude/"
+    )
+
+
 def ensure_submodule_populated(submodule_path, label, dry_run=False):
     """Return True if ``submodule_path`` exists and has content.
 
@@ -2784,6 +2854,10 @@ def install_firefox_claude(target_dir=None, dry_run=False):
         if not get_user_confirmation("Continue anyway? [y/N]: "):
             print("Aborted.")
             return False
+
+    # Make sure git checks out tracked symlinks as real symlinks in this repo
+    # (and in any worktrees of it). Skipped silently if already true.
+    ensure_target_core_symlinks(target_dir, dry_run=dry_run)
 
     target_claude_dir = os.path.join(target_dir, ".claude")
     target_hooks_dir = os.path.join(target_claude_dir, "hooks")
