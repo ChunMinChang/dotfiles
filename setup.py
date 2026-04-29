@@ -2614,6 +2614,53 @@ def _symlink_target_is_empty(path):
         return False
 
 
+def ensure_submodule_populated(submodule_path, label, dry_run=False):
+    """Return True if ``submodule_path`` exists and has content.
+
+    An uninitialized git submodule looks like an empty directory: ``isdir`` is
+    True but ``listdir`` is empty. In that case, attempt
+    ``git submodule update --init`` so the install can proceed without the
+    user noticing skills were silently skipped. On failure, warn with the
+    manual command and return False so the caller treats the source as empty.
+    """
+    if not os.path.isdir(submodule_path):
+        return False
+    try:
+        if os.listdir(submodule_path):
+            return True
+    except OSError:
+        return False
+
+    if dry_run:
+        print(
+            f"  Note: submodule '{label}' is uninitialized; would run "
+            f"'git submodule update --init {submodule_path}' before linking."
+        )
+        return False
+
+    print_warning(
+        f"Submodule '{label}' is uninitialized; running "
+        f"'git submodule update --init'..."
+    )
+    try:
+        subprocess.run(
+            ["git", "submodule", "update", "--init", submodule_path],
+            cwd=BASE_DIR,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print_warning(
+            f"Failed to initialize submodule '{label}': {e}\n"
+            f"  Run manually: git submodule update --init {submodule_path}"
+        )
+        return False
+
+    try:
+        return bool(os.listdir(submodule_path))
+    except OSError:
+        return False
+
+
 def cleanup_stale_skills(target_skills_dir, target_dir, dry_run=False):
     """
     Remove stale skill entries that ``setup.py`` itself installed previously.
@@ -2812,7 +2859,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
 
         # List alwu-claude-skills to symlink (personal, higher priority than media-skills)
         alwu_claude_skill_names = set()
-        if os.path.isdir(ALWU_CLAUDE_SKILLS_DIR):
+        if ensure_submodule_populated(
+            ALWU_CLAUDE_SKILLS_DIR, "alwu-claude-skills", dry_run=True
+        ):
             for skill in sorted(os.listdir(ALWU_CLAUDE_SKILLS_DIR)):
                 if skill in ALWU_CLAUDE_SKILLS_EXCLUDE:
                     continue
@@ -2834,7 +2883,9 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 step += 1
 
         # List media-skills to symlink (team-wide)
-        if os.path.isdir(MEDIA_SKILLS_DIR):
+        if ensure_submodule_populated(
+            MEDIA_SKILLS_DIR, "media-skills", dry_run=True
+        ):
             for skill in sorted(os.listdir(MEDIA_SKILLS_DIR)):
                 if skill in MEDIA_SKILLS_EXCLUDE:
                     continue
@@ -2938,7 +2989,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
 
     # Symlink alwu-claude-skills (personal, higher priority than media-skills)
     alwu_claude_skill_names = set()
-    if os.path.isdir(ALWU_CLAUDE_SKILLS_DIR):
+    if ensure_submodule_populated(ALWU_CLAUDE_SKILLS_DIR, "alwu-claude-skills"):
         for skill in sorted(os.listdir(ALWU_CLAUDE_SKILLS_DIR)):
             if skill in ALWU_CLAUDE_SKILLS_EXCLUDE:
                 continue
@@ -2968,7 +3019,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             alwu_claude_skill_names.add(skill)
 
     # Symlink media-skills (team-wide)
-    if os.path.isdir(MEDIA_SKILLS_DIR):
+    if ensure_submodule_populated(MEDIA_SKILLS_DIR, "media-skills"):
         for skill in sorted(os.listdir(MEDIA_SKILLS_DIR)):
             if skill in MEDIA_SKILLS_EXCLUDE:
                 continue
