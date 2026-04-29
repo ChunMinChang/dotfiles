@@ -1138,6 +1138,7 @@ def mozilla_init(mozilla_arg, tracker=None):
         "firefox": firefox_init,
         "tools": tools_init,
         "rust": rust_init,
+        "cli-tools": mozilla_cli_tools_init,
         "pernosco": pernosco_init,
     }
 
@@ -1364,6 +1365,155 @@ def pernosco_init(tracker=None):
     print(f"  {target_path}")
 
     return True
+
+
+# Mozilla Rust CLI tools (cargo install)
+# ---------------------------------------
+
+
+def _install_cargo_tool(
+    display_name, binary_name, install_args, benefits, consequences, timeout=900
+):
+    """Install a Rust CLI tool via ``cargo install`` with the standard prompt flow.
+
+    ``install_args`` is the list of arguments after ``cargo install`` — e.g.
+    ``["searchfox-cli"]`` for crates.io or
+    ``["--git", "<url>", "--locked"]`` for a git source. ``binary_name`` is
+    the executable that ends up on PATH after install (used for the
+    "already installed" early-out).
+
+    Returns True on install (or already installed), False on failure, None
+    if skipped (cargo missing or user declined). Mirrors the style of
+    install_ruff / install_black / install_markdownlint.
+    """
+    print_installing_title(display_name)
+
+    if is_tool(binary_name):
+        print(f"{binary_name} is already installed")
+        return True
+
+    if not is_tool("cargo"):
+        print_warning(
+            f"Skipping {display_name}: cargo not found on PATH. "
+            "Install Rust (re-run --mozilla rust, or via mozilla-build "
+            "bootstrap) and re-run this step. Manual install command:\n"
+            f"    cargo install {' '.join(install_args)}"
+        )
+        return None
+
+    print_tool_prompt(display_name, benefits, consequences)
+    if not get_user_confirmation():
+        print(f"Skipping {display_name} installation")
+        return None
+
+    try:
+        print(
+            f"Installing {display_name} via cargo (downloads + compiles, "
+            "may take several minutes)..."
+        )
+        result = subprocess.run(
+            ["cargo", "install"] + install_args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            print(colors.OK + f"✓ {display_name} installed successfully" + colors.END)
+            print_hint(
+                "Binary is in ~/.cargo/bin (added to PATH by ~/.cargo/env, "
+                "which --mozilla rust sources from .bashrc)."
+            )
+            return True
+        print_error(f"Failed to install {display_name}: {result.stderr.strip()}")
+        return False
+    except subprocess.TimeoutExpired:
+        print_error(f"{display_name} install timed out after {timeout}s")
+        return False
+    except Exception as e:
+        print_error(f"Failed to install {display_name}: {e}")
+        return False
+
+
+def install_searchfox_cli(tracker=None):
+    """Install searchfox-cli (Mozilla source code search CLI)."""
+    return _install_cargo_tool(
+        "searchfox-cli (Mozilla source code search)",
+        "searchfox-cli",
+        ["searchfox-cli"],
+        [
+            "Search Firefox source code from the terminal (searchfox.org backend)",
+            "Used by skills like /firefox-implementation and /source-links",
+        ],
+        [
+            "Skills relying on searchfox queries fall back to manual web lookups",
+            "Manual install: cargo install searchfox-cli",
+        ],
+    )
+
+
+def install_treeherder_cli(tracker=None):
+    """Install treeherder-cli (Mozilla CI build/test status CLI)."""
+    return _install_cargo_tool(
+        "treeherder-cli (Mozilla CI status)",
+        "treeherder-cli",
+        [
+            "--git",
+            "https://github.com/padenot/treeherder-cli",
+            "--locked",
+        ],
+        [
+            "Query Mozilla Treeherder for try/autoland push results",
+            "Used by skills like /try-push and /ci-failure-analysis",
+        ],
+        [
+            "CI/try-push skills fall back to manual treeherder.mozilla.org lookups",
+            "Manual install: cargo install --git "
+            "https://github.com/padenot/treeherder-cli --locked",
+        ],
+    )
+
+
+def install_bmo_to_md(tracker=None):
+    """Install bmo-to-md (Bugzilla bug -> Markdown converter for LLMs)."""
+    return _install_cargo_tool(
+        "bmo-to-md (Bugzilla -> Markdown for LLMs)",
+        "bmo-to-md",
+        [
+            "--git",
+            "https://github.com/ChunMinChang/bmo-to-md",
+            "--locked",
+        ],
+        [
+            "Render a BMO ticket as Markdown for easy paste into Claude/LLM context",
+            "Used by triage / bug-start workflows that consume bug data",
+        ],
+        [
+            "Manual bug-context curation — slower triage and bug-start sessions",
+            "Manual install: cargo install --git "
+            "https://github.com/ChunMinChang/bmo-to-md --locked",
+        ],
+    )
+
+
+def mozilla_cli_tools_init(tracker=None):
+    """Install Mozilla-adjacent Rust CLI tools used by Firefox/Claude workflows.
+
+    Bundle of three cargo-installed tools: searchfox-cli, treeherder-cli,
+    bmo-to-md. Each is independently optional and prompts the user before
+    installing. Selectable as ``--mozilla cli-tools``; included by default
+    when ``--mozilla`` runs without explicit args.
+
+    Returns True if every selected install succeeded or was skipped cleanly,
+    False if any returned False (hard failure). Skipped/already-installed
+    tools count as success.
+    """
+    print_installing_title("Mozilla Rust CLI tools (cargo install)", True)
+    installers = [install_searchfox_cli, install_treeherder_cli, install_bmo_to_md]
+    all_ok = True
+    for fn in installers:
+        if fn(tracker) is False:
+            all_ok = False
+    return all_ok
 
 
 # Development Tools (Pre-commit Hooks)
