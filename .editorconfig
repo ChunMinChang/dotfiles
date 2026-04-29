@@ -1,0 +1,23 @@
+# EditorConfig keeps editors (VS Code, vim+plugin, JetBrains, Sublime,
+# Notepad++, etc.) honest about line endings and whitespace so files
+# don't drift back to CRLF on Windows the next time someone saves.
+# https://editorconfig.org
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.py]
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+# Markdown trailing whitespace can be meaningful (two spaces = <br>).
+[*.md]
+trim_trailing_whitespace = false

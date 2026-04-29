@@ -249,10 +249,10 @@ def save_manifest(dest_dir, manifest):
     manifest["last_sync"] = datetime.datetime.now(datetime.timezone.utc).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
-    with open(tmp_path, "w") as f:
+    with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(manifest, f, indent=2)
         f.write("\n")
-    os.rename(tmp_path, manifest_path)
+    os.replace(tmp_path, manifest_path)
 
 
 def needs_sync(manifest, jsonl_path, force=False):
@@ -634,7 +634,7 @@ def export_session(
     if fmt == "raw":
         shutil.copy2(jsonl_path, output_path)
     else:
-        with open(output_path, "w") as out:
+        with open(output_path, "w", encoding="utf-8", newline="\n") as out:
             render_markdown(jsonl_path, out, include_subagents=include_subagents)
 
     # Update manifest

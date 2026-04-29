@@ -52,6 +52,19 @@
   Result is cached in `_SYMLINK_CHECK_DONE` so the prompt fires
   only once per `setup.py` invocation.
 
+**Line endings (LF everywhere):**
+
+- `.gitattributes` declares `* text=auto eol=lf` so checkouts always
+  produce LF, regardless of the user's `core.autocrlf`.
+- `git/config` sets `[core] autocrlf = input` to override Git for
+  Windows' system-level `autocrlf = true` (which would otherwise
+  rewrite LF→CRLF on checkout).
+- `.editorconfig` enforces LF on the editor side for tools that
+  respect it (VS Code, vim+plugin, JetBrains, etc.).
+- If new files land with CRLF: `git add --renormalize .` re-stages
+  them per the rules above; convert the working copy with a
+  `\r\n` → `\n` rewrite if needed.
+
 **Naming conventions:**
 
 - Python: `snake_case` (PEP 8)

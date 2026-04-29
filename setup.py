@@ -315,8 +315,11 @@ def rollback_changes(tracker):
                     if line.rstrip("\n") not in lines_to_remove
                 ]
 
-                # Write back filtered content
-                with open(file_path, "w") as f:
+                # Write back filtered content. newline="\n" prevents
+                # Windows text-mode from rewriting \n -> \r\n, which
+                # would silently flip the whole file to CRLF on every
+                # rollback.
+                with open(file_path, "w", encoding="utf-8", newline="\n") as f:
                     f.writelines(filtered_lines)
 
             elif change["type"] == "git_config":
@@ -399,9 +402,7 @@ def ensure_symlink_capability():
     while True:
         try:
             response = (
-                input("Have you enabled Developer Mode? [y/N/abort]: ")
-                .strip()
-                .lower()
+                input("Have you enabled Developer Mode? [y/N/abort]: ").strip().lower()
             )
         except (EOFError, KeyboardInterrupt):
             print()
@@ -710,7 +711,11 @@ def _rewrite_our_section(gitignore_path, new_entries):
             out.append("\n")
         out.extend(after)
 
-    with open(gitignore_path, "w") as f:
+    # newline="\n" prevents Windows text-mode from rewriting \n ->
+    # \r\n, which would flip the whole .gitignore to CRLF on every
+    # rewrite — visible as a giant diff in repos like firefox that
+    # declare .gitignore as -text in .gitattributes.
+    with open(gitignore_path, "w", encoding="utf-8", newline="\n") as f:
         f.writelines(out)
 
 
@@ -933,7 +938,7 @@ def _migrate_legacy_bashrc_loaders(bashrc_path):
             "Would migrate {} legacy loader line(s) in {}".format(count, bashrc_path)
         )
         return
-    with open(bashrc_path, "w", encoding="utf-8") as f:
+    with open(bashrc_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(new_content)
     print(
         "Migrated {} legacy loader line(s) in {} to forward-slash form".format(
@@ -1030,7 +1035,7 @@ def bash_link(tracker=None):
                             "Would create {} with source command".format(target)
                         )
                     else:
-                        with open(target, "w") as tf:
+                        with open(target, "w", encoding="utf-8", newline="\n") as tf:
                             tf.write(bash_load_command(src) + "\n")
                         print("{} created".format(target))
                 except IOError as e:
@@ -1341,7 +1346,7 @@ def pernosco_init(tracker=None):
         print_dry_run("Would make script executable")
     else:
         try:
-            with open(target_path, "w") as f:
+            with open(target_path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(script_content)
             os.chmod(target_path, 0o755)
             print(f"Installed: {target_path}")
@@ -2002,9 +2007,7 @@ def dev_tools_init(dev_tools_arg, tracker=None):
         else:
             results["pre-commit-hook"] = hook_result
     else:
-        print_hint(
-            "No validation tools installed; skipping pre-commit hook setup."
-        )
+        print_hint("No validation tools installed; skipping pre-commit hook setup.")
         results["pre-commit-hook"] = None
 
     # Determine overall success
@@ -2401,14 +2404,16 @@ def claude_security_init(tracker, dry_run=False):
     config["hooks"]["PreToolUse"] = [
         e for e in config["hooks"]["PreToolUse"] if not _entry_is_ours(e)
     ]
-    config["hooks"]["PreToolUse"].append({
-        "matcher": "Read|Bash|Grep|Glob",
-        "hooks": [{"type": "command", "command": str(hook_path), "timeout": 5}],
-    })
+    config["hooks"]["PreToolUse"].append(
+        {
+            "matcher": "Read|Bash|Grep|Glob",
+            "hooks": [{"type": "command", "command": str(hook_path), "timeout": 5}],
+        }
+    )
 
     # 4. Write back atomically
     temp_file = claude_config + ".tmp"
-    with open(temp_file, "w", encoding="utf-8") as f:
+    with open(temp_file, "w", encoding="utf-8", newline="\n") as f:
         json.dump(config, f, indent=2)
     os.replace(temp_file, claude_config)
 
@@ -2428,9 +2433,7 @@ def claude_security_init(tracker, dry_run=False):
             os.rmdir(legacy_dir)
             print_hint(f"Removed legacy directory: {legacy_dir}")
         except OSError:
-            print_warning(
-                f"Legacy dir {legacy_dir} is non-empty; left in place"
-            )
+            print_warning(f"Legacy dir {legacy_dir} is non-empty; left in place")
 
     print("✓ Claude Code security hooks installed")
     print_hint(f"  Hook script: {hook_path}")
@@ -2497,7 +2500,7 @@ def claude_security_remove(dry_run=False):
 
         # Write back atomically
         temp_file = claude_config + ".tmp"
-        with open(temp_file, "w") as f:
+        with open(temp_file, "w", encoding="utf-8", newline="\n") as f:
             json.dump(config, f, indent=2)
 
         os.replace(temp_file, claude_config)
@@ -2883,9 +2886,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 step += 1
 
         # List media-skills to symlink (team-wide)
-        if ensure_submodule_populated(
-            MEDIA_SKILLS_DIR, "media-skills", dry_run=True
-        ):
+        if ensure_submodule_populated(MEDIA_SKILLS_DIR, "media-skills", dry_run=True):
             for skill in sorted(os.listdir(MEDIA_SKILLS_DIR)):
                 if skill in MEDIA_SKILLS_EXCLUDE:
                     continue
@@ -3098,7 +3099,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 existing[key] = new_settings[key]
 
         # Write merged settings
-        with open(target_settings, "w", encoding="utf-8") as f:
+        with open(target_settings, "w", encoding="utf-8", newline="\n") as f:
             json.dump(existing, f, indent=2)
         print(f"Merged settings: {target_settings}")
 

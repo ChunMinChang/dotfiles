@@ -1,3 +1,14 @@
+[core]
+  # Force LF on checkout, normalize CRLF -> LF on commit. Overrides Git
+  # for Windows' system-level `core.autocrlf = true` (which silently
+  # rewrites LF -> CRLF on checkout) so working trees match blob
+  # storage and editors don't reintroduce CRLF on save. Repos that
+  # genuinely want CRLF should declare it via their own .gitattributes.
+  autocrlf = input
+  # Refuse a commit that would round-trip differently — catches the
+  # case where a file has mixed endings the user didn't intend.
+  safecrlf = warn
+
 [alias]
   # General
   br = branch -v
