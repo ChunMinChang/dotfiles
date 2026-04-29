@@ -2617,6 +2617,64 @@ def _symlink_target_is_empty(path):
         return False
 
 
+def has_symlink_create_privilege():
+    """Return True if the current Windows user has SeCreateSymbolicLinkPrivilege.
+
+    Git for Windows requires this privilege to materialize tracked symlinks
+    during ``git checkout`` / ``git worktree add`` — unlike Python's
+    ``os.symlink`` and MSYS ``ln -s``, git does not pass
+    ``SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE``, so Developer Mode
+    alone isn't enough. Without the privilege, every symlink in a fresh
+    worktree fails with "Permission denied". The privilege is granted
+    one-time via ``secpol.msc`` → Local Policies → User Rights Assignment
+    → "Create symbolic links".
+
+    No-op (returns True) off Windows. Returns True on inability to check
+    (e.g. ``whoami.exe`` missing) so we don't emit false warnings.
+    """
+    if not is_windows():
+        return True
+    whoami = os.path.join(
+        os.environ.get("WINDIR", r"C:\Windows"), "System32", "whoami.exe"
+    )
+    if not os.path.exists(whoami):
+        return True
+    try:
+        result = subprocess.run(
+            [whoami, "/priv"], capture_output=True, text=True, check=True
+        )
+    except (subprocess.CalledProcessError, OSError):
+        return True
+    return "SeCreateSymbolicLinkPrivilege" in result.stdout
+
+
+def warn_if_missing_symlink_privilege():
+    """Print actionable instructions if the user can't create git symlinks.
+
+    Called by ``install_firefox_claude`` so users who plan to commit the
+    installed ``.claude/skills/*`` symlinks on a private branch (and later
+    create worktrees of that branch) get a heads-up before the failure
+    instead of after. Skipped silently when the check passes or off
+    Windows.
+    """
+    if has_symlink_create_privilege():
+        return
+    print_warning(
+        "Your Windows account is missing SeCreateSymbolicLinkPrivilege.\n"
+        "  Developer Mode lets Python's os.symlink (and MSYS `ln -s`) create\n"
+        "  symlinks, but git for Windows still requires the explicit privilege.\n"
+        "  Without it, `git checkout` / `git worktree add` will fail with\n"
+        '  "Permission denied" on every tracked .claude/skills/* symlink in\n'
+        "  worktrees you create from a branch that committed them.\n"
+        "  One-time fix (requires admin):\n"
+        "    1. Win+R -> secpol.msc\n"
+        "    2. Local Policies -> User Rights Assignment -> Create symbolic links\n"
+        "    3. Add User or Group... -> add your account\n"
+        "    4. Sign out and back in (privilege only enters new logon tokens)\n"
+        '    5. Verify: `"$WINDIR/System32/whoami.exe" /priv | grep -i symlink`'
+    )
+
+
 def ensure_target_core_symlinks(target_dir, dry_run=False):
     """Ensure ``core.symlinks=true`` in the target git repo.
 
@@ -2864,6 +2922,13 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     # Make sure git checks out tracked symlinks as real symlinks in this repo
     # (and in any worktrees of it). Skipped silently if already true.
     ensure_target_core_symlinks(target_dir, dry_run=dry_run)
+
+    # Even with core.symlinks=true, git for Windows can't actually *create*
+    # symlinks during checkout/worktree-add unless the user has
+    # SeCreateSymbolicLinkPrivilege. Warn now so the user fixes it before the
+    # failure surfaces; the install itself uses Python's os.symlink and works
+    # without the privilege.
+    warn_if_missing_symlink_privilege()
 
     target_claude_dir = os.path.join(target_dir, ".claude")
     target_hooks_dir = os.path.join(target_claude_dir, "hooks")
