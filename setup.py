@@ -2629,13 +2629,19 @@ def ensure_target_core_symlinks(target_dir, dry_run=False):
     worktree except the one ``setup.py`` ran in.
 
     Setting ``core.symlinks=true`` in the repo's local config (shared across
-    all worktrees) prevents that. No-op if the target isn't a git work tree
-    or the value is already true. Local-only — never touches global/system
-    git config.
+    every worktree of the repo, both primary and linked) prevents that. The
+    flag changes how *future* checkouts materialize symlink blobs; existing
+    pseudo-symlink files in already-checked-out worktrees still need a
+    manual ``git checkout -- .claude/`` to re-materialize. No-op if the
+    target isn't a git checkout or the value is already true. Local-only —
+    never touches global/system git config.
     """
+    # ``.git`` is a directory in the primary checkout and a file pointing
+    # back to the main repo in linked worktrees (`git worktree add`). Either
+    # is fine — both share the same local config we want to update.
     git_marker = os.path.join(target_dir, ".git")
     if not os.path.exists(git_marker):
-        return  # Not a git work tree; nothing to configure.
+        return  # Not a git checkout; nothing to configure.
 
     try:
         result = subprocess.run(
