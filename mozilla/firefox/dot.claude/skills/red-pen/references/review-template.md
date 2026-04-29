@@ -9,6 +9,7 @@
 **`{approve | approve-with-concerns | revise | reject | redesign | needs-more-info}`**
 
 > Choose exactly one. Definitions:
+>
 > - `approve` — the proposed solution is the right fix; ship it.
 > - `approve-with-concerns` — the solution is correct, but the reviewer has
 >   non-blocking suggestions (style, secondary improvements).
@@ -50,6 +51,7 @@ implementer's job.}
 restores an invariant, eliminates a class of bug, etc.}
 
 ### Latent issues this also fixes
+
 > Required for scope (iii) redesign. Optional for (ii). Skip for (i).
 
 | Issue | Citation | Why this design fixes it |
@@ -58,6 +60,7 @@ restores an invariant, eliminates a class of bug, etc.}
 | {short description} | [`file:line`]({permalink}) | {one line} |
 
 ### Scope estimate
+
 > Required for scope (ii) and (iii).
 
 - Files touched: {rough count}
@@ -78,6 +81,7 @@ restores an invariant, eliminates a class of bug, etc.}
 **Addresses root cause?** {yes / partially / no — one line why}
 
 **Findings**:
+
 - `[critical]` {what's wrong} — [`file:line`]({permalink})
 - `[important]` {what's questionable} — [`file:line`]({permalink})
 - `[minor]` {what could be improved} — [`file:line`]({permalink})
@@ -128,6 +132,7 @@ restores an invariant, eliminates a class of bug, etc.}
 ## Iteration recommendation
 
 > One of:
+>
 > - `accept` — caller proceeds with the proposed solution unchanged.
 > - `revise <option-id>` — caller applies the cited changes to that option,
 >   then re-invokes red-pen if the changes are non-trivial.

@@ -38,6 +38,7 @@ restate the analysis in the prompt — the reviewer must read it themselves.
 **Arguments:** $0
 
 Parse from the argument string:
+
 - First path that exists and ends with a markdown file → **analysis doc** (required).
 - Second path → **solutions doc** (optional). If omitted, the reviewer reads
   the `## Proposed Solutions` section of the analysis doc.
@@ -65,7 +66,7 @@ guess.
 Single `Agent` invocation. Do **not** chain multiple reviewer calls — one
 isolated review per skill run.
 
-```
+```text
 Agent(
   subagent_type: "red-pen-reviewer",
   description: "Independent review of bug-<id> solutions",
@@ -78,7 +79,7 @@ Agent(
 The prompt MUST contain only file paths and instructions — never the
 content of those files, never a summary of prior findings.
 
-```
+```text
 You are reviewing a proposed root-cause-analysis solution. You have NO prior
 context — read every input fresh.
 
@@ -121,12 +122,12 @@ When the reviewer returns:
 3. Surface to the caller (whether human or another skill) with this exact
    shape, no additional commentary:
 
-```
-**Independent review** ([review doc](<relative-path-to-review-doc>))
-- Verdict: <verdict>
-- Headline: <one-sentence headline finding>
-- Iteration: <iteration recommendation>
-```
+   ```markdown
+   **Independent review** ([review doc](<relative-path-to-review-doc>))
+   - Verdict: <verdict>
+   - Headline: <one-sentence headline finding>
+   - Iteration: <iteration recommendation>
+   ```
 
 4. Do **not** re-summarize the reviewer's reasoning. The review doc on disk
    is the canonical artifact; both human and caller can read it directly. Re-
@@ -137,6 +138,7 @@ When the reviewer returns:
 ## When called from another skill
 
 The calling skill should:
+
 - Pass absolute paths only.
 - Pass the analysis doc *as it stands* — do not pre-edit it to "look better"
   for the reviewer.

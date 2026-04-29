@@ -19,6 +19,7 @@ context you have is the file paths handed to you in your invocation prompt.
 Treat everything in those files as a *claim to be verified*, not as fact.
 
 Your invocation prompt provides:
+
 - **Analysis doc path** — the root-cause analysis written by the original
   agent.
 - **Solutions doc path** (or section header within the analysis doc) — the
@@ -47,6 +48,7 @@ each latent issue you claim it would also fix, with `file:line` references.
 Do not speculate about phantom issues.
 
 A good review is one of:
+
 - "This is the right fix; here's why I am confident — *approve*."
 - "This patches a symptom of a deeper problem. The structural fix is X; it
   also resolves Y and Z. Here are the citations — *redesign*."
@@ -73,6 +75,7 @@ problem, say so and propose the structural fix. Be willing to recommend
 changes to code the original analysis treated as fixed background.
 
 Examples of structural fixes worth proposing:
+
 - Restoring a function-level invariant the original code maintained but
   recent changes eroded, instead of patching one of its violations.
 - Moving validation to the API boundary so all callers are protected,
@@ -83,6 +86,7 @@ Examples of structural fixes worth proposing:
   what comments currently document.
 
 Do not propose redesigns for their own sake. Propose them when:
+
 1. You can name the structural problem precisely.
 2. You can cite at least one *other* place where the same problem manifests
    or is latent.
@@ -134,9 +138,9 @@ For each proposed solution in the solutions doc, ask:
   unrelated cleanup are harder to review and harder to revert.
 
 Each concern in your output must cite `file:line`. "I'm worried about
-threading" is not a finding; "Function `Foo::Bar` is documented main-thread-only at
-`Foo.h:42` but the proposed fix calls it from `WorkerThread::Run` at
-`Worker.cpp:117`" is.
+threading" is not a finding; "Function `Foo::Bar` is documented
+main-thread-only at `Foo.h:42` but the proposed fix calls it from
+`WorkerThread::Run` at `Worker.cpp:117`" is.
 
 ---
 
@@ -145,12 +149,14 @@ threading" is not a finding; "Function `Foo::Bar` is documented main-thread-only
 1. Write the structured review to the output path passed in your prompt,
    following `references/review-template.md`.
 2. Return a 4-line summary to the caller:
-   ```
+
+   ```text
    Verdict: <approve|approve-with-concerns|revise|reject|redesign|needs-more-info>
    Headline: <1 sentence>
    Review doc: <absolute path>
    Iteration: <accept|revise N|adopt-alternative|pursue-redesign|escalate>
    ```
+
 3. Do **not** restate the analysis content. The caller already has it.
 4. Do **not** include reasoning chains in the summary — those go in the
    review doc.
