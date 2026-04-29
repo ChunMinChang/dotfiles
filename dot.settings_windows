@@ -15,6 +15,20 @@ else
   echo Please install git before loading its settings.
 fi
 
+# Make MSYS create native NTFS symlinks instead of failing with
+# "Operation not permitted" — needed for `git worktree add` (and `ln
+# -s`, etc.) when the branch tracks symlink-typed entries (mode
+# 120000) such as `.claude/skills/*`. Requires Windows Developer Mode
+# (or Administrator); harmless if neither is available — strict mode
+# will surface a real error instead of silently copying. Append the
+# token instead of overwriting so any other tokens (e.g. enable_pcon
+# from Git for Windows) survive.
+case "${MSYS:-}" in
+  *winsymlinks:*) ;;  # Already configured — leave it alone.
+  "") export MSYS="winsymlinks:nativestrict" ;;
+  *) export MSYS="$MSYS winsymlinks:nativestrict" ;;
+esac
+
 if CommandExists vim; then
   export GIT_EDITOR=vim
 fi
