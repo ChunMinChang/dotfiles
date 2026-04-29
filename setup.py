@@ -486,6 +486,18 @@ def is_tool(name):
         return False
 
 
+def _node_major_version():
+    """Return Node.js major version as int, or None if node is unavailable."""
+    try:
+        out = subprocess.check_output(
+            ["node", "--version"], stderr=subprocess.DEVNULL, text=True
+        ).strip()
+        # Output like "v18.19.1"
+        return int(out.lstrip("v").split(".")[0])
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        return None
+
+
 def _augment_path_for_windows_tools():
     """Prepend pip3 --user and npm -g bin dirs to this process's PATH.
 
@@ -1909,7 +1921,6 @@ def install_ruff(tracker=None):
         )
         if result.returncode == 0:
             print(colors.OK + "✓ ruff installed successfully" + colors.END)
-            print_hint("You may need to add ~/.local/bin to your PATH")
             return True
         else:
             print_error("Failed to install ruff: {}".format(result.stderr))
@@ -1970,7 +1981,6 @@ def install_black(tracker=None):
         )
         if result.returncode == 0:
             print(colors.OK + "✓ black installed successfully" + colors.END)
-            print_hint("You may need to add ~/.local/bin to your PATH")
             return True
         else:
             print_error("Failed to install black: {}".format(result.stderr))
@@ -2021,11 +2031,26 @@ def install_markdownlint(tracker=None):
         print("Skipping markdownlint installation")
         return None  # Skipped
 
-    # Install via npm
+    # Install via npm. On Linux/macOS, npm's default global prefix is
+    # /usr/local which requires root. Use --prefix=$HOME/.local so the
+    # binary lands in ~/.local/bin (which dot.bashrc auto-adds to PATH
+    # when the dir exists). On Windows, npm -g defaults to a
+    # user-writable AppData path, so leave it alone.
+    #
+    # markdownlint-cli@0.45+ pulls in deps that hard-fail on Node <20
+    # (string-width@8 uses the regex `v` flag). Pin to the last
+    # Node-18-compatible release on older runtimes.
+    pkg = "markdownlint-cli"
+    if _node_major_version() and _node_major_version() < 20:
+        pkg = "markdownlint-cli@0.44.0"
+    npm_cmd = ["npm", "install", "-g"]
+    if not is_windows():
+        npm_cmd.extend(["--prefix", os.path.join(get_home_dir(), ".local")])
+    npm_cmd.append(pkg)
     try:
-        print("Installing markdownlint-cli via npm (may take a while)...")
+        print("Installing {} via npm (may take a while)...".format(pkg))
         result = subprocess.run(
-            ["npm", "install", "-g", "markdownlint-cli"],
+            npm_cmd,
             capture_output=True,
             text=True,
             timeout=300,
