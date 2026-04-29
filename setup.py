@@ -1371,6 +1371,179 @@ def pernosco_init(tracker=None):
 # ---------------------------------------
 
 
+def _resolve_msvc_env():
+    """Return an env dict with MSVC build tools first on PATH, or None.
+
+    The MSYS coreutils package ships ``/usr/bin/link.exe`` (a POSIX
+    hardlink utility), which appears earlier on most Git Bash / mozilla-
+    build PATHs than MSVC's ``link.exe`` (or MSVC isn't on PATH at all).
+    rustc's *-pc-windows-msvc toolchain invokes ``link.exe`` for the
+    final link step and silently picks up the wrong one, producing the
+    cryptic ``link: extra operand '...rcgu.o'`` failure mid-cargo-install.
+
+    Two ways to locate MSVC, tried in order:
+
+      1. ``vswhere.exe`` from the Visual Studio Installer — the
+         standard route for users who installed VS Build Tools
+         themselves. We run ``vcvars64.bat`` in a child cmd and
+         capture its environment.
+
+      2. Mozilla-build's bundled overlay at ``~/.mozbuild/vs/``
+         (populated by ``./mach bootstrap``). It ships a real
+         ``link.exe``/``cl.exe`` under ``VC/Tools/MSVC/<ver>/bin/
+         Hostx64/x64/`` plus the Windows SDK under ``Windows
+         Kits/10/``, but its ``vcvars64.bat`` can't be used because
+         the overlay omits ``vcvarsall.bat``. We construct the
+         equivalent PATH/INCLUDE/LIB manually.
+
+    Returns:
+        dict suitable for ``subprocess.run(env=...)`` if MSVC was
+        located, else None (caller should fall back to inherited env
+        and warn the user).
+    """
+    if not is_windows():
+        return None
+    return _msvc_env_from_vswhere() or _msvc_env_from_mozbuild()
+
+
+def _msvc_env_from_vswhere():
+    """Locate VS via ``vswhere.exe`` and capture vcvars64.bat env.
+
+    Returns env dict or None if VS isn't installed at the system level.
+    """
+    program_files_x86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+    vswhere = os.path.join(
+        program_files_x86, "Microsoft Visual Studio", "Installer", "vswhere.exe"
+    )
+    if not os.path.exists(vswhere):
+        return None
+
+    try:
+        result = subprocess.run(
+            [
+                vswhere,
+                "-latest",
+                "-products",
+                "*",
+                "-requires",
+                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                "-property",
+                "installationPath",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, OSError):
+        return None
+
+    install_path = result.stdout.strip()
+    if not install_path or not os.path.isdir(install_path):
+        return None
+
+    vcvars = os.path.join(install_path, "VC", "Auxiliary", "Build", "vcvars64.bat")
+    if not os.path.exists(vcvars):
+        return None
+
+    # Source vcvars64.bat in a child cmd, then `set` to dump the env.
+    # Redirect vcvars's own stdout to nul so only `set` output reaches us.
+    try:
+        result = subprocess.run(
+            ["cmd", "/c", f'"{vcvars}" >nul && set'],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, OSError):
+        return None
+
+    env = {}
+    for line in result.stdout.splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            env[k] = v
+
+    # Sanity check: the captured PATH should now have a path containing
+    # "VC\Tools\MSVC". If not, vcvars didn't actually configure anything.
+    path_lc = env.get("PATH", "").lower().replace("/", "\\")
+    if "\\vc\\tools\\msvc\\" not in path_lc:
+        return None
+    return env
+
+
+def _msvc_env_from_mozbuild():
+    """Construct an MSVC build env from mozilla-build's bundled VS overlay.
+
+    Manually replicates what ``vcvars64.bat`` would set: prepends MSVC's
+    Hostx64/x64 bin (so its ``link.exe``/``cl.exe`` win over
+    /usr/bin/link.exe) and sets INCLUDE/LIB to the MSVC + Windows SDK
+    sub-dirs.
+
+    Returns env dict or None if ``~/.mozbuild/vs/`` isn't present or is
+    incomplete (no MSVC binaries / no Windows SDK).
+    """
+    vs_root = os.path.join(HOME_DIR, ".mozbuild", "vs")
+    if not os.path.isdir(vs_root):
+        return None
+
+    # Pick the highest-versioned MSVC toolchain present.
+    msvc_versions_root = os.path.join(vs_root, "VC", "Tools", "MSVC")
+    if not os.path.isdir(msvc_versions_root):
+        return None
+    msvc_versions = sorted(os.listdir(msvc_versions_root))
+    if not msvc_versions:
+        return None
+    msvc_dir = os.path.join(msvc_versions_root, msvc_versions[-1])
+    msvc_bin = os.path.join(msvc_dir, "bin", "Hostx64", "x64")
+    if not os.path.exists(os.path.join(msvc_bin, "link.exe")):
+        return None
+
+    # Pick the highest-versioned Windows SDK present (ucrt + um libs).
+    sdk_root = os.path.join(vs_root, "Windows Kits", "10")
+    sdk_lib_root = os.path.join(sdk_root, "Lib")
+    if not os.path.isdir(sdk_lib_root):
+        return None
+    sdk_versions = sorted(os.listdir(sdk_lib_root))
+    if not sdk_versions:
+        return None
+    sdk_ver = sdk_versions[-1]
+    sdk_lib_x64_root = os.path.join(sdk_lib_root, sdk_ver)
+    sdk_inc_root = os.path.join(sdk_root, "Include", sdk_ver)
+    sdk_bin_x64 = os.path.join(sdk_root, "bin", sdk_ver, "x64")
+
+    # Sanity-check the lib subtrees we'll point LIB at.
+    if not all(
+        os.path.isdir(p)
+        for p in (
+            os.path.join(sdk_lib_x64_root, "ucrt", "x64"),
+            os.path.join(sdk_lib_x64_root, "um", "x64"),
+        )
+    ):
+        return None
+
+    env = os.environ.copy()
+    path_extras = [msvc_bin]
+    if os.path.isdir(sdk_bin_x64):
+        path_extras.append(sdk_bin_x64)
+    env["PATH"] = os.pathsep.join(path_extras + [env.get("PATH", "")])
+    env["INCLUDE"] = os.pathsep.join(
+        [
+            os.path.join(msvc_dir, "include"),
+            os.path.join(sdk_inc_root, "ucrt"),
+            os.path.join(sdk_inc_root, "um"),
+            os.path.join(sdk_inc_root, "shared"),
+        ]
+    )
+    env["LIB"] = os.pathsep.join(
+        [
+            os.path.join(msvc_dir, "lib", "x64"),
+            os.path.join(sdk_lib_x64_root, "ucrt", "x64"),
+            os.path.join(sdk_lib_x64_root, "um", "x64"),
+        ]
+    )
+    return env
+
+
 def _install_cargo_tool(
     display_name, binary_name, install_args, benefits, consequences
 ):
@@ -1412,14 +1585,32 @@ def _install_cargo_tool(
         print(f"Skipping {display_name} installation")
         return None
 
+    # On Windows, load MSVC build env so cargo's link step finds MSVC's
+    # link.exe instead of /usr/bin/link.exe (MSYS coreutils' hardlink
+    # utility, which silently shadows it on most Git Bash / mozilla-build
+    # PATHs).
+    env = _resolve_msvc_env()
+    if is_windows() and env is None:
+        print_warning(
+            "Could not auto-locate MSVC build tools (tried vswhere.exe and\n"
+            "  ~/.mozbuild/vs/). cargo's link step will likely pick up\n"
+            "  /usr/bin/link.exe (MSYS coreutils) instead of MSVC's link.exe\n"
+            "  and fail. Either install Visual Studio Build Tools 2022 with\n"
+            "  the 'Desktop development with C++' workload, or run\n"
+            "  `./mach bootstrap` in a Firefox checkout to populate\n"
+            "  ~/.mozbuild/vs/, then re-run this step."
+        )
+
     print(
         f"Installing {display_name} via cargo (downloads + compiles, "
         "may take several minutes; cargo output streams below)..."
     )
+    if env is not None:
+        print_hint("  Using MSVC build environment loaded via vcvars64.bat.")
     try:
         # Don't capture output — let cargo's progress / error messages stream
         # straight to the user's terminal.
-        result = subprocess.run(["cargo", "install"] + install_args)
+        result = subprocess.run(["cargo", "install"] + install_args, env=env)
     except FileNotFoundError as e:
         print_error(f"Failed to invoke cargo for {display_name}: {e}")
         return False
