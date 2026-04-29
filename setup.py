@@ -1456,11 +1456,7 @@ def install_treeherder_cli(tracker=None):
     return _install_cargo_tool(
         "treeherder-cli (Mozilla CI status)",
         "treeherder-cli",
-        [
-            "--git",
-            "https://github.com/padenot/treeherder-cli",
-            "--locked",
-        ],
+        ["--git", "https://github.com/padenot/treeherder-cli"],
         [
             "Query Mozilla Treeherder for try/autoland push results",
             "Used by skills like /try-push and /ci-failure-analysis",
@@ -1468,7 +1464,7 @@ def install_treeherder_cli(tracker=None):
         [
             "CI/try-push skills fall back to manual treeherder.mozilla.org lookups",
             "Manual install: cargo install --git "
-            "https://github.com/padenot/treeherder-cli --locked",
+            "https://github.com/padenot/treeherder-cli",
         ],
     )
 
@@ -1478,11 +1474,7 @@ def install_bmo_to_md(tracker=None):
     return _install_cargo_tool(
         "bmo-to-md (Bugzilla -> Markdown for LLMs)",
         "bmo-to-md",
-        [
-            "--git",
-            "https://github.com/ChunMinChang/bmo-to-md",
-            "--locked",
-        ],
+        ["--git", "https://github.com/ChunMinChang/bmo-to-md"],
         [
             "Render a BMO ticket as Markdown for easy paste into Claude/LLM context",
             "Used by triage / bug-start workflows that consume bug data",
@@ -1490,7 +1482,7 @@ def install_bmo_to_md(tracker=None):
         [
             "Manual bug-context curation — slower triage and bug-start sessions",
             "Manual install: cargo install --git "
-            "https://github.com/ChunMinChang/bmo-to-md --locked",
+            "https://github.com/ChunMinChang/bmo-to-md",
         ],
     )
 
