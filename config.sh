@@ -34,6 +34,17 @@
 # Trash directory on Windows (Git Bash / MSYS2 / Cygwin)
 : "${DOTFILES_TRASH_DIR_WINDOWS:=$HOME/.Trash}"
 
+# Python fallback directory on Windows. If `python` is not already on
+# PATH, mozilla/firefox/tools.sh prepends this directory so a bare
+# `python` resolves (mozilla-build ships python.exe here, which Git
+# Bash picks up via PATHEXT). Only active for users who opted into
+# Mozilla setup (setup.py --mozilla / --mozilla tools / --all).
+#
+# Use `=` (not `:=`) so an explicit empty value in ~/.dotfiles_config
+# is preserved as "disable the fallback" rather than overwritten with
+# the default.
+: "${DOTFILES_PYTHON_FALLBACK_DIR_WINDOWS=/c/mozilla-build/python3}"
+
 # ==============================================================================
 # User Configuration Override
 # ==============================================================================
