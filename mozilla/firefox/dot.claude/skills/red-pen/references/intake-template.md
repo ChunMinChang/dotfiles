@@ -1,8 +1,8 @@
 # Bug {bug_id_or_NONE} — {one-line summary from BMO summary or user desc}
 
-> Source: {bugzilla:<id> | url:<...> | user free-text}
+> Source: `bugzilla:<id>` | `url:<...>` | `user free-text`
 > Captured: {YYYY-MM-DDTHH:MM:SSZ}
-> Mode: {description-only | full-thread}
+> Mode: `description-only` | `full-thread`
 
 ## Summary (BMO comment 0 / user free-text)
 
@@ -31,7 +31,7 @@
 ## Reporter / commenter speculation (quoted, NOT reviewer-endorsed)
 
 > {quote} — comment {N}, {commenter}
-
+>
 > {quote} — comment {N}, {commenter}
 
 <!--
