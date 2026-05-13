@@ -1,16 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./mach help:*)",
-      "Bash(./mach vendor:*)",
       "Bash(.claude/hooks/should-format-lint.sh:*)",
       "Bash(.claude/skills/sherlock/sherlock-config:*)",
+      "Bash(./mach help:*)",
+      "Bash(./mach vendor:*)",
       "Bash(bmo-to-md:*)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git status *)",
+      "Bash(head *)",
       "Bash(ls:*)",
       "Bash(moz-phab:*)",
       "Bash(python3 .claude/skills/sec-approval/bmo-sec-approval:*)",
       "Bash(python3 .claude/skills/uplift-request/bmo-uplift-request:*)",
-      "Bash(searchfox-cli:*)"
+      "Bash(searchfox-cli:*)",
+      "Bash(tail *)",
+      "Bash(tee *)"
     ]
   },
   "model": "opusplan",
