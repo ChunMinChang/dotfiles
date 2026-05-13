@@ -3108,9 +3108,7 @@ def _commit_overlay_symlinks_to_branch(
         return  # Not a git checkout; nothing to commit.
 
     if not symlinks:
-        print_hint(
-            f"No .claude/ symlinks to commit to '{branch_name}'; skipping"
-        )
+        print_hint(f"No .claude/ symlinks to commit to '{branch_name}'; skipping")
         return
 
     def _git(*args, env=None, input_bytes=None):
@@ -3184,7 +3182,9 @@ def _commit_overlay_symlinks_to_branch(
 
         for rel_path, link_target in symlinks.items():
             blob = _git(
-                "hash-object", "-w", "--stdin",
+                "hash-object",
+                "-w",
+                "--stdin",
                 input_bytes=link_target.encode("utf-8"),
             )
             if blob.returncode != 0:
@@ -3195,7 +3195,9 @@ def _commit_overlay_symlinks_to_branch(
                 return
             blob_sha = blob.stdout.decode().strip()
             upd = _git(
-                "update-index", "--add", "--cacheinfo",
+                "update-index",
+                "--add",
+                "--cacheinfo",
                 f"120000,{blob_sha},{rel_path}",
                 env=env,
             )
@@ -3208,17 +3210,13 @@ def _commit_overlay_symlinks_to_branch(
 
         wt = _git("write-tree", env=env)
         if wt.returncode != 0:
-            print_warning(
-                f"Failed to write tree: {wt.stderr.decode().strip()}"
-            )
+            print_warning(f"Failed to write tree: {wt.stderr.decode().strip()}")
             return
         new_tree_sha = wt.stdout.decode().strip()
 
         parent_tree = _git("rev-parse", f"{parent_sha}^{{tree}}")
         parent_tree_sha = (
-            parent_tree.stdout.decode().strip()
-            if parent_tree.returncode == 0
-            else ""
+            parent_tree.stdout.decode().strip() if parent_tree.returncode == 0 else ""
         )
 
         if new_tree_sha == parent_tree_sha:
@@ -3242,12 +3240,15 @@ def _commit_overlay_symlinks_to_branch(
             return
 
         commit = _git(
-            "commit-tree", new_tree_sha, "-p", parent_sha, "-m", message,
+            "commit-tree",
+            new_tree_sha,
+            "-p",
+            parent_sha,
+            "-m",
+            message,
         )
         if commit.returncode != 0:
-            print_warning(
-                f"Failed to commit: {commit.stderr.decode().strip()}"
-            )
+            print_warning(f"Failed to commit: {commit.stderr.decode().strip()}")
             return
         new_commit_sha = commit.stdout.decode().strip()
 

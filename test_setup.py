@@ -638,7 +638,9 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         # init.defaultBranch may not be set globally; pin it for stability.
         subprocess.run(
             ["git", "init", "-b", "main", repo_dir],
-            check=True, capture_output=True, env=env,
+            check=True,
+            capture_output=True,
+            env=env,
         )
         for key, val in (
             ("user.email", "test@example.com"),
@@ -647,22 +649,30 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         ):
             subprocess.run(
                 ["git", "-C", repo_dir, "config", key, val],
-                check=True, capture_output=True, env=env,
+                check=True,
+                capture_output=True,
+                env=env,
             )
         subprocess.run(
             ["git", "-C", repo_dir, "add", "mach"],
-            check=True, capture_output=True, env=env,
+            check=True,
+            capture_output=True,
+            env=env,
         )
         subprocess.run(
             ["git", "-C", repo_dir, "commit", "-m", "init"],
-            check=True, capture_output=True, env=env,
+            check=True,
+            capture_output=True,
+            env=env,
         )
 
     def _ls_tree_modes(self, branch, path):
         """Return {name: mode} for entries directly under ``path`` on branch."""
         result = subprocess.run(
             ["git", "-C", self.firefox_dir, "ls-tree", branch, f"{path}/"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         entries = {}
         for line in result.stdout.splitlines():
@@ -674,9 +684,17 @@ class TestInstallFirefoxClaude(unittest.TestCase):
 
     def _branch_tip(self, branch):
         result = subprocess.run(
-            ["git", "-C", self.firefox_dir, "rev-parse",
-             "--verify", "--quiet", f"refs/heads/{branch}"],
-            capture_output=True, text=True,
+            [
+                "git",
+                "-C",
+                self.firefox_dir,
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                f"refs/heads/{branch}",
+            ],
+            capture_output=True,
+            text=True,
         )
         return result.stdout.strip() if result.returncode == 0 else None
 
@@ -849,7 +867,8 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         skills = self._ls_tree_modes("claude-settings", ".claude/skills")
         for name in ("my-skill", "bug-start", "bugzilla-wrangler"):
             self.assertEqual(
-                skills.get(name), "120000",
+                skills.get(name),
+                "120000",
                 f"{name} should be a 120000 symlink blob on claude-settings",
             )
 
@@ -878,31 +897,28 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self._install()
         wt = os.path.join(self.test_dir, "wt-test")
         subprocess.run(
-            ["git", "-C", self.firefox_dir, "worktree", "add",
-             wt, "claude-settings"],
-            check=True, capture_output=True,
+            ["git", "-C", self.firefox_dir, "worktree", "add", wt, "claude-settings"],
+            check=True,
+            capture_output=True,
         )
         try:
-            hook_in_wt = os.path.join(
-                wt, ".claude", "hooks", "post-edit-lint.sh"
-            )
+            hook_in_wt = os.path.join(wt, ".claude", "hooks", "post-edit-lint.sh")
             self.assertTrue(
                 os.path.islink(hook_in_wt),
                 "hook should materialize as a real symlink in the worktree",
             )
             self.assertIn(
-                "post-edit-lint.sh", os.readlink(hook_in_wt),
+                "post-edit-lint.sh",
+                os.readlink(hook_in_wt),
                 "symlink target should point at the overlay's hook script",
             )
-            skill_in_wt = os.path.join(
-                wt, ".claude", "skills", "bug-start"
-            )
+            skill_in_wt = os.path.join(wt, ".claude", "skills", "bug-start")
             self.assertTrue(os.path.islink(skill_in_wt))
         finally:
             subprocess.run(
-                ["git", "-C", self.firefox_dir, "worktree", "remove",
-                 "--force", wt],
-                check=False, capture_output=True,
+                ["git", "-C", self.firefox_dir, "worktree", "remove", "--force", wt],
+                check=False,
+                capture_output=True,
             )
 
     def test_install_without_git_repo_no_op(self):
@@ -920,9 +936,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             )
         )
         # But no branch
-        self.assertFalse(
-            os.path.exists(os.path.join(self.firefox_dir, ".git"))
-        )
+        self.assertFalse(os.path.exists(os.path.join(self.firefox_dir, ".git")))
 
 
 def run_tests():
