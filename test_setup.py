@@ -531,9 +531,9 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         """Create temp dirs simulating a Firefox repo and dotfiles overlay."""
         self.test_dir = tempfile.mkdtemp()
 
-        # Simulate Firefox repo with mach + a real git repo so the
-        # worktree-branch code path (git plumbing on claude-settings)
-        # actually runs in tests.
+        # Simulate Firefox repo with mach + a real git repo so
+        # ensure_target_core_symlinks (which sets core.symlinks=true)
+        # has something to operate on.
         self.firefox_dir = os.path.join(self.test_dir, "firefox")
         os.makedirs(self.firefox_dir)
         open(os.path.join(self.firefox_dir, "mach"), "w").close()
@@ -618,10 +618,36 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         setup.ALWU_CLAUDE_SKILLS_RENAME = self._orig_claude_rename
         shutil.rmtree(self.test_dir)
 
-    def _install(self, **kwargs):
-        """Run install_firefox_claude with interactive prompts suppressed."""
-        with patch("setup.get_user_input", return_value=""), patch(
-            "setup.get_user_confirmation", return_value=True
+    def _install(
+        self, commit=False, new_branch=False, branch_name="test-overlay", **kwargs
+    ):
+        """Run install_firefox_claude with interactive prompts suppressed.
+
+        - ``commit`` (default False): answer to "Commit now?".
+        - ``new_branch`` (default False): answer to "Commit on a new branch?".
+          Only consulted when ``commit`` is True.
+        - ``branch_name``: returned for the "New branch name [...]" input
+          when ``new_branch`` is True.
+
+        Other prompts (settings merge choice, tech-docs index path, etc.)
+        get the prompt's default — skipping them.
+        """
+
+        def fake_input(prompt, default=""):
+            if "new branch name" in prompt.lower():
+                return branch_name
+            return default
+
+        def fake_confirmation(prompt="", default_non_interactive=False):
+            pl = prompt.lower()
+            if "commit now" in pl:
+                return commit
+            if "new branch" in pl:
+                return new_branch
+            return False
+
+        with patch("setup.get_user_input", side_effect=fake_input), patch(
+            "setup.get_user_confirmation", side_effect=fake_confirmation
         ):
             return setup.install_firefox_claude(self.firefox_dir, **kwargs)
 
@@ -665,38 +691,6 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             capture_output=True,
             env=env,
         )
-
-    def _ls_tree_modes(self, branch, path):
-        """Return {name: mode} for entries directly under ``path`` on branch."""
-        result = subprocess.run(
-            ["git", "-C", self.firefox_dir, "ls-tree", branch, f"{path}/"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        entries = {}
-        for line in result.stdout.splitlines():
-            # Format: <mode> <type> <sha>\t<path>
-            meta, name = line.split("\t", 1)
-            mode = meta.split()[0]
-            entries[os.path.basename(name)] = mode
-        return entries
-
-    def _branch_tip(self, branch):
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                self.firefox_dir,
-                "rev-parse",
-                "--verify",
-                "--quiet",
-                f"refs/heads/{branch}",
-            ],
-            capture_output=True,
-            text=True,
-        )
-        return result.stdout.strip() if result.returncode == 0 else None
 
     def test_install_symlinks_all_skill_tiers(self):
         """Personal, alwu-claude-skills, and media-skills all get symlinked."""
@@ -855,88 +849,104 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         self.assertFalse(os.path.exists(skills_dir))
 
-    def test_worktree_branch_created_with_symlinks(self):
-        """install creates claude-settings branch with .claude/* as 120000 entries."""
-        self._install()
-        # Branch exists
-        self.assertIsNotNone(self._branch_tip("claude-settings"))
-        # Hook is a symlink entry
-        hooks = self._ls_tree_modes("claude-settings", ".claude/hooks")
-        self.assertEqual(hooks.get("post-edit-lint.sh"), "120000")
-        # Skills from all three tiers are symlink entries
-        skills = self._ls_tree_modes("claude-settings", ".claude/skills")
-        for name in ("my-skill", "bug-start", "bugzilla-wrangler"):
-            self.assertEqual(
-                skills.get(name),
-                "120000",
-                f"{name} should be a 120000 symlink blob on claude-settings",
-            )
-
-    def test_worktree_branch_idempotent(self):
-        """A second install with no new symlinks does not add a second commit."""
-        self._install()
-        first_tip = self._branch_tip("claude-settings")
-        self._install()
-        second_tip = self._branch_tip("claude-settings")
-        self.assertIsNotNone(first_tip)
-        self.assertEqual(first_tip, second_tip)
-
-    def test_worktree_branch_none_skips(self):
-        """worktree_branch='none' does not create the branch."""
-        self._install(worktree_branch="none")
-        self.assertIsNone(self._branch_tip("claude-settings"))
-        # Symlinks still installed in working tree
-        self.assertTrue(
-            os.path.islink(
-                os.path.join(self.firefox_dir, ".claude", "skills", "my-skill")
-            )
-        )
-
-    def test_worktree_inherits_overlay(self):
-        """git worktree add from claude-settings produces real symlinks."""
-        self._install()
-        wt = os.path.join(self.test_dir, "wt-test")
-        subprocess.run(
-            ["git", "-C", self.firefox_dir, "worktree", "add", wt, "claude-settings"],
-            check=True,
-            capture_output=True,
-        )
-        try:
-            hook_in_wt = os.path.join(wt, ".claude", "hooks", "post-edit-lint.sh")
-            self.assertTrue(
-                os.path.islink(hook_in_wt),
-                "hook should materialize as a real symlink in the worktree",
-            )
-            self.assertIn(
-                "post-edit-lint.sh",
-                os.readlink(hook_in_wt),
-                "symlink target should point at the overlay's hook script",
-            )
-            skill_in_wt = os.path.join(wt, ".claude", "skills", "bug-start")
-            self.assertTrue(os.path.islink(skill_in_wt))
-        finally:
-            subprocess.run(
-                ["git", "-C", self.firefox_dir, "worktree", "remove", "--force", wt],
-                check=False,
-                capture_output=True,
-            )
-
-    def test_install_without_git_repo_no_op(self):
-        """No .git directory: install succeeds but skips branch commit."""
-        # Replace firefox_dir with a non-git variant
+    def test_install_without_git_repo_succeeds(self):
+        """No .git directory: install still creates symlinks."""
         shutil.rmtree(self.firefox_dir)
         os.makedirs(self.firefox_dir)
         open(os.path.join(self.firefox_dir, "mach"), "w").close()
 
         self._install()
-        # Symlinks created
         self.assertTrue(
             os.path.islink(
                 os.path.join(self.firefox_dir, ".claude", "skills", "my-skill")
             )
         )
-        # But no branch
         self.assertFalse(os.path.exists(os.path.join(self.firefox_dir, ".git")))
+
+    def _head_sha(self):
+        result = subprocess.run(
+            ["git", "-C", self.firefox_dir, "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+
+    def _current_branch(self):
+        result = subprocess.run(
+            ["git", "-C", self.firefox_dir, "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+
+    def test_install_commit_yes_lands_overlay_on_head(self):
+        """Opting in to the commit prompt produces a new commit on HEAD
+        whose tree contains the overlay symlinks as 120000 blobs."""
+        before = self._head_sha()
+        before_branch = self._current_branch()
+        self._install(commit=True)
+        after = self._head_sha()
+
+        self.assertNotEqual(before, after, "HEAD should advance after commit")
+        self.assertEqual(
+            self._current_branch(),
+            before_branch,
+            "branch should not change when new_branch=False",
+        )
+
+        # Inspect the new commit's tree for 120000 blobs.
+        ls_tree = subprocess.run(
+            ["git", "-C", self.firefox_dir, "ls-tree", "-r", after, ".claude/"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        lines = ls_tree.stdout.splitlines()
+        modes = {}
+        for line in lines:
+            meta, name = line.split("\t", 1)
+            modes[name] = meta.split()[0]
+
+        self.assertEqual(
+            modes.get(".claude/hooks/post-edit-lint.sh"),
+            "120000",
+            "hook should be tracked as a symlink blob",
+        )
+        self.assertEqual(
+            modes.get(".claude/skills/my-skill"),
+            "120000",
+            "personal skill should be tracked as a symlink blob",
+        )
+
+    def test_install_commit_on_new_branch(self):
+        """Opting in to the new-branch prompt creates the branch and
+        lands the overlay commit on it, leaving the original branch alone."""
+        before_branch = self._current_branch()
+        before_sha = self._head_sha()
+
+        self._install(commit=True, new_branch=True, branch_name="overlay-test")
+
+        # We're now on the new branch with a fresh commit.
+        self.assertEqual(self._current_branch(), "overlay-test")
+        self.assertNotEqual(self._head_sha(), before_sha)
+
+        # The original branch tip is unchanged.
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                self.firefox_dir,
+                "rev-parse",
+                "--verify",
+                f"refs/heads/{before_branch}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(result.stdout.strip(), before_sha)
 
 
 def run_tests():

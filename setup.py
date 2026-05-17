@@ -3055,228 +3055,6 @@ def ensure_target_core_symlinks(target_dir, dry_run=False):
     )
 
 
-def _collect_overlay_symlinks(target_dir):
-    """Return ``{rel_path: link_target}`` for .claude/{hooks,skills} symlinks.
-
-    Only entries that are actual symlinks are returned; plain files and
-    directories (e.g. Mozilla-tracked ``.claude/skills/android/`` skill
-    directories) are skipped, because we only want to commit the
-    overlay's machine-local pointers, not anything upstream tracks.
-    """
-    symlinks = {}
-    claude_dir = os.path.join(target_dir, ".claude")
-    for subdir in ("hooks", "skills"):
-        dir_path = os.path.join(claude_dir, subdir)
-        if not os.path.isdir(dir_path):
-            continue
-        for name in sorted(os.listdir(dir_path)):
-            entry = os.path.join(dir_path, name)
-            if not os.path.islink(entry):
-                continue
-            symlinks[f".claude/{subdir}/{name}"] = os.readlink(entry)
-    return symlinks
-
-
-def _commit_overlay_symlinks_to_branch(
-    target_dir, branch_name, symlinks, message, dry_run=False
-):
-    """Commit ``.claude/`` symlink entries to ``branch_name`` via git plumbing.
-
-    Why plumbing rather than ``git add`` in a temp worktree:
-
-    - Doesn't touch the user's working tree or main index, so it's safe
-      even if ``branch_name`` is currently checked out (in this repo or
-      in another worktree) and ignores any in-flight WIP.
-    - Avoids firing the target repo's commit hooks (e.g. Mozilla's
-      pre-commit checks) for what is purely dotfiles bookkeeping.
-    - Idempotent: short-circuits when the resulting tree matches the
-      parent commit's tree, so re-running ``--install-firefox-claude``
-      doesn't keep adding empty commits.
-
-    Branch behavior:
-
-    - If ``branch_name`` exists: new commit on top of its current tip.
-    - If it doesn't: created at the repo's current HEAD with the new
-      commit on top (so the branch contains the full Firefox tree,
-      not an orphan).
-
-    Skips with a hint (not an error) when ``target_dir`` isn't a git
-    checkout or git user identity isn't configured.
-    """
-    git_marker = os.path.join(target_dir, ".git")
-    if not os.path.exists(git_marker):
-        return  # Not a git checkout; nothing to commit.
-
-    if not symlinks:
-        print_hint(f"No .claude/ symlinks to commit to '{branch_name}'; skipping")
-        return
-
-    def _git(*args, env=None, input_bytes=None):
-        return subprocess.run(
-            ["git", "-C", target_dir, *args],
-            capture_output=True,
-            env=env or os.environ,
-            input=input_bytes,
-        )
-
-    branch_ref = f"refs/heads/{branch_name}"
-
-    # Resolve parent commit: prefer branch tip; fall back to HEAD.
-    parent_result = _git("rev-parse", "--verify", "--quiet", branch_ref)
-    branch_existed = parent_result.returncode == 0
-    if branch_existed:
-        parent_sha = parent_result.stdout.decode().strip()
-    else:
-        head_result = _git("rev-parse", "--verify", "--quiet", "HEAD")
-        if head_result.returncode != 0:
-            print_warning(
-                f"{target_dir} has no HEAD commit; cannot create "
-                f"branch '{branch_name}'. Run after at least one commit."
-            )
-            return
-        parent_sha = head_result.stdout.decode().strip()
-
-    if dry_run:
-        action = "Update" if branch_existed else "Create"
-        print(
-            f"  Would {action.lower()} branch '{branch_name}' with "
-            f"{len(symlinks)} .claude/ symlink entries (parent "
-            f"{parent_sha[:12]})"
-        )
-        return
-
-    # Pre-flight: commit-tree needs user identity. Check now so the
-    # failure message is actionable.
-    for key in ("user.email", "user.name"):
-        result = _git("config", "--get", key)
-        if result.returncode != 0 or not result.stdout.strip():
-            print_warning(
-                f"git {key} not configured in {target_dir}; skipping "
-                f"'{branch_name}' branch commit. Set it manually and "
-                f"re-run --install-firefox-claude."
-            )
-            return
-
-    # Build the new tree in an isolated index file so the user's
-    # primary index is untouched.
-    idx_handle = tempfile.NamedTemporaryFile(prefix="claude-idx-", delete=False)
-    index_path = idx_handle.name
-    idx_handle.close()
-    # `git read-tree` wants the file empty (or absent); we created
-    # it via NamedTemporaryFile only to get a unique path.
-    try:
-        os.unlink(index_path)
-    except OSError:
-        pass
-
-    try:
-        env = {**os.environ, "GIT_INDEX_FILE": index_path}
-
-        seed = _git("read-tree", parent_sha, env=env)
-        if seed.returncode != 0:
-            print_warning(
-                f"Failed to seed temp index from {parent_sha[:12]}: "
-                f"{seed.stderr.decode().strip()}"
-            )
-            return
-
-        for rel_path, link_target in symlinks.items():
-            blob = _git(
-                "hash-object",
-                "-w",
-                "--stdin",
-                input_bytes=link_target.encode("utf-8"),
-            )
-            if blob.returncode != 0:
-                print_warning(
-                    f"Failed to hash symlink target for {rel_path}: "
-                    f"{blob.stderr.decode().strip()}"
-                )
-                return
-            blob_sha = blob.stdout.decode().strip()
-            upd = _git(
-                "update-index",
-                "--add",
-                "--cacheinfo",
-                f"120000,{blob_sha},{rel_path}",
-                env=env,
-            )
-            if upd.returncode != 0:
-                print_warning(
-                    f"Failed to stage {rel_path} in temp index: "
-                    f"{upd.stderr.decode().strip()}"
-                )
-                return
-
-        wt = _git("write-tree", env=env)
-        if wt.returncode != 0:
-            print_warning(f"Failed to write tree: {wt.stderr.decode().strip()}")
-            return
-        new_tree_sha = wt.stdout.decode().strip()
-
-        parent_tree = _git("rev-parse", f"{parent_sha}^{{tree}}")
-        parent_tree_sha = (
-            parent_tree.stdout.decode().strip() if parent_tree.returncode == 0 else ""
-        )
-
-        if new_tree_sha == parent_tree_sha:
-            if branch_existed:
-                print_hint(
-                    f"Branch '{branch_name}' already tracks all "
-                    f"{len(symlinks)} .claude/ symlinks; nothing to commit"
-                )
-            else:
-                ref = _git("update-ref", branch_ref, parent_sha)
-                if ref.returncode != 0:
-                    print_warning(
-                        f"Failed to create branch '{branch_name}': "
-                        f"{ref.stderr.decode().strip()}"
-                    )
-                    return
-                print(
-                    f"Created branch '{branch_name}' at "
-                    f"{parent_sha[:12]} (no .claude/ symlinks present)"
-                )
-            return
-
-        commit = _git(
-            "commit-tree",
-            new_tree_sha,
-            "-p",
-            parent_sha,
-            "-m",
-            message,
-        )
-        if commit.returncode != 0:
-            print_warning(f"Failed to commit: {commit.stderr.decode().strip()}")
-            return
-        new_commit_sha = commit.stdout.decode().strip()
-
-        ref = _git("update-ref", branch_ref, new_commit_sha)
-        if ref.returncode != 0:
-            print_warning(
-                f"Failed to update branch '{branch_name}': "
-                f"{ref.stderr.decode().strip()}"
-            )
-            return
-
-        action = "Updated" if branch_existed else "Created"
-        print(
-            f"{action} branch '{branch_name}' with {len(symlinks)} "
-            f".claude/ symlink entries (commit {new_commit_sha[:12]})"
-        )
-        print_hint(
-            f"  Worktrees created from '{branch_name}' (or branches\n"
-            f"  based on it) will inherit the .claude/ overlay\n"
-            f"  automatically — no need to re-run install per worktree."
-        )
-    finally:
-        try:
-            os.unlink(index_path)
-        except OSError:
-            pass
-
-
 def ensure_submodule_populated(submodule_path, label, dry_run=False):
     """Return True if ``submodule_path`` exists and has content.
 
@@ -3406,18 +3184,96 @@ def cleanup_stale_skills(target_skills_dir, target_dir, dry_run=False):
     return stale_names
 
 
-def install_firefox_claude(
-    target_dir=None, dry_run=False, worktree_branch="claude-settings"
-):
+def _commit_overlay(target_dir, include_claude_local, new_branch=None):
+    """Stage and commit installed overlay in ``target_dir``.
+
+    Uses ``git add -f`` to bypass our managed .gitignore entries (the
+    symlinks are gitignored on purpose, but to share them via worktrees
+    they need to be tracked on whatever branch the worktrees are based on).
+
+    If ``new_branch`` is a non-empty string, ``git checkout -b <new_branch>``
+    is run first so the commit lands on a fresh branch off the current
+    HEAD; otherwise the commit lands on the current branch.
+
+    Stages ``.claude/`` + ``.gitignore`` unconditionally and
+    ``CLAUDE.local.md`` only when ``include_claude_local`` is True (the
+    caller checks for its existence). Honors pre-commit hooks — on hook
+    failure, prints stderr and returns False so the user can resolve.
+
+    Returns True on a successful commit (or no-op when nothing changed),
+    False on any error.
+    """
+    git_marker = os.path.join(target_dir, ".git")
+    if not os.path.exists(git_marker):
+        print_hint(f"  {target_dir} is not a git checkout; skipping commit")
+        return False
+
+    def _git(*args):
+        return subprocess.run(["git", "-C", target_dir, *args], capture_output=True)
+
+    for key in ("user.email", "user.name"):
+        result = _git("config", "--get", key)
+        if result.returncode != 0 or not result.stdout.strip():
+            print_warning(
+                f"git {key} not configured in {target_dir}; skipping commit. "
+                f"Set it and re-run --install-firefox-claude."
+            )
+            return False
+
+    if new_branch:
+        checkout = _git("checkout", "-b", new_branch)
+        if checkout.returncode != 0:
+            print_warning(
+                f"git checkout -b '{new_branch}' failed: "
+                f"{checkout.stderr.decode().strip()}"
+            )
+            return False
+        print(f"Switched to new branch '{new_branch}'")
+
+    paths = [".claude/", ".gitignore"]
+    if include_claude_local:
+        paths.append("CLAUDE.local.md")
+
+    add = _git("add", "-f", *paths)
+    if add.returncode != 0:
+        print_warning(f"git add failed: {add.stderr.decode().strip()}")
+        return False
+
+    diff = _git("diff", "--cached", "--quiet")
+    if diff.returncode == 0:
+        print_hint("  Nothing to commit; overlay already tracked on this branch")
+        return True
+
+    commit = _git("commit", "-m", "Install Claude overlay")
+    if commit.returncode != 0:
+        stderr = commit.stderr.decode().strip()
+        stdout = commit.stdout.decode().strip()
+        msg = stderr or stdout or "(no output)"
+        print_warning(f"git commit failed (pre-commit hook?): {msg}")
+        return False
+
+    rev = _git("rev-parse", "HEAD")
+    sha = rev.stdout.decode().strip()[:12] if rev.returncode == 0 else "?"
+    branch_result = _git("rev-parse", "--abbrev-ref", "HEAD")
+    branch_name = (
+        branch_result.stdout.decode().strip()
+        if branch_result.returncode == 0
+        else "HEAD"
+    )
+    print(f"Committed overlay on '{branch_name}' ({sha})")
+    return True
+
+
+def install_firefox_claude(target_dir=None, dry_run=False):
     """
     Install Firefox-specific Claude settings (hooks, skills) to a target project.
     Uses symlinks for easy management across multiple repos.
 
-    ``worktree_branch`` (default ``"claude-settings"``) names a branch that
-    will be created/updated with the installed ``.claude/{hooks,skills}``
-    symlinks committed as ``120000`` blobs, so any ``git worktree add``
-    based on that branch (or on a branch built off it) inherits the
-    overlay automatically. Pass ``"none"`` to skip the branch update.
+    Leaves the install (symlinks + .gitignore update) as uncommitted
+    changes in the target. To make worktrees inherit the overlay, you
+    can commit the symlinks to a side branch yourself and base worktrees
+    on it — git materializes the tracked ``120000`` entries as real
+    symlinks because ``core.symlinks=true`` is set by this install.
     """
     print_title("Install Firefox Claude Settings")
 
@@ -3596,16 +3452,20 @@ def install_firefox_claude(
 
         # .gitignore update for added items only
         if gitignore_entries:
+            stale_hook_entries = [
+                entry + "/"
+                for entry in gitignore_entries
+                if entry.startswith(".claude/hooks/")
+            ]
+            if stale_hook_entries:
+                print(
+                    f"  {step}. Drop stale trailing-slash hook entries from .gitignore:"
+                )
+                remove_from_gitignore(target_dir, stale_hook_entries, dry_run=True)
+                step += 1
             print(f"  {step}. Check/update .gitignore:")
             add_to_gitignore(target_dir, gitignore_entries, dry_run=True)
             step += 1
-
-        # Worktree-safe branch (mirrors the real path below)
-        if worktree_branch and worktree_branch.lower() != "none":
-            print(
-                f"  {step}. Commit .claude/{{hooks,skills}} symlinks to "
-                f"branch '{worktree_branch}' so worktrees inherit them"
-            )
 
         print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
         return True
@@ -3745,7 +3605,7 @@ def install_firefox_claude(
             if "allow" in new_settings["permissions"]:
                 existing_allow = set(existing.get("permissions", {}).get("allow", []))
                 new_allow = set(new_settings["permissions"]["allow"])
-                existing["permissions"]["allow"] = list(existing_allow | new_allow)
+                existing["permissions"]["allow"] = sorted(existing_allow | new_allow)
 
         # Merge hooks
         if "hooks" in new_settings:
@@ -3796,22 +3656,21 @@ def install_firefox_claude(
         print("Linked: settings.local.json")
         gitignore_entries.append(".claude/settings.local.json")
 
+    # Migrate older managed entries: hooks were briefly added with a
+    # trailing slash (directory-only pattern that doesn't match symlinks)
+    # — that left the hook symlinks unignored on Mozilla branches. We're
+    # back to the conventional no-slash shape, which correctly gitignores
+    # the symlinks. Drop any leftover trailing-slash variants so the new
+    # no-slash entries take effect.
+    stale_hook_entries = [
+        entry + "/" for entry in gitignore_entries if entry.startswith(".claude/hooks/")
+    ]
+    if stale_hook_entries:
+        remove_from_gitignore(target_dir, stale_hook_entries)
+
     # Add our items to .gitignore (only what we added, not entire .claude/)
     if gitignore_entries:
         add_to_gitignore(target_dir, gitignore_entries)
-
-    # Commit the installed symlinks to a worktree-safe branch so
-    # ``git worktree add`` from this repo materializes them in every
-    # checkout. Without this, the symlinks live only in this working
-    # tree and disappear in fresh worktrees (they're gitignored above).
-    if worktree_branch and worktree_branch.lower() != "none":
-        overlay_symlinks = _collect_overlay_symlinks(target_dir)
-        _commit_overlay_symlinks_to_branch(
-            target_dir,
-            worktree_branch,
-            overlay_symlinks,
-            "Track Claude overlay symlinks for worktrees",
-        )
 
     # Offer to set up tech-docs index reference in CLAUDE.local.md
     print("")
@@ -3844,16 +3703,58 @@ def install_firefox_claude(
                     f.write(ref_line + "\n")
                 print(f"Updated: {target_claude_local}")
 
+    # Offer to commit the install outputs so worktrees created from
+    # this commit (or branches off it) inherit the overlay automatically.
+    # The symlinks and (when present) CLAUDE.local.md are gitignored, so
+    # `git add -f` is required — this prompt is the one place where
+    # setup.py asks for it.
+    print("")
+    has_claude_local = os.path.isfile(target_claude_local)
+    commit_prompt = (
+        "Commit the installed overlay now?\n"
+        "  - Stages with: git add -f .claude/ .gitignore"
+        + (" CLAUDE.local.md" if has_claude_local else "")
+        + "\n"
+        "  - Commits as:  git commit -m 'Install Claude overlay'\n"
+        "  - Worktrees created from this commit will inherit the overlay.\n"
+        "Commit now? [y/N]: "
+    )
+    committed = False
+    if get_user_confirmation(commit_prompt, default_non_interactive=False):
+        new_branch = None
+        if get_user_confirmation(
+            "Commit on a new branch (so the current branch stays clean)? " "[y/N]: ",
+            default_non_interactive=False,
+        ):
+            default_name = "claude-overlay"
+            entered = get_user_input(
+                f"New branch name [{default_name}]: ", default_name
+            ).strip()
+            new_branch = entered or default_name
+        committed = _commit_overlay(target_dir, has_claude_local, new_branch)
+
     print("")
     print(colors.OK + "✓ Firefox Claude settings installed" + colors.END)
     print_hint(f"  Target: {target_dir}")
     print_hint(f"  Hooks and skills are symlinked from: {FIREFOX_CLAUDE_OVERLAY}")
     if gitignore_entries:
         print_hint(f"  Added {len(gitignore_entries)} entries to .gitignore")
-    if worktree_branch and worktree_branch.lower() != "none":
+    if committed:
         print_hint(
-            f"  Tracked overlay on branch '{worktree_branch}' — "
-            f"base future worktrees on it"
+            "  Overlay committed on current branch. Worktrees created\n"
+            "  from this commit (or branches off it) will inherit the\n"
+            "  hooks/skills automatically (core.symlinks=true is set)."
+        )
+    else:
+        manual_files = ".claude/ .gitignore" + (
+            " CLAUDE.local.md" if has_claude_local else ""
+        )
+        print_hint(
+            "  Changes left uncommitted. To share the overlay with worktrees:\n"
+            "    1. Switch to (or create) a side branch for personal config.\n"
+            f"    2. git add -f {manual_files}\n"
+            "    3. git commit -m 'Install Claude overlay'\n"
+            "    4. git worktree add ../<name> <that-side-branch>"
         )
     print("")
     print_warning("IMPORTANT: Restart Claude Code for changes to take effect")
@@ -4100,7 +4001,6 @@ Examples:
   python3 setup.py --remove-claude-security # Remove security hooks
   python3 setup.py --install-firefox-claude # Install Firefox Claude settings (prompts for path)
   python3 setup.py --install-firefox-claude /path/to/firefox # Install to specific path
-  python3 setup.py --install-firefox-claude /path/to/firefox --worktree-branch none # Skip auto-committing overlay symlinks
   python3 setup.py --uninstall-firefox-claude # Remove Firefox Claude settings
         """,
     )
@@ -4163,17 +4063,6 @@ Examples:
         help="Install Firefox Claude settings (hooks, skills) to a project. Prompts for path if not provided.",
     )
     parser.add_argument(
-        "--worktree-branch",
-        default="claude-settings",
-        metavar="BRANCH",
-        help=(
-            "After --install-firefox-claude, commit .claude/{hooks,skills} "
-            "symlinks to BRANCH via git plumbing so worktrees based on it "
-            "inherit the overlay automatically (default: claude-settings). "
-            "Pass --worktree-branch none to skip."
-        ),
-    )
-    parser.add_argument(
         "--uninstall-firefox-claude",
         nargs="?",
         const="",
@@ -4219,13 +4108,7 @@ Examples:
     # Handle Firefox Claude install/uninstall (standalone commands)
     if args.install_firefox_claude is not None:
         target = args.install_firefox_claude if args.install_firefox_claude else None
-        return (
-            0
-            if install_firefox_claude(
-                target, DRY_RUN, worktree_branch=args.worktree_branch
-            )
-            else 1
-        )
+        return 0 if install_firefox_claude(target, DRY_RUN) else 1
 
     if args.uninstall_firefox_claude is not None:
         target = (
