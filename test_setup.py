@@ -949,6 +949,180 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), before_sha)
 
 
+class TestMozillaCliTools(unittest.TestCase):
+    """Tests for mozilla_cli_tools_init and the per-tool installers."""
+
+    @patch("setup.install_profiler_cli")
+    @patch("setup.install_socorro_cli")
+    @patch("setup.install_bmo_to_md")
+    @patch("setup.install_treeherder_cli")
+    @patch("setup.install_searchfox_cli")
+    def test_cli_tools_init_runs_all_installers(
+        self, mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler
+    ):
+        """All five per-tool installers are invoked in order."""
+        for m in (mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler):
+            m.return_value = True
+
+        result = setup.mozilla_cli_tools_init()
+
+        self.assertTrue(result)
+        for m in (mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler):
+            m.assert_called_once()
+
+    @patch("setup.install_profiler_cli")
+    @patch("setup.install_socorro_cli")
+    @patch("setup.install_bmo_to_md")
+    @patch("setup.install_treeherder_cli")
+    @patch("setup.install_searchfox_cli")
+    def test_cli_tools_init_skipped_counts_as_success(
+        self, mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler
+    ):
+        """Mix of True / None (skipped) yields overall True."""
+        mock_sf.return_value = True
+        mock_th.return_value = None
+        mock_bmo.return_value = True
+        mock_socorro.return_value = None
+        mock_profiler.return_value = True
+
+        self.assertTrue(setup.mozilla_cli_tools_init())
+
+    @patch("setup.install_profiler_cli")
+    @patch("setup.install_socorro_cli")
+    @patch("setup.install_bmo_to_md")
+    @patch("setup.install_treeherder_cli")
+    @patch("setup.install_searchfox_cli")
+    def test_cli_tools_init_one_failure_fails_overall(
+        self, mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler
+    ):
+        """A single False return makes the bundle fail, but all installers
+        still run (no short-circuit)."""
+        mock_sf.return_value = True
+        mock_th.return_value = True
+        mock_bmo.return_value = True
+        mock_socorro.return_value = False
+        mock_profiler.return_value = True
+
+        self.assertFalse(setup.mozilla_cli_tools_init())
+        # No short-circuit: profiler-cli still attempted after socorro failed.
+        mock_profiler.assert_called_once()
+
+    @patch("setup._install_cargo_tool")
+    def test_install_socorro_cli_delegates_to_cargo_helper(self, mock_cargo):
+        """install_socorro_cli calls _install_cargo_tool with the crates.io
+        package name and binary name."""
+        mock_cargo.return_value = True
+
+        result = setup.install_socorro_cli()
+
+        self.assertTrue(result)
+        args, _ = mock_cargo.call_args
+        # Positional signature: display, binary, install_args, benefits, consequences
+        self.assertEqual(args[1], "socorro-cli")
+        self.assertEqual(args[2], ["socorro-cli"])
+
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_already_installed(self, mock_is_tool):
+        """If profiler-cli is on PATH, return True immediately without npm."""
+        mock_is_tool.side_effect = lambda name: name == "profiler-cli"
+        self.assertTrue(setup.install_profiler_cli())
+
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_missing_npm(self, mock_is_tool):
+        """If npm is not on PATH, skip cleanly (None)."""
+        # Neither profiler-cli nor npm available.
+        mock_is_tool.return_value = False
+        self.assertIsNone(setup.install_profiler_cli())
+
+    @patch("setup.get_user_confirmation")
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_user_declines(self, mock_is_tool, mock_confirm):
+        """User saying no at the prompt skips cleanly (None)."""
+        mock_is_tool.side_effect = lambda name: name == "npm"
+        mock_confirm.return_value = False
+        self.assertIsNone(setup.install_profiler_cli())
+
+    @patch("setup.subprocess.run")
+    @patch("setup.is_windows")
+    @patch("setup.get_user_confirmation")
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_unix_uses_local_prefix(
+        self, mock_is_tool, mock_confirm, mock_is_win, mock_run
+    ):
+        """On non-Windows, npm runs with --prefix=$HOME/.local and the
+        upstream @firefox-devtools/profiler-cli package."""
+        mock_is_tool.side_effect = lambda name: name == "npm"
+        mock_confirm.return_value = True
+        mock_is_win.return_value = False
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+
+        result = setup.install_profiler_cli()
+
+        self.assertTrue(result)
+        npm_cmd = mock_run.call_args[0][0]
+        self.assertEqual(npm_cmd[:3], ["npm", "install", "-g"])
+        self.assertIn("--prefix", npm_cmd)
+        prefix_idx = npm_cmd.index("--prefix")
+        self.assertEqual(
+            npm_cmd[prefix_idx + 1], os.path.join(setup.get_home_dir(), ".local")
+        )
+        self.assertEqual(npm_cmd[-1], "@firefox-devtools/profiler-cli@latest")
+
+    @patch("setup.subprocess.run")
+    @patch("setup.is_windows")
+    @patch("setup.get_user_confirmation")
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_windows_no_prefix(
+        self, mock_is_tool, mock_confirm, mock_is_win, mock_run
+    ):
+        """On Windows, npm -g defaults to AppData (no --prefix needed)."""
+        mock_is_tool.side_effect = lambda name: name == "npm"
+        mock_confirm.return_value = True
+        mock_is_win.return_value = True
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+
+        self.assertTrue(setup.install_profiler_cli())
+        npm_cmd = mock_run.call_args[0][0]
+        self.assertNotIn("--prefix", npm_cmd)
+        self.assertEqual(npm_cmd[-1], "@firefox-devtools/profiler-cli@latest")
+
+    @patch("setup.subprocess.run")
+    @patch("setup.is_windows")
+    @patch("setup.get_user_confirmation")
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_npm_failure(
+        self, mock_is_tool, mock_confirm, mock_is_win, mock_run
+    ):
+        """Non-zero npm exit yields False."""
+        mock_is_tool.side_effect = lambda name: name == "npm"
+        mock_confirm.return_value = True
+        mock_is_win.return_value = False
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="boom"
+        )
+
+        self.assertFalse(setup.install_profiler_cli())
+
+    @patch("setup.subprocess.run")
+    @patch("setup.is_windows")
+    @patch("setup.get_user_confirmation")
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_npm_timeout(
+        self, mock_is_tool, mock_confirm, mock_is_win, mock_run
+    ):
+        """A timeout from npm yields False (not a crash)."""
+        mock_is_tool.side_effect = lambda name: name == "npm"
+        mock_confirm.return_value = True
+        mock_is_win.return_value = False
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="npm", timeout=300)
+
+        self.assertFalse(setup.install_profiler_cli())
+
+
 def run_tests():
     """Run all tests and return results"""
     # Create test suite
@@ -966,6 +1140,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestMainFunction))
     suite.addTests(loader.loadTestsFromTestCase(TestClaudeSecurityIntegration))
     suite.addTests(loader.loadTestsFromTestCase(TestInstallFirefoxClaude))
+    suite.addTests(loader.loadTestsFromTestCase(TestMozillaCliTools))
 
     # Run tests with verbose output
     runner = unittest.TextTestRunner(verbosity=2)

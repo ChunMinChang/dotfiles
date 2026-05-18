@@ -1694,20 +1694,110 @@ def install_bmo_to_md(tracker=None):
     )
 
 
-def mozilla_cli_tools_init(tracker=None):
-    """Install Mozilla-adjacent Rust CLI tools used by Firefox/Claude workflows.
+def install_socorro_cli(tracker=None):
+    """Install socorro-cli (Mozilla Socorro crash-reporting CLI)."""
+    return _install_cargo_tool(
+        "socorro-cli (Mozilla Socorro crash stats CLI)",
+        "socorro-cli",
+        ["socorro-cli"],
+        [
+            "Query crash-stats.mozilla.org from the terminal "
+            "(signature search, crash details, facets)",
+            "Used by triage / bugzilla-wrangler skills to quantify crash impact",
+        ],
+        [
+            "Crash-volume enrichment falls back to manual crash-stats web lookups",
+            "Manual install: cargo install socorro-cli",
+        ],
+    )
 
-    Bundle of three cargo-installed tools: searchfox-cli, treeherder-cli,
-    bmo-to-md. Each is independently optional and prompts the user before
-    installing. Selectable as ``--mozilla cli-tools``; included by default
-    when ``--mozilla`` runs without explicit args.
+
+def install_profiler_cli(tracker=None):
+    """Install @firefox-devtools/profiler-cli (Firefox Profiler CLI) via npm."""
+    display_name = "profiler-cli (Firefox Profiler CLI)"
+    binary_name = "profiler-cli"
+    npm_pkg = "@firefox-devtools/profiler-cli@latest"
+    manual_cmd = f"npm install -g {npm_pkg}"
+
+    print_installing_title(display_name)
+
+    if is_tool(binary_name):
+        print(f"{binary_name} is already installed")
+        return True
+
+    if not is_tool("npm"):
+        print_warning(
+            f"Skipping {display_name}: requires npm (Node.js). "
+            "Install from https://nodejs.org/ and re-run setup, or run "
+            f"`{manual_cmd}` manually later."
+        )
+        return None
+
+    print_tool_prompt(
+        display_name,
+        [
+            "Extract call trees, flamegraphs, and metrics from "
+            "profiler.firefox.com share URLs or local .json.gz profiles",
+            "Used by /analyze-profile and media bug-triage skills",
+        ],
+        [
+            "Profile-analysis skills fall back to manual profiler.firefox.com inspection",
+            f"Manual install: {manual_cmd}",
+        ],
+    )
+    if not get_user_confirmation():
+        print(f"Skipping {display_name} installation")
+        return None
+
+    # On Linux/macOS, npm's default global prefix is /usr/local which
+    # requires root. Use --prefix=$HOME/.local so the binary lands in
+    # ~/.local/bin (auto-added to PATH by dot.bashrc when it exists).
+    # On Windows, npm -g defaults to a user-writable AppData path.
+    npm_cmd = ["npm", "install", "-g"]
+    if not is_windows():
+        npm_cmd.extend(["--prefix", os.path.join(get_home_dir(), ".local")])
+    npm_cmd.append(npm_pkg)
+
+    print(f"Installing {display_name} via npm (may take a while)...")
+    try:
+        result = subprocess.run(npm_cmd, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        print_error(f"Failed to install {display_name}: timed out")
+        return False
+    except FileNotFoundError as e:
+        print_error(f"Failed to invoke npm for {display_name}: {e}")
+        return False
+
+    if result.returncode == 0:
+        print(colors.OK + f"✓ {display_name} installed successfully" + colors.END)
+        return True
+    print_error(
+        f"Failed to install {display_name}: {result.stderr.strip() or result.stdout.strip()}"
+    )
+    return False
+
+
+def mozilla_cli_tools_init(tracker=None):
+    """Install Mozilla-adjacent CLI tools used by Firefox/Claude workflows.
+
+    Bundle of cargo- and npm-installed tools: searchfox-cli, treeherder-cli,
+    bmo-to-md, socorro-cli (cargo), and profiler-cli (npm). Each is
+    independently optional and prompts the user before installing.
+    Selectable as ``--mozilla cli-tools``; included by default when
+    ``--mozilla`` runs without explicit args.
 
     Returns True if every selected install succeeded or was skipped cleanly,
     False if any returned False (hard failure). Skipped/already-installed
     tools count as success.
     """
-    print_installing_title("Mozilla Rust CLI tools (cargo install)", True)
-    installers = [install_searchfox_cli, install_treeherder_cli, install_bmo_to_md]
+    print_installing_title("Mozilla CLI tools (cargo / npm)", True)
+    installers = [
+        install_searchfox_cli,
+        install_treeherder_cli,
+        install_bmo_to_md,
+        install_socorro_cli,
+        install_profiler_cli,
+    ]
     all_ok = True
     for fn in installers:
         if fn(tracker) is False:
