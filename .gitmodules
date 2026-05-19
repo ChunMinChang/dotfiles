@@ -1,6 +1,7 @@
 [submodule "mozilla/firefox/media-skills"]
 	path = mozilla/firefox/media-skills
 	url = https://github.com/ChunMinChang/media-skills
+	branch = triage-experiment
 
 [submodule "mozilla/firefox/alwu-claude-skills"]
 	path = mozilla/firefox/alwu-claude-skills
