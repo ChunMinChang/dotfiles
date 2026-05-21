@@ -20,7 +20,7 @@
       "Bash(tee *)"
     ]
   },
-  "model": "opusplan",
+  "model": "opus",
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "moz"
