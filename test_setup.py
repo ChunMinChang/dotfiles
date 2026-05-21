@@ -542,6 +542,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         # Build a minimal overlay structure for personal skills
         self.overlay_dir = os.path.join(self.test_dir, "overlay")
         os.makedirs(os.path.join(self.overlay_dir, "hooks"))
+        os.makedirs(os.path.join(self.overlay_dir, "agents"))
         os.makedirs(os.path.join(self.overlay_dir, "skills", "my-skill"))
         with open(
             os.path.join(self.overlay_dir, "skills", "my-skill", "SKILL.md"), "w"
@@ -551,6 +552,10 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             os.path.join(self.overlay_dir, "hooks", "post-edit-lint.sh"), "w"
         ) as f:
             f.write("#!/bin/bash\n")
+        with open(
+            os.path.join(self.overlay_dir, "agents", "red-pen-critic.md"), "w"
+        ) as f:
+            f.write("# critic agent")
         with open(os.path.join(self.overlay_dir, "settings.local.json"), "w") as f:
             f.write('{"permissions":{"allow":[]}}')
 
@@ -802,6 +807,36 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             self.assertIn(".claude/skills/s2-validate/", content)
             self.assertIn(".claude/skills/bug-start/", content)
             self.assertIn(".claude/skills/spec-check/", content)
+
+    def test_install_symlinks_agents(self):
+        """Agent files in the overlay get symlinked into .claude/agents/."""
+        self._install()
+        agent_link = os.path.join(
+            self.firefox_dir, ".claude", "agents", "red-pen-critic.md"
+        )
+        self.assertTrue(os.path.islink(agent_link))
+        self.assertIn(self.overlay_dir, os.readlink(agent_link))
+
+    def test_install_gitignore_includes_agents(self):
+        """Agent symlinks appear in .gitignore."""
+        self._install()
+        gitignore = os.path.join(self.firefox_dir, ".gitignore")
+        with open(gitignore) as f:
+            content = f.read()
+        self.assertIn(".claude/agents/red-pen-critic.md", content)
+
+    def test_uninstall_removes_agent_symlinks(self):
+        """Uninstall removes agent symlinks and the empty agents directory."""
+        self._install()
+        agents_dir = os.path.join(self.firefox_dir, ".claude", "agents")
+        agent_link = os.path.join(agents_dir, "red-pen-critic.md")
+        self.assertTrue(os.path.islink(agent_link))
+
+        with patch("setup.get_user_input", return_value=""):
+            setup.uninstall_firefox_claude(self.firefox_dir)
+
+        self.assertFalse(os.path.exists(agent_link))
+        self.assertFalse(os.path.exists(agents_dir))
 
     def test_uninstall_removes_all_skill_symlinks(self):
         """Uninstall removes personal, alwu-claude-skill, and media-skill symlinks."""

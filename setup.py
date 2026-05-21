@@ -3406,6 +3406,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     target_claude_dir = os.path.join(target_dir, ".claude")
     target_hooks_dir = os.path.join(target_claude_dir, "hooks")
     target_skills_dir = os.path.join(target_claude_dir, "skills")
+    target_agents_dir = os.path.join(target_claude_dir, "agents")
     target_settings = os.path.join(target_claude_dir, "settings.local.json")
 
     # Check for existing settings
@@ -3435,12 +3436,13 @@ def install_firefox_claude(target_dir=None, dry_run=False):
         print(f"  Target: {target_dir}")
         print(f"  1. Create directory: {target_hooks_dir}")
         print(f"  2. Create directory: {target_skills_dir}")
+        print(f"  3. Create directory: {target_agents_dir}")
 
         # Track items to add to .gitignore (only our additions, not entire .claude/)
         gitignore_entries = []
 
         # List hooks to symlink
-        step = 3
+        step = 4
         source_hooks = os.path.join(FIREFOX_CLAUDE_OVERLAY, "hooks")
         if os.path.isdir(source_hooks):
             for hook in os.listdir(source_hooks):
@@ -3448,6 +3450,16 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 dst = os.path.join(target_hooks_dir, hook)
                 print(f"  {step}. Symlink: {dst} -> {src}")
                 gitignore_entries.append(f".claude/hooks/{hook}")
+                step += 1
+
+        # List agents to symlink
+        source_agents = os.path.join(FIREFOX_CLAUDE_OVERLAY, "agents")
+        if os.path.isdir(source_agents):
+            for agent in os.listdir(source_agents):
+                src = os.path.join(source_agents, agent)
+                dst = os.path.join(target_agents_dir, agent)
+                print(f"  {step}. Symlink: {dst} -> {src}")
+                gitignore_entries.append(f".claude/agents/{agent}")
                 step += 1
 
         # List skills to symlink (personal)
@@ -3563,8 +3575,10 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     # Create directories
     os.makedirs(target_hooks_dir, exist_ok=True)
     os.makedirs(target_skills_dir, exist_ok=True)
+    os.makedirs(target_agents_dir, exist_ok=True)
     print(f"Created: {target_hooks_dir}")
     print(f"Created: {target_skills_dir}")
+    print(f"Created: {target_agents_dir}")
 
     # Track items to add to .gitignore (only our additions, not entire .claude/)
     gitignore_entries = []
@@ -3585,6 +3599,23 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             os.symlink(src, dst)
             print(f"Linked: {hook}")
             gitignore_entries.append(f".claude/hooks/{hook}")
+
+    # Symlink agents
+    source_agents = os.path.join(FIREFOX_CLAUDE_OVERLAY, "agents")
+    if os.path.isdir(source_agents):
+        for agent in os.listdir(source_agents):
+            src = os.path.join(source_agents, agent)
+            dst = os.path.join(target_agents_dir, agent)
+
+            if os.path.islink(dst):
+                os.unlink(dst)
+            elif os.path.exists(dst):
+                print_warning(f"Skipping existing file: {dst}")
+                continue
+
+            os.symlink(src, dst)
+            print(f"Linked: {agent}")
+            gitignore_entries.append(f".claude/agents/{agent}")
 
     # Symlink skills (personal)
     source_skills = os.path.join(FIREFOX_CLAUDE_OVERLAY, "skills")
@@ -3875,6 +3906,7 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
 
     target_hooks_dir = os.path.join(target_claude_dir, "hooks")
     target_skills_dir = os.path.join(target_claude_dir, "skills")
+    target_agents_dir = os.path.join(target_claude_dir, "agents")
     target_settings = os.path.join(target_claude_dir, "settings.local.json")
 
     removed = []
@@ -3896,6 +3928,20 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
                         os.unlink(hook_path)
                         print(f"Removed: {hook_path}")
                     removed.append(hook_path)
+
+    # Remove agent symlinks
+    if os.path.isdir(target_agents_dir):
+        for agent in os.listdir(target_agents_dir):
+            agent_path = os.path.join(target_agents_dir, agent)
+            if os.path.islink(agent_path):
+                link_target = os.readlink(agent_path)
+                if FIREFOX_CLAUDE_OVERLAY in link_target or ".dotfiles" in link_target:
+                    if dry_run:
+                        print(f"  Would remove symlink: {agent_path}")
+                    else:
+                        os.unlink(agent_path)
+                        print(f"Removed: {agent_path}")
+                    removed.append(agent_path)
 
     # Remove skill symlinks (personal and media-skills)
     if os.path.isdir(target_skills_dir):
@@ -3937,7 +3983,7 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
                     print(f"Restored: {target_settings}")
 
     # Clean up empty directories
-    for dir_path in [target_hooks_dir, target_skills_dir]:
+    for dir_path in [target_hooks_dir, target_skills_dir, target_agents_dir]:
         if os.path.isdir(dir_path) and not os.listdir(dir_path):
             if dry_run:
                 print(f"  Would remove empty directory: {dir_path}")
