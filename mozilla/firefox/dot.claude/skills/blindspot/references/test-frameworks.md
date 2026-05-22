@@ -32,6 +32,41 @@ attachments. Blindspot starts from a hypothesis. Two practical implications:
 | Standalone JS API w/o DOM | **xpcshell** | Faster than mochitest for JS-only checks. |
 | Race / timing | reconsider | See sherlock doc — usually skip the test and document. |
 
+## Running a WPT against another engine
+
+When the chosen framework is WPT, the same `.html` / `.js` test can be run
+against Chrome / Chromium / Safari / WebKit / Edge via `./mach wpt`'s
+`--product` and `--binary` flags. This is the cheapest way to confirm a
+cross-engine behavioural delta the report claims:
+
+```bash
+# Firefox (default)
+./mach wpt testing/web-platform/tests/path/to/test.html
+
+# Chrome / Chromium
+./mach wpt --product chrome --binary /usr/bin/google-chrome \
+  testing/web-platform/tests/path/to/test.html
+
+# Chrome headless shell
+./mach wpt --product headless_shell --binary /path/to/headless_shell \
+  testing/web-platform/tests/path/to/test.html
+
+# WebKit / Safari (see --webkit-port, --kill-safari)
+./mach wpt --product webkit --binary /path/to/MiniBrowser \
+  testing/web-platform/tests/path/to/test.html
+```
+
+Supported `--product` values include `chrome`, `chromium`, `headless_shell`,
+`safari`, `webkit`, `edge`, `chrome_android`, `firefox`, `firefox_android`,
+and several others — `./mach wpt --help | grep -- --product` shows the full
+list on this machine.
+
+Use this in Phase 3 when WPT is the framework and the hypothesis claims a
+cross-engine delta: run the test against both Firefox (FAIL expected) and
+Chrome (PASS / FAIL per the spec or the predicted Chrome behaviour). Capture
+both logs to `<run_dir>/logs/test-h<N>-firefox.log` and
+`<run_dir>/logs/test-h<N>-chrome.log` so the report can cite both outcomes.
+
 ## Reaching the blindspot "end-to-end" bar
 
 A test is end-to-end when **every step from the user-controllable input to the
