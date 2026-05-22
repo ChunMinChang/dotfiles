@@ -7,6 +7,24 @@ primitive. No harness flag exists or is needed.
 Each team has a tight I/O contract. Subagents never declare the verdict; the main
 agent synthesises after all teams return.
 
+## Output persistence
+
+**Every team writes its full findings to a dedicated file** under `<run_dir>/`
+and returns only a short summary (≤10 lines) for synthesis. The main agent
+reads the file when it needs the full results — never relies on the subagent
+transcript. This makes the work survivable: if the session halts, the next
+session resumes from the on-disk files.
+
+| Team | Output file (under `<run_dir>/`) |
+|---|---|
+| Team C | `team-c-code-trace.md` |
+| Team H | `team-h-hypotheses.md` |
+| Team D | `team-d-design-archaeology.md` |
+| Team X | `team-x-cross-browser.md` |
+| Team T | `team-t-frameworks.md` |
+
+Each prompt template below ends with an instruction to write to that file.
+
 ---
 
 ## Team C — Code trace
@@ -33,12 +51,19 @@ Tasks:
    missing nullchecks, early returns that swallow errors, comments documenting a
    workaround, dead branches.
 
-Output: a numbered Markdown list of trace steps. Each entry:
-  N. [`Class::Method`](https://searchfox.org/firefox-main/rev/<sha>/<path>#L<n>) — one-line description
-     - evidence sub-bullet (quote the relevant 1–2 lines)
+Output:
 
-End with a "Notable observations" block of bullet points. Do NOT declare the
-root cause. Do NOT propose fixes.
+1. **Write to disk:** `<run_dir>/team-c-code-trace.md`. The file is a
+   numbered Markdown list of trace steps. Each entry:
+     N. [`Class::Method`](https://searchfox.org/firefox-main/rev/<sha>/<path>#L<n>) — one-line description
+        - evidence sub-bullet (quote the relevant 1–2 lines)
+   End the file with a "Notable observations" block of bullet points.
+
+2. **Return** a short summary (≤10 lines): how many trace steps you produced,
+   the 2–3 most striking observations, and any blockers. The main agent will
+   `Read` the file for the full content.
+
+Do NOT declare the root cause. Do NOT propose fixes.
 ```
 
 **Hard rules:** revision-pinned URLs only. Never invent line numbers. Never claim
@@ -70,8 +95,16 @@ Generate AT LEAST 5 concrete failure scenarios. For each:
 
 Then rank them: highest confirm_value / probe_cost first.
 
-Output: a Markdown table with columns
-  | # | Hypothesis | Mechanism | Predicted signal | Probe cost | Rank |
+Output:
+
+1. **Write to disk:** `<run_dir>/team-h-hypotheses.md`. The file contains
+   a Markdown table with columns
+     | # | Hypothesis | Mechanism | Predicted signal | Probe cost | Rank |
+   followed by one paragraph per hypothesis expanding on the precondition.
+
+2. **Return** a short summary (≤10 lines): hypothesis count, top-3 by rank
+   with their one-line mechanism, and any class of failure you considered
+   and dropped (with reason).
 
 Do NOT pick the verdict. Do NOT propose fixes.
 ```
@@ -100,14 +133,21 @@ Tasks:
    constraint or tradeoff.
 
 Output:
-  - Introducing commit (hash + bugzilla link)
-  - Original purpose (1 sentence)
-  - Design rationale (cite commit message / bug discussion)
-  - Constraints/tradeoffs
-  - Function contract (preconditions, postconditions, invariants,
-    threading model, ownership)
-  - Drift signals (followup commits patching the same area, comments
-    documenting workarounds, dead branches)
+
+1. **Write to disk:** `<run_dir>/team-d-design-archaeology.md`. The file
+   covers:
+     - Introducing commit (hash + bugzilla link)
+     - Original purpose (1 sentence)
+     - Design rationale (cite commit message / bug discussion)
+     - Constraints/tradeoffs
+     - Function contract (preconditions, postconditions, invariants,
+       threading model, ownership)
+     - Drift signals (followup commits patching the same area, comments
+       documenting workarounds, dead branches)
+
+2. **Return** a short summary (≤10 lines): introducing-commit hash + bug,
+   one-sentence original purpose, the single most important constraint,
+   and any drift signal worth flagging.
 
 Do NOT claim how the current claim relates to the design. That is the main
 agent's job.
@@ -138,11 +178,17 @@ Tasks:
    .org); otherwise rely on spec wording.
 
 Output:
-  - Spec citation (URL + section, or "no spec — internal").
-  - Behaviour table:
-      | Engine | Behaviour | Source |
-  - Existing WPT coverage (paths) or note "none".
-  - Notable spec/impl divergence (if any).
+
+1. **Write to disk:** `<run_dir>/team-x-cross-browser.md`. The file contains:
+     - Spec citation (URL + section, or "no spec — internal").
+     - Behaviour table:
+         | Engine | Behaviour | Source |
+     - Existing WPT coverage (paths) or "none".
+     - Notable spec/impl divergence (if any).
+
+2. **Return** a short summary (≤10 lines): one-sentence spec status, the
+   cross-engine behaviour delta in one line, and existing WPT coverage
+   count.
 
 Do NOT pick the verdict.
 ```
@@ -175,8 +221,15 @@ For each pick, find a representative neighbour test in the tree that already
 exercises the suspect code path (same dir or sibling dir). The new test
 should be written in that file's style.
 
-Output: Markdown table
-  | # | Hypothesis | Framework | Neighbour test path | Reason |
+Output:
+
+1. **Write to disk:** `<run_dir>/team-t-frameworks.md`. The file is a
+   Markdown table with columns
+     | # | Hypothesis | Framework | Neighbour test path | Reason |
+
+2. **Return** a short summary (≤10 lines): framework distribution across
+   hypotheses (e.g. "3 gtest, 1 wpt, 1 crashtest") and any hypothesis where
+   you weren't confident about the framework choice.
 
 Do NOT write the tests. Do NOT pick the verdict.
 ```

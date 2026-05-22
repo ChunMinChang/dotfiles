@@ -139,16 +139,22 @@ def resolve_rev():
 
 
 def slug(text):
-    """Produce a short kebab-case slug from the first ~5 tokens of `text`.
+    """Sanitize `text` into a kebab-case slug suitable for a directory name.
 
-    Strips non-alphanumeric, lowercases, joins with '-', caps at 60 chars.
+    Lowercases, replaces any run of non-alphanumeric chars with a single
+    hyphen, strips leading/trailing hyphens. Caps at 60 chars on a hyphen
+    boundary so the slug never ends mid-word. The caller (main agent) is
+    expected to pass a 3-6 token phrase that already captures the gist —
+    this function is a sanitizer, not a summarizer.
     """
-    tokens = re.findall(r"[A-Za-z0-9]+", text)[:5]
-    if not tokens:
-        print("error: claim text produced no tokens for slug",
+    s = re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-").lower()
+    if not s:
+        print("error: input produced no slug characters",
               file=sys.stderr)
         sys.exit(1)
-    s = "-".join(t.lower() for t in tokens)[:60]
+    if len(s) > 60:
+        cut = s.rfind("-", 0, 60)
+        s = s[:cut] if cut > 0 else s[:60]
     print(s)
 
 
