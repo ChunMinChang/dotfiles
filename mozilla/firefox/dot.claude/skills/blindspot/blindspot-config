@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+"""Blindspot configuration and helper utility.
+
+Reads/writes ~/.config/firefox-blindspot/config.toml, resolves the
+searchfox revision pin, generates per-claim slugs, and validates
+prerequisites.
+
+Usage:
+    blindspot-config --check-setup
+    blindspot-config --get-output-dir
+    blindspot-config --set-output-dir <path>
+    blindspot-config --get-patch-author
+    blindspot-config --resolve-rev
+    blindspot-config --slug "<claim text>"
+"""
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+CONFIG_PATH = os.path.expanduser("~/.config/firefox-blindspot/config.toml")
+
+
+# ---------------------------------------------------------------------------
+# Tiny TOML helpers (single-key flat schema, no [tables])
+# ---------------------------------------------------------------------------
+
+def _read_field(path, field):
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith(field):
+                    _, _, val = line.partition("=")
+                    val = val.strip().strip('"').strip("'")
+                    if val:
+                        return val
+    except OSError:
+        pass
+    return None
+
+
+def _write_field(path, field, value):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lines = []
+    seen = False
+    if os.path.isfile(path):
+        with open(path) as f:
+            for line in f:
+                if line.strip().startswith(field):
+                    lines.append(f'{field} = "{value}"\n')
+                    seen = True
+                else:
+                    lines.append(line)
+    if not seen:
+        lines.append(f'{field} = "{value}"\n')
+    with open(path, "w") as f:
+        f.writelines(lines)
+
+
+def _has_command(name):
+    return shutil.which(name) is not None
+
+
+# ---------------------------------------------------------------------------
+# Actions
+# ---------------------------------------------------------------------------
+
+def get_output_dir():
+    print(_read_field(CONFIG_PATH, "output_dir") or "")
+
+
+def set_output_dir(path):
+    expanded = os.path.expanduser(path)
+    if not os.path.isabs(expanded):
+        print(f"error: output_dir must be an absolute path, got {path}",
+              file=sys.stderr)
+        sys.exit(1)
+    os.makedirs(expanded, exist_ok=True)
+    _write_field(CONFIG_PATH, "output_dir", expanded)
+    print(f"OK: output_dir = {expanded}")
+
+
+def get_patch_author():
+    val = _read_field(CONFIG_PATH, "patch_author")
+    if val:
+        print(val)
+        return
+    try:
+        name = subprocess.run(
+            ["git", "config", "user.name"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        email = subprocess.run(
+            ["git", "config", "user.email"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        if name and email:
+            print(f"{name} <{email}>")
+            return
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    print("")
+
+
+def resolve_rev():
+    """Print the current mozilla-central HEAD short hash for permalink pinning.
+
+    Falls back gracefully: tries `git rev-parse HEAD`, then `jj log` for the
+    nearest @ commit.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        if out:
+            print(out)
+            return
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    try:
+        out = subprocess.run(
+            ["jj", "log", "-r", "@", "--no-graph", "-T", "commit_id"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        if out:
+            print(out)
+            return
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    print("error: could not resolve current revision", file=sys.stderr)
+    sys.exit(1)
+
+
+def slug(text):
+    """Produce a short kebab-case slug from the first ~5 tokens of `text`.
+
+    Strips non-alphanumeric, lowercases, joins with '-', caps at 60 chars.
+    """
+    tokens = re.findall(r"[A-Za-z0-9]+", text)[:5]
+    if not tokens:
+        print("error: claim text produced no tokens for slug",
+              file=sys.stderr)
+        sys.exit(1)
+    s = "-".join(t.lower() for t in tokens)[:60]
+    print(s)
+
+
+def check_setup():
+    ok = True
+
+    if _has_command("searchfox-cli"):
+        print("OK: searchfox-cli is installed")
+    else:
+        print("MISSING: searchfox-cli not found on PATH")
+        ok = False
+
+    if _has_command("git"):
+        print("OK: git is installed")
+    else:
+        print("MISSING: git not found on PATH")
+        ok = False
+
+    out = _read_field(CONFIG_PATH, "output_dir")
+    if out:
+        print(f"OK: output_dir = {out}")
+    else:
+        print(f"INFO: output_dir not configured in {CONFIG_PATH}"
+              " (caller may supply via --output-dir)")
+
+    try:
+        name = subprocess.run(
+            ["git", "config", "user.name"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        email = subprocess.run(
+            ["git", "config", "user.email"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        if name and email:
+            print(f"OK: git author = {name} <{email}>")
+        else:
+            print("MISSING: git user.name / user.email not set")
+            ok = False
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("MISSING: git config could not be read")
+        ok = False
+
+    if not ok:
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--check-setup", action="store_true")
+    parser.add_argument("--get-output-dir", action="store_true")
+    parser.add_argument("--set-output-dir", metavar="PATH")
+    parser.add_argument("--get-patch-author", action="store_true")
+    parser.add_argument("--resolve-rev", action="store_true")
+    parser.add_argument("--slug", metavar="TEXT")
+    args = parser.parse_args()
+
+    actions = [
+        args.check_setup,
+        args.get_output_dir,
+        args.set_output_dir is not None,
+        args.get_patch_author,
+        args.resolve_rev,
+        args.slug is not None,
+    ]
+    if sum(actions) == 0:
+        parser.print_help()
+        sys.exit(1)
+    if sum(actions) > 1:
+        parser.error("specify exactly one action")
+
+    if args.check_setup:
+        check_setup()
+    elif args.get_output_dir:
+        get_output_dir()
+    elif args.set_output_dir is not None:
+        set_output_dir(args.set_output_dir)
+    elif args.get_patch_author:
+        get_patch_author()
+    elif args.resolve_rev:
+        resolve_rev()
+    elif args.slug is not None:
+        slug(args.slug)
+
+
+if __name__ == "__main__":
+    main()
