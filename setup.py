@@ -3069,6 +3069,79 @@ def _symlink_target_is_empty(path):
         return False
 
 
+def _rewrite_skill_name(content, new_name):
+    """Rewrite the YAML frontmatter ``name:`` field in SKILL.md content.
+
+    Claude Code identifies a skill by the ``name:`` field, not the directory
+    name — so renaming the install directory alone is not enough to avoid a
+    collision with another skill that declares the same name. This rewrites
+    the frontmatter so the rename actually takes effect.
+
+    Returns the original content unchanged if there is no frontmatter to edit.
+    """
+    if not content.startswith("---\n"):
+        return content
+    end = content.find("\n---\n", 4)
+    if end == -1:
+        return content
+    frontmatter = content[4:end]
+    body = content[end + 5 :]
+    lines = frontmatter.splitlines()
+    rewritten = False
+    for i, line in enumerate(lines):
+        stripped = line.lstrip()
+        if stripped.startswith("name:"):
+            indent = line[: len(line) - len(stripped)]
+            lines[i] = f"{indent}name: {new_name}"
+            rewritten = True
+            break
+    if not rewritten:
+        lines.insert(0, f"name: {new_name}")
+    return "---\n" + "\n".join(lines) + "\n---\n" + body
+
+
+def _materialize_renamed_alwu_skill(src_dir, dst_dir, install_name):
+    """Create ``dst_dir`` for a renamed alwu skill.
+
+    ``SKILL.md`` is materialized as a real file with its ``name:`` field
+    rewritten to ``install_name``; all other entries are symlinked from
+    ``src_dir``. A pure symlink won't work because Claude reads the skill
+    name from the file's frontmatter, not the directory it lives in.
+    """
+    os.makedirs(dst_dir)
+    for entry in sorted(os.listdir(src_dir)):
+        src_entry = os.path.join(src_dir, entry)
+        dst_entry = os.path.join(dst_dir, entry)
+        if (
+            entry == "SKILL.md"
+            and os.path.isfile(src_entry)
+            and not os.path.islink(src_entry)
+        ):
+            with open(src_entry, encoding="utf-8") as f:
+                content = f.read()
+            with open(dst_entry, "w", encoding="utf-8") as f:
+                f.write(_rewrite_skill_name(content, install_name))
+        else:
+            os.symlink(src_entry, dst_entry)
+
+
+def _is_materialized_alwu_skill(dst_dir, install_name):
+    """True if ``dst_dir`` looks like an installed renamed alwu skill.
+
+    Signature: directory name is one of the rename targets, contains a
+    SKILL.md regular file, and at least one entry is either that SKILL.md
+    or a symlink into ALWU_CLAUDE_SKILLS_DIR.
+    """
+    if install_name not in ALWU_CLAUDE_SKILLS_RENAME.values():
+        return False
+    if not os.path.isdir(dst_dir) or os.path.islink(dst_dir):
+        return False
+    skill_md = os.path.join(dst_dir, "SKILL.md")
+    if not (os.path.isfile(skill_md) and not os.path.islink(skill_md)):
+        return False
+    return True
+
+
 def ensure_target_core_symlinks(target_dir, dry_run=False):
     """Ensure ``core.symlinks=true`` in the target git repo.
 
@@ -3256,6 +3329,9 @@ def cleanup_stale_skills(target_skills_dir, target_dir, dry_run=False):
                     os.rmdir(path)
                     print(f"Removed empty directory: {path}")
                 stale_names.append(name)
+            elif _is_materialized_alwu_skill(path, name):
+                # Managed: a renamed alwu skill materialized at install time.
+                pass
             else:
                 # Self-contained skill (populated, or empty but not ours).
                 external.append(("self-contained skill", path))
@@ -3507,10 +3583,13 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                     continue
                 src = os.path.join(ALWU_CLAUDE_SKILLS_DIR, skill)
                 dst = os.path.join(target_skills_dir, install_name)
-                label = f"{skill} -> {install_name}" if skill != install_name else skill
-                print(
-                    f"  {step}. Symlink (alwu-claude-skills): {dst} -> {src} [{label}]"
-                )
+                if skill != install_name:
+                    print(
+                        f"  {step}. Materialize (alwu-claude-skills): {dst} from "
+                        f"{src} [{skill} -> {install_name}, SKILL.md `name:` rewritten]"
+                    )
+                else:
+                    print(f"  {step}. Symlink (alwu-claude-skills): {dst} -> {src}")
                 gitignore_entries.append(f".claude/skills/{install_name}/")
                 alwu_claude_skill_names.add(install_name)
                 step += 1
@@ -3665,17 +3744,28 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 )
                 continue
             dst = os.path.join(target_skills_dir, install_name)
+            needs_materialize = skill != install_name
 
             if os.path.islink(dst):
                 os.unlink(dst)
+            elif os.path.isdir(dst):
+                if needs_materialize and _is_materialized_alwu_skill(dst, install_name):
+                    shutil.rmtree(dst)
+                else:
+                    print_warning(f"Skipping existing directory: {dst}")
+                    continue
             elif os.path.exists(dst):
-                print_warning(f"Skipping existing directory: {dst}")
+                print_warning(f"Skipping existing file: {dst}")
                 continue
 
-            os.symlink(src, dst)
-            if skill != install_name:
-                print(f"Linked (alwu-claude-skills): {skill} as {install_name}")
+            if needs_materialize:
+                _materialize_renamed_alwu_skill(src, dst, install_name)
+                print(
+                    f"Installed (alwu-claude-skills): {skill} as {install_name} "
+                    f"(SKILL.md `name:` rewritten)"
+                )
             else:
+                os.symlink(src, dst)
                 print(f"Linked (alwu-claude-skills): {skill}")
             gitignore_entries.append(f".claude/skills/{install_name}/")
             alwu_claude_skill_names.add(install_name)
@@ -3943,7 +4033,8 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
                         print(f"Removed: {agent_path}")
                     removed.append(agent_path)
 
-    # Remove skill symlinks (personal and media-skills)
+    # Remove skill symlinks (personal and media-skills) and materialized
+    # renamed alwu-skill directories.
     if os.path.isdir(target_skills_dir):
         for skill in os.listdir(target_skills_dir):
             skill_path = os.path.join(target_skills_dir, skill)
@@ -3961,6 +4052,13 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
                         os.unlink(skill_path)
                         print(f"Removed: {skill_path}")
                     removed.append(skill_path)
+            elif _is_materialized_alwu_skill(skill_path, skill):
+                if dry_run:
+                    print(f"  Would remove materialized dir: {skill_path}")
+                else:
+                    shutil.rmtree(skill_path)
+                    print(f"Removed: {skill_path}")
+                removed.append(skill_path)
 
     # Remove settings symlink
     if os.path.islink(target_settings):

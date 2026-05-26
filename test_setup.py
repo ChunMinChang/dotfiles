@@ -782,19 +782,65 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "my-skill")))
         self.assertTrue(os.path.islink(os.path.join(skills_dir, "bugzilla-wrangler")))
 
+    def _write_alwu_skill_with_frontmatter(self, skill_name, description="x"):
+        """Overwrite an alwu test skill's SKILL.md with a proper frontmatter
+        block (name: matches dir, plus a description). Used to test the
+        rename-time `name:` rewrite.
+        """
+        path = os.path.join(self.claude_dir, skill_name, "SKILL.md")
+        with open(path, "w") as f:
+            f.write(
+                "---\n"
+                f"name: {skill_name}\n"
+                f"description: {description}\n"
+                "---\n\n"
+                f"# {skill_name}\n\nbody\n"
+            )
+
     def test_install_alwu_claude_skills_rename(self):
-        """Claude-skills with rename mapping are installed under the new name."""
+        """Renamed alwu skills are materialized as a real directory with
+        SKILL.md `name:` rewritten — not a directory symlink — so Claude
+        registers them under the new name instead of the upstream one."""
+        self._write_alwu_skill_with_frontmatter("bug-start")
         setup.ALWU_CLAUDE_SKILLS_RENAME = {"bug-start": "media-bug-start"}
         self._install()
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
         # Original name should NOT exist
         self.assertFalse(os.path.exists(os.path.join(skills_dir, "bug-start")))
-        # Renamed version should be symlinked to the original source
+        # Renamed version: real directory, not a symlink
         renamed = os.path.join(skills_dir, "media-bug-start")
-        self.assertTrue(os.path.islink(renamed))
-        link_target = normalize_link_target(os.readlink(renamed))
-        self.assertIn(os.path.normpath(self.claude_dir), link_target)
-        self.assertEqual(os.path.basename(link_target), "bug-start")
+        self.assertTrue(os.path.isdir(renamed))
+        self.assertFalse(
+            os.path.islink(renamed),
+            "renamed alwu skill must be materialized, not a symlink",
+        )
+        # SKILL.md inside is a real file with `name:` rewritten to install_name
+        skill_md = os.path.join(renamed, "SKILL.md")
+        self.assertTrue(os.path.isfile(skill_md))
+        self.assertFalse(os.path.islink(skill_md))
+        with open(skill_md) as f:
+            content = f.read()
+        self.assertIn("name: media-bug-start", content)
+        self.assertNotIn("name: bug-start", content)
+
+    def test_install_renamed_alwu_skill_rewrites_skill_md_name(self):
+        """Regression test for the surface user-visible bug: two `/sec-approval`
+        skills appearing in Claude after install. The directory rename is not
+        enough — the `name:` frontmatter field must also be rewritten."""
+        self._write_alwu_skill_with_frontmatter("bug-start", description="alwu")
+        setup.ALWU_CLAUDE_SKILLS_RENAME = {"bug-start": "alwu-bug-start"}
+        self._install()
+        skill_md = os.path.join(
+            self.firefox_dir, ".claude", "skills", "alwu-bug-start", "SKILL.md"
+        )
+        with open(skill_md) as f:
+            content = f.read()
+        # Body and description preserved
+        self.assertIn("description: alwu", content)
+        self.assertIn("# bug-start", content)
+        # name: rewritten (only once, no leftover)
+        self.assertEqual(content.count("name: alwu-bug-start"), 1)
+        self.assertNotIn("name: bug-start\n", content)
 
     def test_install_renamed_alwu_skill_frees_name_for_media_skill(self):
         """Media-skills retains its original name when alwu-claude-skills renames a
@@ -811,20 +857,18 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         os.makedirs(media_bug_start)
         with open(os.path.join(media_bug_start, "SKILL.md"), "w") as f:
             f.write("media bug-start")
+        self._write_alwu_skill_with_frontmatter("bug-start")
         setup.ALWU_CLAUDE_SKILLS_RENAME = {"bug-start": "alwu-bug-start"}
 
         self._install()
 
         skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
-        # alwu's renamed copy lives under the new name.
-        alwu_link = os.path.join(skills_dir, "alwu-bug-start")
-        self.assertTrue(os.path.islink(alwu_link))
-        self.assertIn(
-            os.path.normpath(self.claude_dir),
-            normalize_link_target(os.readlink(alwu_link)),
-        )
-        # media-skills' bug-start must still be installed under its raw name —
-        # not skipped because alwu had a same-named (now renamed) skill.
+        # alwu's renamed copy lives under the new name as a materialized dir.
+        alwu_dst = os.path.join(skills_dir, "alwu-bug-start")
+        self.assertTrue(os.path.isdir(alwu_dst))
+        self.assertFalse(os.path.islink(alwu_dst))
+        # media-skills' bug-start must still be installed under its raw name
+        # as a directory symlink into media-skills.
         media_link = os.path.join(skills_dir, "bug-start")
         self.assertTrue(
             os.path.islink(media_link),
@@ -834,6 +878,104 @@ class TestInstallFirefoxClaude(unittest.TestCase):
             os.path.normpath(self.media_dir),
             normalize_link_target(os.readlink(media_link)),
         )
+
+    def test_install_collision_yields_two_distinct_skill_names(self):
+        """End-to-end: when alwu and media-skills both declare the SAME `name:`
+        in their SKILL.md frontmatter (the real-world sec-approval case),
+        installing both must produce TWO DISTINCT names in the parsed
+        frontmatter — what Claude actually reads when registering skills.
+
+        Without the rename rewriting the alwu copy's `name:` field, Claude
+        would see two skills both named the upstream name (e.g. two
+        `/sec-approval` entries).
+        """
+        # Both alwu and media-skills declare `name: sec-approval` — the exact
+        # collision the user hit.
+        for root in (self.claude_dir, self.media_dir):
+            d = os.path.join(root, "sec-approval")
+            os.makedirs(d, exist_ok=True)
+            with open(os.path.join(d, "SKILL.md"), "w") as f:
+                f.write(
+                    "---\n"
+                    "name: sec-approval\n"
+                    f"description: from {os.path.basename(root)}\n"
+                    "---\n\nbody\n"
+                )
+        setup.ALWU_CLAUDE_SKILLS_RENAME = {"sec-approval": "sec-approval-draft"}
+
+        self._install()
+
+        skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
+
+        def parse_frontmatter_name(skill_md_path):
+            with open(skill_md_path) as f:
+                content = f.read()
+            self.assertTrue(content.startswith("---\n"), skill_md_path)
+            end = content.find("\n---\n", 4)
+            for line in content[4:end].splitlines():
+                if line.startswith("name:"):
+                    return line.split(":", 1)[1].strip()
+            self.fail(f"no name: in {skill_md_path}")
+
+        alwu_name = parse_frontmatter_name(
+            os.path.join(skills_dir, "sec-approval-draft", "SKILL.md")
+        )
+        media_name = parse_frontmatter_name(
+            os.path.join(skills_dir, "sec-approval", "SKILL.md")
+        )
+
+        # This is the user-visible contract: Claude reads `name:` from each
+        # SKILL.md; the two values must differ so the two `/sec-approval`
+        # collision the user reported cannot recur.
+        self.assertNotEqual(
+            alwu_name,
+            media_name,
+            "alwu and media-skills SKILL.md `name:` fields collide after install",
+        )
+        self.assertEqual(alwu_name, "sec-approval-draft")
+        self.assertEqual(media_name, "sec-approval")
+
+    def test_uninstall_removes_materialized_renamed_alwu_skill(self):
+        """Uninstall cleans up the materialized rename directory, not just symlinks."""
+        self._write_alwu_skill_with_frontmatter("bug-start")
+        setup.ALWU_CLAUDE_SKILLS_RENAME = {"bug-start": "media-bug-start"}
+        self._install()
+        materialized = os.path.join(
+            self.firefox_dir, ".claude", "skills", "media-bug-start"
+        )
+        self.assertTrue(os.path.isdir(materialized))
+
+        with patch("setup.get_user_input", return_value=""):
+            setup.uninstall_firefox_claude(self.firefox_dir)
+
+        self.assertFalse(os.path.exists(materialized))
+
+    def test_reinstall_replaces_materialized_renamed_alwu_skill(self):
+        """Re-running install regenerates the materialized dir (picks up upstream
+        changes), not skips it as an existing directory."""
+        self._write_alwu_skill_with_frontmatter("bug-start", description="v1")
+        setup.ALWU_CLAUDE_SKILLS_RENAME = {"bug-start": "media-bug-start"}
+        self._install()
+
+        # Drop the settings symlink to avoid the merge/override prompt blocking
+        # the second install (this test focuses on the skill materialization
+        # path; settings handling has its own coverage).
+        settings_link = os.path.join(self.firefox_dir, ".claude", "settings.local.json")
+        if os.path.lexists(settings_link):
+            os.unlink(settings_link)
+
+        # Upstream changes between installs
+        self._write_alwu_skill_with_frontmatter("bug-start", description="v2")
+        self._install()
+
+        skill_md = os.path.join(
+            self.firefox_dir, ".claude", "skills", "media-bug-start", "SKILL.md"
+        )
+        with open(skill_md) as f:
+            content = f.read()
+        self.assertIn("description: v2", content)
+        self.assertNotIn("description: v1", content)
+        self.assertIn("name: media-bug-start", content)
 
     def test_install_gitignore_includes_all_skills(self):
         """Claude-skill and media-skill entries appear in .gitignore."""
