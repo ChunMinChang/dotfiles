@@ -796,6 +796,45 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self.assertIn(os.path.normpath(self.claude_dir), link_target)
         self.assertEqual(os.path.basename(link_target), "bug-start")
 
+    def test_install_renamed_alwu_skill_frees_name_for_media_skill(self):
+        """Media-skills retains its original name when alwu-claude-skills renames a
+        same-named skill.
+
+        Regression test: the conflict check between media-skills and
+        alwu-claude-skills must compare *installed* names (post-rename), not raw
+        directory names. Otherwise an alwu skill that was renamed out of the way
+        still blocks the media-skills version from being symlinked.
+        """
+        # alwu and media each have a skill called "bug-start"; alwu renames its
+        # copy to "alwu-bug-start", so media-skills' "bug-start" should install.
+        media_bug_start = os.path.join(self.media_dir, "bug-start")
+        os.makedirs(media_bug_start)
+        with open(os.path.join(media_bug_start, "SKILL.md"), "w") as f:
+            f.write("media bug-start")
+        setup.ALWU_CLAUDE_SKILLS_RENAME = {"bug-start": "alwu-bug-start"}
+
+        self._install()
+
+        skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
+        # alwu's renamed copy lives under the new name.
+        alwu_link = os.path.join(skills_dir, "alwu-bug-start")
+        self.assertTrue(os.path.islink(alwu_link))
+        self.assertIn(
+            os.path.normpath(self.claude_dir),
+            normalize_link_target(os.readlink(alwu_link)),
+        )
+        # media-skills' bug-start must still be installed under its raw name —
+        # not skipped because alwu had a same-named (now renamed) skill.
+        media_link = os.path.join(skills_dir, "bug-start")
+        self.assertTrue(
+            os.path.islink(media_link),
+            "media-skills bug-start should be symlinked despite alwu's rename",
+        )
+        self.assertIn(
+            os.path.normpath(self.media_dir),
+            normalize_link_target(os.readlink(media_link)),
+        )
+
     def test_install_gitignore_includes_all_skills(self):
         """Claude-skill and media-skill entries appear in .gitignore."""
         self._install()

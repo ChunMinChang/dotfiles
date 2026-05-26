@@ -3678,7 +3678,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             else:
                 print(f"Linked (alwu-claude-skills): {skill}")
             gitignore_entries.append(f".claude/skills/{install_name}/")
-            alwu_claude_skill_names.add(skill)
+            alwu_claude_skill_names.add(install_name)
 
     # Symlink media-skills (team-wide)
     if ensure_submodule_populated(MEDIA_SKILLS_DIR, "media-skills"):
