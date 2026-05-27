@@ -1556,8 +1556,393 @@ def _msvc_env_from_mozbuild():
     return env
 
 
+# Mapping from transitive Rust sys-crate name to the OS packages required to
+# compile it. Membership in this dict is what _probe_cargo_system_deps uses
+# to translate a crate's dependency tree into a list of apt/brew packages to
+# prompt for. Extend when a new cargo tool surfaces a new sys-crate.
+RUST_SYS_DEP_MAP = {
+    "openssl-sys": {
+        "apt": ["libssl-dev", "pkg-config"],
+        "brew": ["openssl@3", "pkg-config"],
+    },
+    "libdbus-sys": {
+        "apt": ["libdbus-1-dev", "pkg-config"],
+        "brew": ["dbus", "pkg-config"],
+    },
+    "aws-lc-sys": {
+        "apt": ["cmake", "build-essential"],
+        "brew": ["cmake"],
+    },
+    "ring": {
+        "apt": ["clang", "build-essential"],
+        "brew": [],
+    },
+    "libsecret-sys": {
+        "apt": ["libsecret-1-dev", "pkg-config"],
+        "brew": [],
+    },
+}
+
+
+def _apt_pkg_installed(pkg):
+    """Return True if apt package is installed, False if not, None if dpkg missing."""
+    try:
+        result = subprocess.run(
+            ["dpkg", "-s", pkg], capture_output=True, timeout=10
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return None
+    except (subprocess.TimeoutExpired, Exception):
+        return False
+
+
+def _brew_pkg_installed(pkg):
+    """Return True if brew formula is installed, False if not, None if brew missing."""
+    try:
+        result = subprocess.run(
+            ["brew", "list", "--versions", pkg], capture_output=True, timeout=10
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return None
+    except (subprocess.TimeoutExpired, Exception):
+        return False
+
+
+def _probe_cargo_system_deps(crate_name):
+    """Return {'apt': [...], 'brew': [...]} of OS packages required to build crate.
+
+    Runs ``cargo metadata`` against a throwaway Cargo.toml that depends on
+    ``crate_name``, walks the transitive dependency tree, and intersects
+    with RUST_SYS_DEP_MAP. Returns empty lists on probe failure so the
+    caller can still attempt the install rather than block on probe errors.
+    """
+    empty = {"apt": [], "brew": []}
+    if not is_tool("cargo"):
+        return empty
+    tmpdir = tempfile.mkdtemp(prefix="dotfiles-depprobe-")
+    try:
+        manifest = (
+            "[package]\n"
+            'name = "depprobe"\n'
+            'version = "0.0.0"\n'
+            'edition = "2021"\n'
+            "\n"
+            "[dependencies]\n"
+            f'{crate_name} = "*"\n'
+        )
+        with open(os.path.join(tmpdir, "Cargo.toml"), "w", encoding="utf-8") as f:
+            f.write(manifest)
+        os.mkdir(os.path.join(tmpdir, "src"))
+        with open(os.path.join(tmpdir, "src", "main.rs"), "w", encoding="utf-8") as f:
+            f.write("fn main(){}\n")
+        try:
+            result = subprocess.run(
+                ["cargo", "metadata", "--format-version=1", "--quiet"],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            print_warning(
+                f"Could not probe system deps for {crate_name} "
+                "(cargo metadata failed); proceeding without dep prompt."
+            )
+            return empty
+        if result.returncode != 0:
+            print_warning(
+                f"Could not probe system deps for {crate_name} "
+                "(cargo metadata returned non-zero); proceeding without dep prompt."
+            )
+            return empty
+        try:
+            meta = json.loads(result.stdout)
+        except (ValueError, json.JSONDecodeError):
+            return empty
+        crate_names = {p.get("name", "") for p in meta.get("packages", [])}
+        apt_pkgs, brew_pkgs = [], []
+        for sys_crate, pkgs in RUST_SYS_DEP_MAP.items():
+            if sys_crate not in crate_names:
+                continue
+            for p in pkgs.get("apt", []):
+                if p not in apt_pkgs:
+                    apt_pkgs.append(p)
+            for p in pkgs.get("brew", []):
+                if p not in brew_pkgs:
+                    brew_pkgs.append(p)
+        return {"apt": apt_pkgs, "brew": brew_pkgs}
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _probe_npm_node_requirement(npm_pkg):
+    """Return the minimum Node major version required by an npm package, or None."""
+    if not is_tool("npm"):
+        return None
+    try:
+        result = subprocess.run(
+            ["npm", "view", npm_pkg, "engines.node"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    if result.returncode != 0:
+        return None
+    spec = result.stdout.strip()
+    if not spec:
+        return None
+    nums = [int(n) for n in re.findall(r"\d+", spec)]
+    if not nums:
+        return None
+    return min(nums)
+
+
+def _ensure_system_packages(display_name, apt_pkgs, brew_pkgs):
+    """Prompt for and install missing OS packages via apt (Linux) or brew (macOS).
+
+    Returns True if every requested package is installed (or was nothing to
+    install), False on install command failure, None if skipped (unsupported
+    platform, missing sudo/brew, or user declined).
+    """
+    if is_linux():
+        pkgs = list(apt_pkgs or [])
+        platform_name = "apt"
+    elif is_macos():
+        pkgs = list(brew_pkgs or [])
+        platform_name = "brew"
+    elif is_windows():
+        if apt_pkgs or brew_pkgs:
+            print_warning(
+                f"Skipping system-package check for {display_name}: "
+                "automatic install not supported on Windows."
+            )
+            return None
+        return True
+    else:
+        return True
+
+    if not pkgs:
+        return True
+
+    missing = []
+    for pkg in pkgs:
+        if platform_name == "apt":
+            installed = _apt_pkg_installed(pkg)
+        else:
+            installed = _brew_pkg_installed(pkg)
+        if installed is None:
+            print_warning(
+                f"Skipping system-package check for {display_name}: "
+                f"{'dpkg' if platform_name == 'apt' else 'brew'} not available."
+            )
+            return None
+        if not installed:
+            missing.append(pkg)
+
+    if not missing:
+        return True
+
+    manual_cmd = (
+        f"sudo apt-get install -y {' '.join(missing)}"
+        if platform_name == "apt"
+        else f"brew install {' '.join(missing)}"
+    )
+
+    if platform_name == "brew" and not is_tool("brew"):
+        print_warning(
+            f"Cannot install system packages for {display_name}: "
+            "Homebrew not found. Install from https://brew.sh, then run:\n"
+            f"    {manual_cmd}"
+        )
+        return None
+
+    if not is_interactive():
+        print_warning(
+            f"Cannot install system packages for {display_name} in non-"
+            f"interactive mode. Manual install:\n    {manual_cmd}"
+        )
+        return None
+
+    print_tool_prompt(
+        f"{display_name}: missing system packages",
+        [
+            f"Required to build {display_name}: {', '.join(missing)}",
+        ],
+        [
+            f"{display_name} install will be skipped",
+            f"Manual install: {manual_cmd}",
+        ],
+    )
+    if not get_user_confirmation("Install system packages now? [y/N]: "):
+        return None
+
+    if platform_name == "apt":
+        print(f"Installing system packages via apt-get: {' '.join(missing)}...")
+        print_hint("  (sudo may prompt for your password)")
+        cmd = ["sudo", "apt-get", "install", "-y", *missing]
+    else:
+        print(f"Installing system packages via brew: {' '.join(missing)}...")
+        cmd = ["brew", "install", *missing]
+    try:
+        # Stream output so sudo's password prompt and apt's progress are visible.
+        result = subprocess.run(cmd, timeout=600)
+    except subprocess.TimeoutExpired:
+        print_error(f"System-package install for {display_name} timed out")
+        return False
+    except FileNotFoundError as e:
+        print_error(f"System-package install for {display_name} failed: {e}")
+        return False
+
+    if result.returncode == 0:
+        print(
+            colors.OK
+            + f"✓ System packages installed: {' '.join(missing)}"
+            + colors.END
+        )
+        return True
+    print_error(
+        f"Failed to install system packages for {display_name} "
+        f"(exit {result.returncode}). See output above for the actual error."
+    )
+    return False
+
+
+def _ensure_node_major(display_name, min_major):
+    """Prompt to upgrade Node.js to at least min_major if current is older.
+
+    Returns True if Node already meets requirement (or upgrade succeeded),
+    False if the install ran but Node is still too old, None if skipped
+    (unsupported platform, no sudo/brew, or user declined).
+    """
+    current = _node_major_version()
+    if current is not None and current >= min_major:
+        return True
+    if current is None:
+        print_warning(
+            f"Cannot check Node version for {display_name}: node not found. "
+            f"Install Node {min_major}+ manually from https://nodejs.org/."
+        )
+        return None
+
+    if is_macos() and not is_tool("brew"):
+        print_warning(
+            f"Cannot upgrade Node for {display_name}: Homebrew not found. "
+            f"Install from https://brew.sh, then run "
+            f"`brew install node@{min_major}`."
+        )
+        return None
+    if is_windows():
+        print_warning(
+            f"Auto-upgrade of Node not supported on Windows. "
+            f"Install Node {min_major}+ from https://nodejs.org/ "
+            "and re-run setup."
+        )
+        return None
+    if not (is_linux() or is_macos()):
+        return None
+    if not is_interactive():
+        print_warning(
+            f"Cannot upgrade Node for {display_name} in non-interactive mode. "
+            f"Install Node {min_major}+ manually and re-run setup."
+        )
+        return None
+
+    print_tool_prompt(
+        f"{display_name}: Node.js >= {min_major} required",
+        [
+            f"{display_name} requires Node {min_major}+; "
+            f"current node is v{current}.x",
+        ],
+        [
+            f"{display_name} install will be skipped",
+            "Manual install: see https://nodejs.org/ "
+            f"or https://github.com/nodesource/distributions",
+        ],
+    )
+    if not get_user_confirmation(
+        f"Upgrade Node to {min_major}.x now? [y/N]: "
+    ):
+        return None
+
+    try:
+        if is_linux():
+            print(f"Adding NodeSource repository for Node {min_major}.x...")
+            print_hint("  (sudo may prompt for your password)")
+            setup_cmd = (
+                f"curl -fsSL https://deb.nodesource.com/setup_{min_major}.x "
+                "| sudo -E bash -"
+            )
+            # Stream output so curl progress and sudo password prompt show.
+            setup_result = subprocess.run(
+                ["bash", "-c", setup_cmd], timeout=180
+            )
+            if setup_result.returncode != 0:
+                print_error(
+                    f"NodeSource setup script failed (exit "
+                    f"{setup_result.returncode})."
+                )
+                return False
+            print("Installing nodejs via apt-get...")
+            install_result = subprocess.run(
+                ["sudo", "apt-get", "install", "-y", "nodejs"], timeout=300
+            )
+            if install_result.returncode != 0:
+                print_error(
+                    f"Failed to install nodejs (exit {install_result.returncode}). "
+                    "See output above for the actual error."
+                )
+                return False
+        elif is_macos():
+            formula = f"node@{min_major}"
+            print(f"Installing {formula} via Homebrew...")
+            install_result = subprocess.run(
+                ["brew", "install", formula],
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            if install_result.returncode != 0:
+                print_error(
+                    f"brew install {formula} failed: "
+                    f"{install_result.stderr.strip() or install_result.stdout.strip()}"
+                )
+                return False
+            # Best-effort: link the keg so `node` resolves to the new major.
+            subprocess.run(
+                ["brew", "link", "--overwrite", "--force", formula],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+    except subprocess.TimeoutExpired:
+        print_error(f"Node {min_major} install for {display_name} timed out")
+        return False
+    except FileNotFoundError as e:
+        print_error(f"Node {min_major} install for {display_name} failed: {e}")
+        return False
+
+    post = _node_major_version()
+    if post is None or post < min_major:
+        print_error(
+            f"Node upgrade reported success but current node is "
+            f"v{post}.x (need {min_major}+)."
+        )
+        return False
+    print(
+        colors.OK
+        + f"✓ Node {post} installed (>= {min_major} required)"
+        + colors.END
+    )
+    return True
+
+
 def _install_cargo_tool(
-    display_name, binary_name, install_args, benefits, consequences
+    display_name, binary_name, install_args, benefits, consequences,
+    probe_crate=None,
 ):
     """Install a Rust CLI tool via ``cargo install`` with the standard prompt flow.
 
@@ -1591,6 +1976,19 @@ def _install_cargo_tool(
             f"    cargo install {' '.join(install_args)}"
         )
         return None
+
+    if probe_crate:
+        deps = _probe_cargo_system_deps(probe_crate)
+        deps_ok = _ensure_system_packages(
+            display_name, deps.get("apt"), deps.get("brew")
+        )
+        if deps_ok is False:
+            print_warning(
+                f"Skipping {display_name}: system dependency install failed"
+            )
+            return False
+        if deps_ok is None:
+            return None
 
     print_tool_prompt(display_name, benefits, consequences)
     if not get_user_confirmation():
@@ -1709,6 +2107,7 @@ def install_socorro_cli(tracker=None):
             "Crash-volume enrichment falls back to manual crash-stats web lookups",
             "Manual install: cargo install socorro-cli",
         ],
+        probe_crate="socorro-cli",
     )
 
 
@@ -1721,17 +2120,45 @@ def install_profiler_cli(tracker=None):
 
     print_installing_title(display_name)
 
-    if is_tool(binary_name):
-        print(f"{binary_name} is already installed")
-        return True
-
     if not is_tool("npm"):
+        if is_tool(binary_name):
+            print(f"{binary_name} is already installed")
+            return True
         print_warning(
             f"Skipping {display_name}: requires npm (Node.js). "
             "Install from https://nodejs.org/ and re-run setup, or run "
             f"`{manual_cmd}` manually later."
         )
         return None
+
+    # Always verify the Node requirement, even if profiler-cli appears
+    # installed: an old binary built against an unsupported Node major
+    # may not run. Track whether an upgrade happened so we force a fresh
+    # npm install afterward.
+    min_major = _probe_npm_node_requirement(npm_pkg)
+    node_was_upgraded = False
+    if min_major is not None:
+        current_before = _node_major_version()
+        node_ok = _ensure_node_major(display_name, min_major)
+        if node_ok is False:
+            print_warning(
+                f"Skipping {display_name}: Node {min_major}+ install failed"
+            )
+            return False
+        if node_ok is None:
+            return None
+        if current_before is not None and current_before < min_major:
+            node_was_upgraded = True
+
+    if is_tool(binary_name) and not node_was_upgraded:
+        print(f"{binary_name} is already installed")
+        return True
+
+    if node_was_upgraded and is_tool(binary_name):
+        print_hint(
+            f"Reinstalling {binary_name} after Node upgrade to refresh "
+            "native dependencies."
+        )
 
     print_tool_prompt(
         display_name,

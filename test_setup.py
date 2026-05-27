@@ -1278,16 +1278,17 @@ class TestMozillaCliTools(unittest.TestCase):
     @patch("setup._install_cargo_tool")
     def test_install_socorro_cli_delegates_to_cargo_helper(self, mock_cargo):
         """install_socorro_cli calls _install_cargo_tool with the crates.io
-        package name and binary name."""
+        package name and binary name, and asks for socorro-cli dep probing."""
         mock_cargo.return_value = True
 
         result = setup.install_socorro_cli()
 
         self.assertTrue(result)
-        args, _ = mock_cargo.call_args
+        args, kwargs = mock_cargo.call_args
         # Positional signature: display, binary, install_args, benefits, consequences
         self.assertEqual(args[1], "socorro-cli")
         self.assertEqual(args[2], ["socorro-cli"])
+        self.assertEqual(kwargs.get("probe_crate"), "socorro-cli")
 
     @patch("setup.is_tool")
     def test_install_profiler_cli_already_installed(self, mock_is_tool):
@@ -1302,20 +1303,24 @@ class TestMozillaCliTools(unittest.TestCase):
         mock_is_tool.return_value = False
         self.assertIsNone(setup.install_profiler_cli())
 
+    @patch("setup._probe_npm_node_requirement", return_value=None)
     @patch("setup.get_user_confirmation")
     @patch("setup.is_tool")
-    def test_install_profiler_cli_user_declines(self, mock_is_tool, mock_confirm):
+    def test_install_profiler_cli_user_declines(
+        self, mock_is_tool, mock_confirm, _mock_probe
+    ):
         """User saying no at the prompt skips cleanly (None)."""
         mock_is_tool.side_effect = lambda name: name == "npm"
         mock_confirm.return_value = False
         self.assertIsNone(setup.install_profiler_cli())
 
+    @patch("setup._probe_npm_node_requirement", return_value=None)
     @patch("setup.subprocess.run")
     @patch("setup.is_windows")
     @patch("setup.get_user_confirmation")
     @patch("setup.is_tool")
     def test_install_profiler_cli_unix_uses_local_prefix(
-        self, mock_is_tool, mock_confirm, mock_is_win, mock_run
+        self, mock_is_tool, mock_confirm, mock_is_win, mock_run, _mock_probe
     ):
         """On non-Windows, npm runs with --prefix=$HOME/.local and the
         upstream @firefox-devtools/profiler-cli package."""
@@ -1338,12 +1343,13 @@ class TestMozillaCliTools(unittest.TestCase):
         )
         self.assertEqual(npm_cmd[-1], "@firefox-devtools/profiler-cli@latest")
 
+    @patch("setup._probe_npm_node_requirement", return_value=None)
     @patch("setup.subprocess.run")
     @patch("setup.is_windows")
     @patch("setup.get_user_confirmation")
     @patch("setup.is_tool")
     def test_install_profiler_cli_windows_no_prefix(
-        self, mock_is_tool, mock_confirm, mock_is_win, mock_run
+        self, mock_is_tool, mock_confirm, mock_is_win, mock_run, _mock_probe
     ):
         """On Windows, npm -g defaults to AppData (no --prefix needed)."""
         mock_is_tool.side_effect = lambda name: name == "npm"
@@ -1358,12 +1364,13 @@ class TestMozillaCliTools(unittest.TestCase):
         self.assertNotIn("--prefix", npm_cmd)
         self.assertEqual(npm_cmd[-1], "@firefox-devtools/profiler-cli@latest")
 
+    @patch("setup._probe_npm_node_requirement", return_value=None)
     @patch("setup.subprocess.run")
     @patch("setup.is_windows")
     @patch("setup.get_user_confirmation")
     @patch("setup.is_tool")
     def test_install_profiler_cli_npm_failure(
-        self, mock_is_tool, mock_confirm, mock_is_win, mock_run
+        self, mock_is_tool, mock_confirm, mock_is_win, mock_run, _mock_probe
     ):
         """Non-zero npm exit yields False."""
         mock_is_tool.side_effect = lambda name: name == "npm"
@@ -1375,12 +1382,13 @@ class TestMozillaCliTools(unittest.TestCase):
 
         self.assertFalse(setup.install_profiler_cli())
 
+    @patch("setup._probe_npm_node_requirement", return_value=None)
     @patch("setup.subprocess.run")
     @patch("setup.is_windows")
     @patch("setup.get_user_confirmation")
     @patch("setup.is_tool")
     def test_install_profiler_cli_npm_timeout(
-        self, mock_is_tool, mock_confirm, mock_is_win, mock_run
+        self, mock_is_tool, mock_confirm, mock_is_win, mock_run, _mock_probe
     ):
         """A timeout from npm yields False (not a crash)."""
         mock_is_tool.side_effect = lambda name: name == "npm"
@@ -1389,6 +1397,502 @@ class TestMozillaCliTools(unittest.TestCase):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="npm", timeout=300)
 
         self.assertFalse(setup.install_profiler_cli())
+
+    # ---- New dynamic-dep-probe tests ----
+
+    @patch("setup.subprocess.run")
+    @patch("setup.is_tool", return_value=True)
+    def test_probe_cargo_system_deps_returns_mapped_pkgs(
+        self, _mock_is_tool, mock_run
+    ):
+        """cargo metadata output gets translated to apt/brew packages
+        via RUST_SYS_DEP_MAP."""
+        import json as _json
+
+        meta_json = _json.dumps(
+            {
+                "packages": [
+                    {"name": "libdbus-sys"},
+                    {"name": "aws-lc-sys"},
+                    {"name": "some-other-crate"},
+                ]
+            }
+        )
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=meta_json, stderr=""
+        )
+
+        result = setup._probe_cargo_system_deps("socorro-cli")
+
+        self.assertIn("libdbus-1-dev", result["apt"])
+        self.assertIn("cmake", result["apt"])
+        # pkg-config appears via libdbus-sys; should be deduped
+        self.assertEqual(result["apt"].count("pkg-config"), 1)
+
+    @patch("setup.subprocess.run")
+    @patch("setup.is_tool", return_value=True)
+    def test_probe_cargo_system_deps_metadata_failure_returns_empty(
+        self, _mock_is_tool, mock_run
+    ):
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="boom"
+        )
+        self.assertEqual(
+            setup._probe_cargo_system_deps("socorro-cli"),
+            {"apt": [], "brew": []},
+        )
+
+    @patch("setup.is_tool", return_value=False)
+    def test_probe_cargo_system_deps_no_cargo_returns_empty(self, _mock_is_tool):
+        self.assertEqual(
+            setup._probe_cargo_system_deps("socorro-cli"),
+            {"apt": [], "brew": []},
+        )
+
+    @patch("setup.subprocess.run")
+    @patch("setup.is_tool", return_value=True)
+    def test_probe_npm_node_requirement_parses_range(
+        self, _mock_is_tool, mock_run
+    ):
+        # ">= 24" → 24
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=">= 24\n", stderr=""
+        )
+        self.assertEqual(setup._probe_npm_node_requirement("@x/pkg"), 24)
+
+        # ">=20.0.0" → 20 (parses the lowest int — major)
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=">=20.0.0\n", stderr=""
+        )
+        self.assertEqual(setup._probe_npm_node_requirement("@x/pkg"), 0)
+
+        # "^22 || >=24" → 22 (min of the majors mentioned)
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="^22 || >=24\n", stderr=""
+        )
+        self.assertEqual(setup._probe_npm_node_requirement("@x/pkg"), 22)
+
+        # Empty → None
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        self.assertIsNone(setup._probe_npm_node_requirement("@x/pkg"))
+
+    @patch("setup.subprocess.run")
+    @patch("setup.is_tool", return_value=True)
+    def test_probe_npm_node_requirement_npm_failure_returns_none(
+        self, _mock_is_tool, mock_run
+    ):
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr=""
+        )
+        self.assertIsNone(setup._probe_npm_node_requirement("@x/pkg"))
+
+    @patch("setup.is_tool", return_value=False)
+    def test_probe_npm_node_requirement_no_npm_returns_none(self, _mock_is_tool):
+        self.assertIsNone(setup._probe_npm_node_requirement("@x/pkg"))
+
+    # ---- _ensure_system_packages ----
+
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=True)
+    @patch("setup.subprocess.run")
+    def test_ensure_system_packages_all_present_linux(
+        self, mock_run, _is_lin, _is_mac, _is_win
+    ):
+        # dpkg returns rc=0 for every package check
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        result = setup._ensure_system_packages("foo", ["pkg-config"], [])
+        self.assertTrue(result)
+        # No apt-get install call was made
+        for call in mock_run.call_args_list:
+            argv = call[0][0]
+            self.assertNotIn("apt-get", argv)
+
+    @patch("setup.is_interactive", return_value=True)
+    @patch("setup.get_user_confirmation", return_value=True)
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=True)
+    @patch("setup.subprocess.run")
+    def test_ensure_system_packages_partial_missing_install_succeeds(
+        self, mock_run, _is_lin, _is_mac, _is_win, _confirm, _interactive
+    ):
+        def _side(argv, **_kw):
+            # dpkg -s pkg-config → installed; dpkg -s libdbus-1-dev → missing
+            if argv[:2] == ["dpkg", "-s"]:
+                rc = 0 if argv[2] == "pkg-config" else 1
+                return subprocess.CompletedProcess(
+                    args=argv, returncode=rc, stdout="", stderr=""
+                )
+            if argv[:2] == ["sudo", "apt-get"]:
+                return subprocess.CompletedProcess(
+                    args=argv, returncode=0, stdout="installed", stderr=""
+                )
+            return subprocess.CompletedProcess(
+                args=argv, returncode=0, stdout="", stderr=""
+            )
+
+        mock_run.side_effect = _side
+        result = setup._ensure_system_packages(
+            "foo", ["pkg-config", "libdbus-1-dev"], []
+        )
+        self.assertTrue(result)
+        # apt-get install called with only the missing package
+        apt_calls = [
+            c[0][0] for c in mock_run.call_args_list if c[0][0][:2] == ["sudo", "apt-get"]
+        ]
+        self.assertEqual(len(apt_calls), 1)
+        self.assertIn("libdbus-1-dev", apt_calls[0])
+        self.assertNotIn("pkg-config", apt_calls[0])
+
+    @patch("setup.is_interactive", return_value=False)
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=True)
+    @patch("setup.subprocess.run")
+    def test_ensure_system_packages_non_interactive_linux_skips(
+        self, mock_run, _is_lin, _is_mac, _is_win, _interactive
+    ):
+        def _side(argv, **_kw):
+            if argv[:2] == ["dpkg", "-s"]:
+                return subprocess.CompletedProcess(
+                    args=argv, returncode=1, stdout="", stderr=""
+                )
+            return subprocess.CompletedProcess(
+                args=argv, returncode=0, stdout="", stderr=""
+            )
+
+        mock_run.side_effect = _side
+        result = setup._ensure_system_packages("foo", ["libdbus-1-dev"], [])
+        self.assertIsNone(result)
+        # No apt-get install was attempted in non-interactive mode
+        for c in mock_run.call_args_list:
+            self.assertNotEqual(c[0][0][:2], ["sudo", "apt-get"])
+
+    @patch("setup.is_interactive", return_value=True)
+    @patch("setup.get_user_confirmation", return_value=False)
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=True)
+    @patch("setup.subprocess.run")
+    def test_ensure_system_packages_user_declines(
+        self, mock_run, _is_lin, _is_mac, _is_win, _confirm, _interactive
+    ):
+        def _side(argv, **_kw):
+            if argv[:2] == ["dpkg", "-s"]:
+                return subprocess.CompletedProcess(
+                    args=argv, returncode=1, stdout="", stderr=""
+                )
+            return subprocess.CompletedProcess(
+                args=argv, returncode=0, stdout="", stderr=""
+            )
+
+        mock_run.side_effect = _side
+        result = setup._ensure_system_packages("foo", ["libdbus-1-dev"], [])
+        self.assertIsNone(result)
+        # No apt-get install was attempted
+        for c in mock_run.call_args_list:
+            self.assertNotEqual(c[0][0][:2], ["sudo", "apt-get"])
+
+    @patch("setup.is_tool", return_value=False)
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=True)
+    @patch("setup.is_linux", return_value=False)
+    @patch("setup.subprocess.run")
+    def test_ensure_system_packages_brew_missing_macos(
+        self, mock_run, _is_lin, _is_mac, _is_win, _is_tool
+    ):
+        # brew list returns rc=1 for missing pkg; is_tool("brew") returns False → skip
+        def _side(argv, **_kw):
+            if argv[:2] == ["brew", "list"]:
+                return subprocess.CompletedProcess(
+                    args=argv, returncode=1, stdout="", stderr=""
+                )
+            return subprocess.CompletedProcess(
+                args=argv, returncode=0, stdout="", stderr=""
+            )
+
+        mock_run.side_effect = _side
+        result = setup._ensure_system_packages("foo", [], ["cmake"])
+        self.assertIsNone(result)
+
+    @patch("setup.is_windows", return_value=True)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=False)
+    def test_ensure_system_packages_windows_with_pkgs_skips(
+        self, _is_lin, _is_mac, _is_win
+    ):
+        result = setup._ensure_system_packages("foo", ["x"], ["y"])
+        self.assertIsNone(result)
+
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=True)
+    def test_ensure_system_packages_empty_pkgs_returns_true(
+        self, _is_lin, _is_mac, _is_win
+    ):
+        self.assertTrue(setup._ensure_system_packages("foo", [], []))
+        self.assertTrue(setup._ensure_system_packages("foo", None, None))
+
+    # ---- _ensure_node_major ----
+
+    @patch("setup._node_major_version", return_value=24)
+    def test_ensure_node_major_already_satisfied(self, _mock_ver):
+        self.assertTrue(setup._ensure_node_major("foo", 24))
+
+    @patch("setup._node_major_version", return_value=None)
+    def test_ensure_node_major_no_node_returns_none(self, _mock_ver):
+        self.assertIsNone(setup._ensure_node_major("foo", 24))
+
+    @patch("setup.is_interactive", return_value=True)
+    @patch("setup.get_user_confirmation", return_value=False)
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=True)
+    @patch("setup.subprocess.run")
+    @patch("setup._node_major_version", return_value=18)
+    def test_ensure_node_major_user_declines_linux(
+        self,
+        _mock_ver,
+        mock_run,
+        _is_lin,
+        _is_mac,
+        _is_win,
+        _confirm,
+        _interactive,
+    ):
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        result = setup._ensure_node_major("foo", 24)
+        self.assertIsNone(result)
+
+    @patch("setup.is_interactive", return_value=True)
+    @patch("setup.get_user_confirmation", return_value=True)
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=True)
+    @patch("setup.subprocess.run")
+    @patch("setup._node_major_version")
+    def test_ensure_node_major_upgrade_succeeds_linux(
+        self,
+        mock_ver,
+        mock_run,
+        _is_lin,
+        _is_mac,
+        _is_win,
+        _confirm,
+        _interactive,
+    ):
+        # First call: pre-check (18). Second call: post-install verify (24).
+        mock_ver.side_effect = [18, 24]
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        result = setup._ensure_node_major("foo", 24)
+        self.assertTrue(result)
+        # NodeSource setup script invoked with the right major
+        bash_calls = [
+            c[0][0]
+            for c in mock_run.call_args_list
+            if len(c[0][0]) >= 2 and c[0][0][:2] == ["bash", "-c"]
+        ]
+        self.assertTrue(any("setup_24.x" in cmd[-1] for cmd in bash_calls))
+        # apt-get install nodejs invoked
+        apt_calls = [
+            c[0][0]
+            for c in mock_run.call_args_list
+            if c[0][0][:2] == ["sudo", "apt-get"]
+        ]
+        self.assertTrue(any("nodejs" in cmd for cmd in apt_calls))
+
+    @patch("setup.is_interactive", return_value=True)
+    @patch("setup.get_user_confirmation", return_value=True)
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=True)
+    @patch("setup.subprocess.run")
+    @patch("setup._node_major_version")
+    def test_ensure_node_major_postcheck_fails_linux(
+        self,
+        mock_ver,
+        mock_run,
+        _is_lin,
+        _is_mac,
+        _is_win,
+        _confirm,
+        _interactive,
+    ):
+        # Install commands "succeed" but node is still 18 afterward
+        mock_ver.side_effect = [18, 18]
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        result = setup._ensure_node_major("foo", 24)
+        self.assertFalse(result)
+
+    @patch("setup.is_interactive", return_value=True)
+    @patch("setup.get_user_confirmation", return_value=True)
+    @patch("setup.is_tool", return_value=True)
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.is_macos", return_value=True)
+    @patch("setup.is_linux", return_value=False)
+    @patch("setup.subprocess.run")
+    @patch("setup._node_major_version")
+    def test_ensure_node_major_macos_uses_brew(
+        self,
+        mock_ver,
+        mock_run,
+        _is_lin,
+        _is_mac,
+        _is_win,
+        _is_tool,
+        _confirm,
+        _interactive,
+    ):
+        mock_ver.side_effect = [18, 24]
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        result = setup._ensure_node_major("foo", 24)
+        self.assertTrue(result)
+        brew_install_calls = [
+            c[0][0]
+            for c in mock_run.call_args_list
+            if c[0][0][:2] == ["brew", "install"]
+        ]
+        self.assertTrue(any("node@24" in cmd for cmd in brew_install_calls))
+
+    @patch("setup.is_windows", return_value=True)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=False)
+    @patch("setup._node_major_version", return_value=18)
+    def test_ensure_node_major_windows_skips(
+        self, _mock_ver, _is_lin, _is_mac, _is_win
+    ):
+        self.assertIsNone(setup._ensure_node_major("foo", 24))
+
+    # ---- _install_cargo_tool probe_crate wiring ----
+
+    @patch("setup._ensure_system_packages", return_value=None)
+    @patch("setup._probe_cargo_system_deps", return_value={"apt": ["x"], "brew": []})
+    @patch("setup.is_tool")
+    @patch("setup.subprocess.run")
+    def test_install_cargo_tool_probe_crate_declined_returns_none(
+        self, mock_run, mock_is_tool, _mock_probe, _mock_ensure
+    ):
+        # Binary missing, cargo present.
+        mock_is_tool.side_effect = lambda name: name == "cargo"
+        result = setup._install_cargo_tool(
+            "foo (display)",
+            "foo-bin",
+            ["foo"],
+            ["benefit"],
+            ["consequence"],
+            probe_crate="foo",
+        )
+        self.assertIsNone(result)
+        # cargo install was not invoked
+        for c in mock_run.call_args_list:
+            argv = c[0][0]
+            self.assertFalse(argv[:2] == ["cargo", "install"])
+
+    @patch("setup._probe_cargo_system_deps")
+    @patch("setup.get_user_confirmation", return_value=False)
+    @patch("setup.is_tool")
+    def test_install_cargo_tool_no_probe_no_dep_check(
+        self, mock_is_tool, _confirm, mock_probe
+    ):
+        # With probe_crate=None, _probe_cargo_system_deps must not be called.
+        mock_is_tool.side_effect = lambda name: name == "cargo"
+        setup._install_cargo_tool(
+            "foo (display)",
+            "foo-bin",
+            ["foo"],
+            ["benefit"],
+            ["consequence"],
+        )
+        mock_probe.assert_not_called()
+
+    # ---- install_profiler_cli with dynamic Node gate ----
+
+    @patch("setup._node_major_version", return_value=18)
+    @patch("setup._ensure_node_major", return_value=None)
+    @patch("setup._probe_npm_node_requirement", return_value=24)
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_node_too_old_user_declines(
+        self, mock_is_tool, _mock_probe, _mock_ensure, _mock_ver
+    ):
+        mock_is_tool.side_effect = lambda name: name == "npm"
+        self.assertIsNone(setup.install_profiler_cli())
+
+    @patch("setup._node_major_version", return_value=18)
+    @patch("setup._ensure_node_major", return_value=False)
+    @patch("setup._probe_npm_node_requirement", return_value=24)
+    @patch("setup.subprocess.run")
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_node_upgrade_fails(
+        self, mock_is_tool, mock_run, _mock_probe, _mock_ensure, _mock_ver
+    ):
+        mock_is_tool.side_effect = lambda name: name == "npm"
+        self.assertFalse(setup.install_profiler_cli())
+        # npm install not invoked
+        for c in mock_run.call_args_list:
+            argv = c[0][0]
+            self.assertFalse(argv[:2] == ["npm", "install"])
+
+    @patch("setup._node_major_version", return_value=24)
+    @patch("setup._ensure_node_major", return_value=True)
+    @patch("setup._probe_npm_node_requirement", return_value=24)
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_already_installed_with_satisfied_node(
+        self, mock_is_tool, _mock_probe, _mock_ensure, _mock_ver
+    ):
+        """Binary present and Node already satisfies the requirement →
+        return True without npm install."""
+        mock_is_tool.side_effect = lambda name: name in ("npm", "profiler-cli")
+        with patch("setup.subprocess.run") as mock_run:
+            self.assertTrue(setup.install_profiler_cli())
+            for c in mock_run.call_args_list:
+                self.assertNotEqual(c[0][0][:2], ["npm", "install"])
+
+    @patch("setup.is_windows", return_value=False)
+    @patch("setup.get_user_confirmation", return_value=True)
+    @patch("setup._node_major_version", return_value=18)
+    @patch("setup._ensure_node_major", return_value=True)
+    @patch("setup._probe_npm_node_requirement", return_value=24)
+    @patch("setup.subprocess.run")
+    @patch("setup.is_tool")
+    def test_install_profiler_cli_node_upgraded_forces_reinstall(
+        self,
+        mock_is_tool,
+        mock_run,
+        _mock_probe,
+        _mock_ensure,
+        _mock_ver,
+        _mock_confirm,
+        _mock_is_win,
+    ):
+        """If Node was just upgraded (current_before < min_major),
+        run npm install even when binary appears installed."""
+        mock_is_tool.side_effect = lambda name: name in ("npm", "profiler-cli")
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        self.assertTrue(setup.install_profiler_cli())
+        npm_install_calls = [
+            c[0][0]
+            for c in mock_run.call_args_list
+            if c[0][0][:3] == ["npm", "install", "-g"]
+        ]
+        self.assertEqual(len(npm_install_calls), 1)
+        self.assertEqual(
+            npm_install_calls[0][-1], "@firefox-devtools/profiler-cli@latest"
+        )
 
 
 def run_tests():
