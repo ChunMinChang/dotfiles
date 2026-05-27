@@ -1003,9 +1003,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         with open(os.path.join(media_v2, "SKILL.md"), "w") as f:
             f.write("---\nname: triage\ndescription: media v2\n---\n\nbody\n")
 
-        setup.MEDIA_SKILLS_RENAME = {
-            "media-bug-triage-v2": "media-bug-triage-v2"
-        }
+        setup.MEDIA_SKILLS_RENAME = {"media-bug-triage-v2": "media-bug-triage-v2"}
 
         self._install()
 
@@ -1402,9 +1400,7 @@ class TestMozillaCliTools(unittest.TestCase):
 
     @patch("setup.subprocess.run")
     @patch("setup.is_tool", return_value=True)
-    def test_probe_cargo_system_deps_returns_mapped_pkgs(
-        self, _mock_is_tool, mock_run
-    ):
+    def test_probe_cargo_system_deps_returns_mapped_pkgs(self, _mock_is_tool, mock_run):
         """cargo metadata output gets translated to apt/brew packages
         via RUST_SYS_DEP_MAP."""
         import json as _json
@@ -1451,9 +1447,7 @@ class TestMozillaCliTools(unittest.TestCase):
 
     @patch("setup.subprocess.run")
     @patch("setup.is_tool", return_value=True)
-    def test_probe_npm_node_requirement_parses_range(
-        self, _mock_is_tool, mock_run
-    ):
+    def test_probe_npm_node_requirement_parses_range(self, _mock_is_tool, mock_run):
         # ">= 24" → 24
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0, stdout=">= 24\n", stderr=""
@@ -1543,7 +1537,9 @@ class TestMozillaCliTools(unittest.TestCase):
         self.assertTrue(result)
         # apt-get install called with only the missing package
         apt_calls = [
-            c[0][0] for c in mock_run.call_args_list if c[0][0][:2] == ["sudo", "apt-get"]
+            c[0][0]
+            for c in mock_run.call_args_list
+            if c[0][0][:2] == ["sudo", "apt-get"]
         ]
         self.assertEqual(len(apt_calls), 1)
         self.assertIn("libdbus-1-dev", apt_calls[0])

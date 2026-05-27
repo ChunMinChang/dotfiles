@@ -1587,9 +1587,7 @@ RUST_SYS_DEP_MAP = {
 def _apt_pkg_installed(pkg):
     """Return True if apt package is installed, False if not, None if dpkg missing."""
     try:
-        result = subprocess.run(
-            ["dpkg", "-s", pkg], capture_output=True, timeout=10
-        )
+        result = subprocess.run(["dpkg", "-s", pkg], capture_output=True, timeout=10)
         return result.returncode == 0
     except FileNotFoundError:
         return None
@@ -1799,9 +1797,7 @@ def _ensure_system_packages(display_name, apt_pkgs, brew_pkgs):
 
     if result.returncode == 0:
         print(
-            colors.OK
-            + f"✓ System packages installed: {' '.join(missing)}"
-            + colors.END
+            colors.OK + f"✓ System packages installed: {' '.join(missing)}" + colors.END
         )
         return True
     print_error(
@@ -1860,12 +1856,10 @@ def _ensure_node_major(display_name, min_major):
         [
             f"{display_name} install will be skipped",
             "Manual install: see https://nodejs.org/ "
-            f"or https://github.com/nodesource/distributions",
+            "or https://github.com/nodesource/distributions",
         ],
     )
-    if not get_user_confirmation(
-        f"Upgrade Node to {min_major}.x now? [y/N]: "
-    ):
+    if not get_user_confirmation(f"Upgrade Node to {min_major}.x now? [y/N]: "):
         return None
 
     try:
@@ -1877,9 +1871,7 @@ def _ensure_node_major(display_name, min_major):
                 "| sudo -E bash -"
             )
             # Stream output so curl progress and sudo password prompt show.
-            setup_result = subprocess.run(
-                ["bash", "-c", setup_cmd], timeout=180
-            )
+            setup_result = subprocess.run(["bash", "-c", setup_cmd], timeout=180)
             if setup_result.returncode != 0:
                 print_error(
                     f"NodeSource setup script failed (exit "
@@ -1932,16 +1924,16 @@ def _ensure_node_major(display_name, min_major):
             f"v{post}.x (need {min_major}+)."
         )
         return False
-    print(
-        colors.OK
-        + f"✓ Node {post} installed (>= {min_major} required)"
-        + colors.END
-    )
+    print(colors.OK + f"✓ Node {post} installed (>= {min_major} required)" + colors.END)
     return True
 
 
 def _install_cargo_tool(
-    display_name, binary_name, install_args, benefits, consequences,
+    display_name,
+    binary_name,
+    install_args,
+    benefits,
+    consequences,
     probe_crate=None,
 ):
     """Install a Rust CLI tool via ``cargo install`` with the standard prompt flow.
@@ -1983,9 +1975,7 @@ def _install_cargo_tool(
             display_name, deps.get("apt"), deps.get("brew")
         )
         if deps_ok is False:
-            print_warning(
-                f"Skipping {display_name}: system dependency install failed"
-            )
+            print_warning(f"Skipping {display_name}: system dependency install failed")
             return False
         if deps_ok is None:
             return None
@@ -2141,9 +2131,7 @@ def install_profiler_cli(tracker=None):
         current_before = _node_major_version()
         node_ok = _ensure_node_major(display_name, min_major)
         if node_ok is False:
-            print_warning(
-                f"Skipping {display_name}: Node {min_major}+ install failed"
-            )
+            print_warning(f"Skipping {display_name}: Node {min_major}+ install failed")
             return False
         if node_ok is None:
             return None
@@ -4043,7 +4031,10 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 if not os.path.isdir(os.path.join(MEDIA_SKILLS_DIR, skill)):
                     continue
                 install_name = MEDIA_SKILLS_RENAME.get(skill, skill)
-                if install_name in personal_skill_names or install_name in alwu_claude_skill_names:
+                if (
+                    install_name in personal_skill_names
+                    or install_name in alwu_claude_skill_names
+                ):
                     print(
                         f"  {step}. SKIP (conflict with personal/alwu-claude-skills): {install_name}"
                     )
@@ -4227,7 +4218,10 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             if not os.path.isdir(src):
                 continue
             install_name = MEDIA_SKILLS_RENAME.get(skill, skill)
-            if install_name in personal_skill_names or install_name in alwu_claude_skill_names:
+            if (
+                install_name in personal_skill_names
+                or install_name in alwu_claude_skill_names
+            ):
                 print_warning(
                     f"Skipping media-skill '{install_name}' (conflicts with personal/alwu-claude-skill)"
                 )
