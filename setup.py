@@ -3030,6 +3030,16 @@ ALWU_CLAUDE_SKILLS_RENAME = {
     "triage": "av-weekly-triage",
     "sec-approval": "sec-approval-draft",
 }
+# Same shape as the alwu map. media-skills sit at lower priority than personal
+# skills, so when a media-skill's SKILL.md `name:` collides with a personal
+# skill's `name:` field the media-skill silently loses. The rename
+# materializes a copy with the SKILL.md `name:` rewritten so both coexist.
+# Self-mapping (key == value) is the common case here: only the SKILL.md
+# `name:` needs rewriting; the install directory keeps its source name.
+MEDIA_SKILLS_RENAME = {
+    # SKILL.md `name: triage` collides with the personal triage skill.
+    "media-bug-triage-v2": "media-bug-triage-v2",
+}
 
 
 def get_user_input(prompt, default=""):
@@ -3100,8 +3110,8 @@ def _rewrite_skill_name(content, new_name):
     return "---\n" + "\n".join(lines) + "\n---\n" + body
 
 
-def _materialize_renamed_alwu_skill(src_dir, dst_dir, install_name):
-    """Create ``dst_dir`` for a renamed alwu skill.
+def _materialize_renamed_skill(src_dir, dst_dir, install_name):
+    """Create ``dst_dir`` for a renamed skill.
 
     ``SKILL.md`` is materialized as a real file with its ``name:`` field
     rewritten to ``install_name``; all other entries are symlinked from
@@ -3125,14 +3135,17 @@ def _materialize_renamed_alwu_skill(src_dir, dst_dir, install_name):
             os.symlink(src_entry, dst_entry)
 
 
-def _is_materialized_alwu_skill(dst_dir, install_name):
-    """True if ``dst_dir`` looks like an installed renamed alwu skill.
+def _is_materialized_skill(dst_dir, install_name):
+    """True if ``dst_dir`` looks like a setup.py-installed renamed skill.
 
-    Signature: directory name is one of the rename targets, contains a
-    SKILL.md regular file, and at least one entry is either that SKILL.md
-    or a symlink into ALWU_CLAUDE_SKILLS_DIR.
+    Signature: directory name is one of the rename targets (alwu or
+    media-skills), contains a SKILL.md regular file, and is itself a real
+    directory (not a symlink).
     """
-    if install_name not in ALWU_CLAUDE_SKILLS_RENAME.values():
+    rename_targets = set(ALWU_CLAUDE_SKILLS_RENAME.values()) | set(
+        MEDIA_SKILLS_RENAME.values()
+    )
+    if install_name not in rename_targets:
         return False
     if not os.path.isdir(dst_dir) or os.path.islink(dst_dir):
         return False
@@ -3329,8 +3342,9 @@ def cleanup_stale_skills(target_skills_dir, target_dir, dry_run=False):
                     os.rmdir(path)
                     print(f"Removed empty directory: {path}")
                 stale_names.append(name)
-            elif _is_materialized_alwu_skill(path, name):
-                # Managed: a renamed alwu skill materialized at install time.
+            elif _is_materialized_skill(path, name):
+                # Managed: a renamed skill (alwu or media) materialized at
+                # install time.
                 pass
             else:
                 # Self-contained skill (populated, or empty but not ours).
@@ -3601,16 +3615,23 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                     continue
                 if not os.path.isdir(os.path.join(MEDIA_SKILLS_DIR, skill)):
                     continue
-                if skill in personal_skill_names or skill in alwu_claude_skill_names:
+                install_name = MEDIA_SKILLS_RENAME.get(skill, skill)
+                if install_name in personal_skill_names or install_name in alwu_claude_skill_names:
                     print(
-                        f"  {step}. SKIP (conflict with personal/alwu-claude-skills): {skill}"
+                        f"  {step}. SKIP (conflict with personal/alwu-claude-skills): {install_name}"
                     )
                     step += 1
                     continue
                 src = os.path.join(MEDIA_SKILLS_DIR, skill)
-                dst = os.path.join(target_skills_dir, skill)
-                print(f"  {step}. Symlink (media-skills): {dst} -> {src}")
-                gitignore_entries.append(f".claude/skills/{skill}/")
+                dst = os.path.join(target_skills_dir, install_name)
+                if skill in MEDIA_SKILLS_RENAME:
+                    print(
+                        f"  {step}. Materialize (media-skills): {dst} from "
+                        f"{src} [{skill} -> {install_name}, SKILL.md `name:` rewritten]"
+                    )
+                else:
+                    print(f"  {step}. Symlink (media-skills): {dst} -> {src}")
+                gitignore_entries.append(f".claude/skills/{install_name}/")
                 step += 1
 
         # Auto-clean stale skill symlinks / empty dirs
@@ -3749,7 +3770,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             if os.path.islink(dst):
                 os.unlink(dst)
             elif os.path.isdir(dst):
-                if needs_materialize and _is_materialized_alwu_skill(dst, install_name):
+                if needs_materialize and _is_materialized_skill(dst, install_name):
                     shutil.rmtree(dst)
                 else:
                     print_warning(f"Skipping existing directory: {dst}")
@@ -3759,7 +3780,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
                 continue
 
             if needs_materialize:
-                _materialize_renamed_alwu_skill(src, dst, install_name)
+                _materialize_renamed_skill(src, dst, install_name)
                 print(
                     f"Installed (alwu-claude-skills): {skill} as {install_name} "
                     f"(SKILL.md `name:` rewritten)"
@@ -3778,22 +3799,40 @@ def install_firefox_claude(target_dir=None, dry_run=False):
             src = os.path.join(MEDIA_SKILLS_DIR, skill)
             if not os.path.isdir(src):
                 continue
-            if skill in personal_skill_names or skill in alwu_claude_skill_names:
+            install_name = MEDIA_SKILLS_RENAME.get(skill, skill)
+            if install_name in personal_skill_names or install_name in alwu_claude_skill_names:
                 print_warning(
-                    f"Skipping media-skill '{skill}' (conflicts with personal/alwu-claude-skill)"
+                    f"Skipping media-skill '{install_name}' (conflicts with personal/alwu-claude-skill)"
                 )
                 continue
-            dst = os.path.join(target_skills_dir, skill)
+            dst = os.path.join(target_skills_dir, install_name)
+            # MEDIA_SKILLS_RENAME entries always need materialization: even when
+            # the install dir name is unchanged, the SKILL.md `name:` field is
+            # rewritten so it stops colliding with the personal skill.
+            needs_materialize = skill in MEDIA_SKILLS_RENAME
 
             if os.path.islink(dst):
                 os.unlink(dst)
+            elif os.path.isdir(dst):
+                if needs_materialize and _is_materialized_skill(dst, install_name):
+                    shutil.rmtree(dst)
+                else:
+                    print_warning(f"Skipping existing directory: {dst}")
+                    continue
             elif os.path.exists(dst):
-                print_warning(f"Skipping existing directory: {dst}")
+                print_warning(f"Skipping existing file: {dst}")
                 continue
 
-            os.symlink(src, dst)
-            print(f"Linked (media-skills): {skill}")
-            gitignore_entries.append(f".claude/skills/{skill}/")
+            if needs_materialize:
+                _materialize_renamed_skill(src, dst, install_name)
+                print(
+                    f"Installed (media-skills): {skill} as {install_name} "
+                    f"(SKILL.md `name:` rewritten)"
+                )
+            else:
+                os.symlink(src, dst)
+                print(f"Linked (media-skills): {skill}")
+            gitignore_entries.append(f".claude/skills/{install_name}/")
 
     # Auto-clean stale skills (broken symlinks, empty dirs) left over from
     # previous installs — e.g. skills that were renamed, deleted, or moved
@@ -4052,7 +4091,7 @@ def uninstall_firefox_claude(target_dir=None, dry_run=False):
                         os.unlink(skill_path)
                         print(f"Removed: {skill_path}")
                     removed.append(skill_path)
-            elif _is_materialized_alwu_skill(skill_path, skill):
+            elif _is_materialized_skill(skill_path, skill):
                 if dry_run:
                     print(f"  Would remove materialized dir: {skill_path}")
                 else:

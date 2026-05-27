@@ -613,6 +613,8 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         }
         self._orig_claude_rename = setup.ALWU_CLAUDE_SKILLS_RENAME
         setup.ALWU_CLAUDE_SKILLS_RENAME = {}
+        self._orig_media_rename = setup.MEDIA_SKILLS_RENAME
+        setup.MEDIA_SKILLS_RENAME = {}
 
     def tearDown(self):
         setup.FIREFOX_CLAUDE_OVERLAY = self._orig_overlay
@@ -621,6 +623,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         setup.ALWU_CLAUDE_SKILLS_DIR = self._orig_claude
         setup.ALWU_CLAUDE_SKILLS_EXCLUDE = self._orig_claude_exclude
         setup.ALWU_CLAUDE_SKILLS_RENAME = self._orig_claude_rename
+        setup.MEDIA_SKILLS_RENAME = self._orig_media_rename
         shutil.rmtree(self.test_dir)
 
     def _install(
@@ -976,6 +979,55 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self.assertIn("description: v2", content)
         self.assertNotIn("description: v1", content)
         self.assertIn("name: media-bug-start", content)
+
+    def test_install_renamed_media_skill_keeps_personal_name_distinct(self):
+        """A media-skill listed in MEDIA_SKILLS_RENAME with a SKILL.md `name:`
+        that collides with a personal skill must be materialized with its
+        `name:` rewritten — otherwise Claude Code hides the media copy
+        because both register under the same skill name.
+
+        Regression for the real-world case: media-skills/media-bug-triage-v2
+        declares `name: triage`, which collides with the personal triage
+        skill's `name: triage`. Per MEDIA_SKILLS_RENAME, the media copy is
+        materialized as media-bug-triage-v2 with `name: media-bug-triage-v2`.
+        """
+        # Personal skill named "triage"
+        personal_triage = os.path.join(self.overlay_dir, "skills", "triage")
+        os.makedirs(personal_triage)
+        with open(os.path.join(personal_triage, "SKILL.md"), "w") as f:
+            f.write("---\nname: triage\ndescription: personal\n---\n\nbody\n")
+
+        # Media-skill at media-bug-triage-v2 also declares name: triage
+        media_v2 = os.path.join(self.media_dir, "media-bug-triage-v2")
+        os.makedirs(media_v2)
+        with open(os.path.join(media_v2, "SKILL.md"), "w") as f:
+            f.write("---\nname: triage\ndescription: media v2\n---\n\nbody\n")
+
+        setup.MEDIA_SKILLS_RENAME = {
+            "media-bug-triage-v2": "media-bug-triage-v2"
+        }
+
+        self._install()
+
+        skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
+        personal_md = os.path.join(skills_dir, "triage", "SKILL.md")
+        media_md = os.path.join(skills_dir, "media-bug-triage-v2", "SKILL.md")
+
+        def parse_name(path):
+            with open(path) as f:
+                content = f.read()
+            for line in content.splitlines():
+                if line.startswith("name:"):
+                    return line.split(":", 1)[1].strip()
+            self.fail(f"no name: in {path}")
+
+        # The personal triage stays at name: triage; the media copy is
+        # materialized with name: media-bug-triage-v2 so the two no longer
+        # collide.
+        self.assertEqual(parse_name(personal_md), "triage")
+        self.assertEqual(parse_name(media_md), "media-bug-triage-v2")
+        # Materialized: real file, not a symlink.
+        self.assertFalse(os.path.islink(media_md))
 
     def test_install_gitignore_includes_all_skills(self):
         """Claude-skill and media-skill entries appear in .gitignore."""
