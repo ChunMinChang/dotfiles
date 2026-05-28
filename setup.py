@@ -4701,8 +4701,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     if get_user_confirmation(commit_prompt, default_non_interactive=False):
         new_branch = None
         if get_user_confirmation(
-            "Commit on a new branch (so the current branch stays clean)? "
-            "[y/N]: ",
+            "Commit on a new branch (so the current branch stays clean)? " "[y/N]: ",
             default_non_interactive=False,
         ):
             default_name = "claude-overlay"

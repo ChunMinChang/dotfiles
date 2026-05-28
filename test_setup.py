@@ -23,7 +23,6 @@ from unittest.mock import patch
 # Import setup.py module
 import setup
 
-
 requires_symlinks = unittest.skipUnless(
     setup.can_create_symlinks(),
     "requires symlink capability (Developer Mode on Windows)",
@@ -2104,9 +2103,9 @@ class TestCommitOverlayBranchHandling(unittest.TestCase):
                 return confirm_replace
             return False
 
-        with patch(
-            "setup.get_user_confirmation", side_effect=fake_confirmation
-        ), patch("setup.verify_overlay_commitable", return_value=True):
+        with patch("setup.get_user_confirmation", side_effect=fake_confirmation), patch(
+            "setup.verify_overlay_commitable", return_value=True
+        ):
             return setup._commit_overlay(
                 self.firefox_dir,
                 include_claude_local=False,
@@ -2114,86 +2113,71 @@ class TestCommitOverlayBranchHandling(unittest.TestCase):
             )
 
     def test_replace_existing_branch_when_confirmed(self):
-        original_sha = (
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    self.firefox_dir,
-                    "rev-parse",
-                    "existing-branch",
-                ],
-                capture_output=True,
-                text=True,
-            )
-            .stdout.strip()
-        )
+        original_sha = subprocess.run(
+            [
+                "git",
+                "-C",
+                self.firefox_dir,
+                "rev-parse",
+                "existing-branch",
+            ],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         ok = self._run_commit_overlay(confirm_replace=True)
         self.assertTrue(ok)
-        new_sha = (
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    self.firefox_dir,
-                    "rev-parse",
-                    "existing-branch",
-                ],
-                capture_output=True,
-                text=True,
-            )
-            .stdout.strip()
-        )
+        new_sha = subprocess.run(
+            [
+                "git",
+                "-C",
+                self.firefox_dir,
+                "rev-parse",
+                "existing-branch",
+            ],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         self.assertNotEqual(original_sha, new_sha)
-        head = (
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    self.firefox_dir,
-                    "rev-parse",
-                    "--abbrev-ref",
-                    "HEAD",
-                ],
-                capture_output=True,
-                text=True,
-            )
-            .stdout.strip()
-        )
+        head = subprocess.run(
+            [
+                "git",
+                "-C",
+                self.firefox_dir,
+                "rev-parse",
+                "--abbrev-ref",
+                "HEAD",
+            ],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         self.assertEqual(head, "existing-branch")
 
     def test_aborts_when_replace_declined(self):
-        original_sha = (
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    self.firefox_dir,
-                    "rev-parse",
-                    "existing-branch",
-                ],
-                capture_output=True,
-                text=True,
-            )
-            .stdout.strip()
-        )
+        original_sha = subprocess.run(
+            [
+                "git",
+                "-C",
+                self.firefox_dir,
+                "rev-parse",
+                "existing-branch",
+            ],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         ok = self._run_commit_overlay(confirm_replace=False)
         self.assertFalse(ok)
         # Branch ref unchanged.
-        unchanged_sha = (
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    self.firefox_dir,
-                    "rev-parse",
-                    "existing-branch",
-                ],
-                capture_output=True,
-                text=True,
-            )
-            .stdout.strip()
-        )
+        unchanged_sha = subprocess.run(
+            [
+                "git",
+                "-C",
+                self.firefox_dir,
+                "rev-parse",
+                "existing-branch",
+            ],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         self.assertEqual(original_sha, unchanged_sha)
 
 
@@ -2383,9 +2367,7 @@ class TestStuckClaudeOverlayAutoSwitch(unittest.TestCase):
             os.path.join(self.overlay_dir, "skills", "my-skill", "SKILL.md"), "w"
         ) as f:
             f.write("personal skill")
-        with open(
-            os.path.join(self.overlay_dir, "settings.local.json"), "w"
-        ) as f:
+        with open(os.path.join(self.overlay_dir, "settings.local.json"), "w") as f:
             f.write('{"permissions":{"allow":[]}}')
 
         self._orig_overlay = setup.FIREFOX_CLAUDE_OVERLAY
@@ -2455,9 +2437,7 @@ class TestStuckClaudeOverlayAutoSwitch(unittest.TestCase):
         def fake_confirmation(prompt="", default_non_interactive=False):
             return False
 
-        with patch(
-            "setup.get_user_input", side_effect=fake_input
-        ), patch(
+        with patch("setup.get_user_input", side_effect=fake_input), patch(
             "setup.get_user_confirmation", side_effect=fake_confirmation
         ), patch("setup.is_windows", return_value=True):
             setup.install_firefox_claude(self.firefox_dir)
