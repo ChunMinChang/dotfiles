@@ -3,7 +3,7 @@ name: sherlock
 description: >
   Root cause analysis for Firefox bugs with evidence-based code tracing,
   permanent source links, and proof tests. Two phases: diagnose, then discuss solutions.
-argument-hint: "<bug-id> [output-dir] [report-path-or-dir]"
+argument-hint: "<bug-id> [output-dir] [report-path-or-dir] | --resume <run-dir>"
 allowed-tools:
   - Bash(git:*)
   - Bash(jj:*)
@@ -11,6 +11,9 @@ allowed-tools:
   - Bash(bmo-to-md:*)
   - Bash(./mach:*)
   - Bash(.claude/skills/sherlock/sherlock-config:*)
+  - Bash(mkdir:*)
+  - Bash(cp:*)
+  - Bash(ls:*)
   - Read
   - Write
   - Edit
@@ -30,6 +33,7 @@ allowed-tools:
 Follow `references/source-permalinks.md` for ALL source and documentation references.
 Follow `references/spec-check.md` when verifying web specification compliance.
 Follow `references/gecko-architecture.md` for Gecko architecture lookups.
+Follow `references/agent-teams.md` for the agent-team I/O contracts and prompts.
 
 This skill has two phases:
 1. **Root Cause Analysis** — evidence-based diagnosis with permanent source links,
@@ -37,15 +41,24 @@ This skill has two phases:
 2. **Solution Discussion** — propose and discuss solutions with the user. Only after
    the user agrees with the Phase 1 analysis.
 
+Sherlock runs are **persistent and resumable**. Every run writes a `plan.md`
+progress table to its run directory; each research team and each reviewer writes
+its findings to a dedicated file. If a session halts (server unavailable, context
+exhausted, power outage, kill), re-invoke with `--resume <run-dir>` (or just
+`/sherlock <bug-id>` — the bug id locates the run dir) and the skill continues
+from the first non-completed row. See **Phase 0** and `references/plan-template.md`.
+
 **Arguments:** $0
 
 Parse the arguments:
-- First numeric token = **bug ID** (mandatory)
-- Tokens containing `/` = path arguments. Disambiguate by checking the target:
-  - If it's an existing directory → **output-dir**
-  - If it's an existing file → **report-path**
-  - If two path tokens are given, first = output-dir, second = report-path
-  - If it's a non-existing path ending with `/` or looks like a directory → output-dir
+- `--resume <run-dir>` present → **resume mode** (skip fresh setup; see Phase 0).
+- Otherwise:
+  - First numeric token = **bug ID** (mandatory)
+  - Tokens containing `/` = path arguments. Disambiguate by checking the target:
+    - If it's an existing directory → **output-dir**
+    - If it's an existing file → **report-path**
+    - If two path tokens are given, first = output-dir, second = report-path
+    - If it's a non-existing path ending with `/` or looks like a directory → output-dir
 
 ---
 
@@ -76,7 +89,17 @@ Parse the arguments:
 11. **The reviewer is independent** — when `red-pen` returns `revise`
     or `redesign`, do not argue with the verdict. Either fix the solution,
     escalate to the user (for `redesign`), or loop back to Phase 1 (for
-    `reject` / `needs-more-info`).
+    `reject` / `needs-more-info`). This applies to both the Phase-1 review
+    team (root cause) and the Phase-2 red-pen (solutions).
+12. **Persist every team output to disk** — each Phase-1 research team and each
+    Phase-5 reviewer owns a named output file in the run dir (`teams/*.md`,
+    `review/*.md`). Their findings live there, not just in the main-agent
+    transcript. A halted session resumes by reading those files. Never rely on a
+    subagent transcript to retain results.
+13. **Update `plan.md` at every transition** — set a row to `in-progress`
+    *before* starting the work and `completed` after the artifact is on disk.
+    Never leave a row silently behind; the progress table is the hand-over
+    document for `--resume`.
 
 ---
 
@@ -95,58 +118,141 @@ subagents so the main context stays focused.
 - **Parallelizable**: e.g., trace Firefox + library simultaneously.
 
 **Do NOT delegate**:
-- Hypothesis selection or pruning.
-- "What does this evidence mean for the root cause?"
+- Hypothesis selection or pruning (Team H is advisory; the tree is yours).
+- "What does this evidence mean for the root cause?" — Synthesis (Step 1.7.5).
+- The verdict, the root cause, and the design-relation sentence.
 - Phase Gate / user-facing decisions.
-- The Self-Critique Pass (Step 1.10.5).
+- The structural self-check (Step 1.10.5).
 - Any step that requires judging two competing claims.
 
-The specific delegation points in this skill are Steps 1.1–1.2, 1.5, and
-1.6, called out inline below. Each invocation must:
+Bounded research is delegated to **agent teams** — multiple `Agent` calls in a
+single message that run concurrently. Sherlock's investigation is gated, so teams
+launch in two waves (full contracts in `references/agent-teams.md`):
+
+- **Stage 2a — intake teams** (run before any hypothesis exists, formalising the
+  old Step 1.1): **Team B** (bug-context digest) and **Team H** (hypothesis
+  brainstorm, advisory only).
+- *(main-agent gate: failure-pattern classification, investigation plan,
+  hypothesis tree, working branch — none delegated)*
+- **Stage 2b — research teams** (run after the primary hypothesis is chosen,
+  formalising the old Steps 1.5/1.6): **Team C** (Firefox code-trace), **Team L**
+  (library code-trace, when third-party), **Team D** (design archaeology),
+  **Team X** (cross-browser/spec), **Team T** (test-framework scout + draft).
+- **Synthesis** (main agent reads all team files → verdict + root cause).
+
+Each team **writes its full findings to a dedicated file** under `<run-dir>/teams/`
+and returns only a ≤10-line summary. The main agent reads the files, never the
+transcripts. Each invocation must:
 - Pass inputs as **file paths and explicit values** — not as "the bug we're
   investigating".
-- Specify the **output shape** so the main agent knows what to expect.
+- Specify the **output shape** and the target output file.
 - Include the framing: *"return the requested artifact only; do not draw
   conclusions about the root cause."*
 
+A team never declares the root cause, the verdict, or the hypothesis ranking.
+
 ---
 
-## Preliminary: Resolve Config and Inputs
+## Phase 0 — Intake and resume
 
-### Check Setup
+Every run lives in a **per-run subdirectory** `<output-dir>/bug-<id>/` (the
+**run dir**). `plan.md` (the progress table, from `references/plan-template.md`)
+and all artifacts live inside it. The bug id is the run identity — there is no
+slug. Re-running the same bug resumes the existing run dir.
 
-Run the setup check to verify all prerequisites:
-```bash
-.claude/skills/sherlock/sherlock-config --check-setup
-```
+### Resume branch
 
-This reports status of: API key availability, `bmo-to-md` installation,
-`searchfox-cli` availability, and configured output directory.
-If any prerequisite is missing, present options to the user.
+Enter this branch if the invocation contains `--resume <run-dir>`, **or** if a
+fresh invocation's `<output-dir>/bug-<id>/plan.md` already exists (in which case
+ask via `AskUserQuestion`: "Found an existing analysis for bug `<id>` at `<path>`.
+Resume, or start fresh?" — "start fresh" archives or overwrites per the user).
 
-### Resolve Output Directory
+1. `Read <run-dir>/plan.md`. Recover the bug id, the pinned **Searchfox
+   revision**, and the progress table.
+2. Restore session variables: set `$SHERLOCK_REV` from the plan.md revision line
+   — **do NOT re-resolve it**; every link on disk depends on it. Re-resolve only
+   `$SHERLOCK_AUTHOR` via `sherlock-config --get-patch-author` (deterministic).
+3. Confirm the Firefox working branch still exists:
+   `git rev-parse --verify sherlock/bug-<id>`. If missing, recreate it from the
+   recorded revision and set row 8 back to `in-progress` in plan.md.
+4. Announce in ≤2 lines: "Resuming sherlock bug `<id>` at `<run-dir>`; next task:
+   `<first non-completed row>`."
+5. Jump to the phase containing the first `pending`/`in-progress` row. Treat
+   `in-progress` rows as un-finished — re-run them; their output file overwrites.
+   Trust `completed` rows (read their artifacts, do not regenerate). Re-present
+   `blocked-on-user` rows (e.g. the Phase Gate) to the user.
+6. Skip the rest of Phase 0.
 
-Priority:
-1. CLI argument (if a path argument was identified as output-dir)
-2. `sherlock-config --get-output-dir` (reads `~/.config/sherlock/config.toml`)
-3. Ask the user via AskUserQuestion: "Where should I put the analysis report?"
+### Fresh-run branch
 
-```bash
-mkdir -p <output-dir>
-```
+1. **Check setup:** `.claude/skills/sherlock/sherlock-config --check-setup`
+   reports API key availability, `bmo-to-md`, `searchfox-cli`, and configured
+   output dir. If any prerequisite is missing, present options to the user.
+2. **Resolve output dir** (priority): CLI arg → `sherlock-config --get-output-dir`
+   → ask via `AskUserQuestion`, then persist with
+   `sherlock-config --set-output-dir <path>`.
+3. **Parse** bug id and optional report-path (see Arguments above).
+4. **Create the run dir and subdirs:**
+   ```bash
+   mkdir -p <output-dir>/bug-<id>/teams
+   mkdir -p <output-dir>/bug-<id>/review
+   mkdir -p <output-dir>/bug-<id>/firefox/fix
+   mkdir -p <output-dir>/bug-<id>/firefox/debug
+   ```
+   `<library>/` subdirs are created later, when Step 1.5b activates (T1).
+   Hereafter `<run-dir>` = `<output-dir>/bug-<id>/`.
+5. **Resolve `$SHERLOCK_REV`** (pin a searchfox revision for the whole run so all
+   links are permanent):
+   1. Get local HEAD: `git rev-parse HEAD`
+   2. Validate on searchfox:
+      `WebFetch https://searchfox.org/firefox-main/rev/<hash>/moz.configure`
+      - 200 → use this hash as `$SHERLOCK_REV`
+      - 404 (not yet indexed) → fetch
+        `https://searchfox.org/firefox-main/source/moz.configure` and extract the
+        latest indexed revision from the page
+   3. For ESR/beta branches, repeat with the appropriate repo id
+      (e.g. `firefox-esr128`).
+6. **Resolve `$SHERLOCK_AUTHOR`:**
+   `SHERLOCK_AUTHOR=$(.claude/skills/sherlock/sherlock-config --get-patch-author)`
+   (reads `patch_author` from config, else `git config user.name`/`user.email`).
+   All generated patches use this as the commit author.
+7. **Write `plan.md`** from `references/plan-template.md` into `<run-dir>/`,
+   substituting `{bug_id}`, `{start_timestamp}`, `{public_or_private}`,
+   `{abs_run_dir}`, `{rev_short}`, `{rev_full}`. Row 1 `in-progress`, rest
+   `pending`.
+8. Mark row 1 `completed` and append a Notes line. Confirm to the user in ≤3
+   lines: bug id, run-dir path, `$SHERLOCK_REV` short hash, "resume with
+   `/sherlock --resume <run-dir>` if I stop".
+
+> The bug report itself is fetched by **Team B** in Phase 1 (Step 1.1), not here
+> — unless a `report-path` was provided, in which case read it directly and pass
+> its path to Team B as a pointer instead of re-fetching.
 
 ### Output Directory Structure
 
-The output directory always uses the same uniform layout. Firefox patches go in
-`firefox/`, third-party patches go in `<library>/`. Both use identical `fix/` +
-`debug/` substructure. Patches are numbered so they can be applied in order —
-test patches first, then fix patches on top, so reviewers can verify tests go
-from FAIL to PASS.
+The run dir uses a uniform layout. Firefox patches go in `firefox/`, third-party
+patches go in `<library>/`. Both use identical `fix/` + `debug/` substructure.
+Patches are numbered so they apply in order — test patches first, then fix
+patches on top, so reviewers can verify tests go from FAIL to PASS.
 
 ```
-<output-dir>/
+<output-dir>/bug-<id>/                          # the run dir (resume key = bug-<id>)
+  plan.md                                       # Progress table + resume doc
   bug-<id>-analysis.md                          # Primary analysis document
-  bug-<id>-report/                              # Bug report from bmo-to-md
+  bug-<id>-report/                              # Bug report from bmo-to-md (Team B)
+  bug-<id>-attachments/                         # Attachments (Team B)
+  bug-<id>-review.md                            # Phase-2 red-pen on solutions
+  teams/                                        # Phase-1 team output files
+    team-b-bug-context.md
+    team-c-code-trace-firefox.md
+    team-l-code-trace-library.md
+    team-h-hypotheses.md
+    team-d-design-archaeology.md
+    team-x-cross-browser.md
+    team-t-frameworks.md
+    synthesis.md
+  review/                                       # Phase-1 review-team files
+    L.md   T.md   R.md
   firefox/
     fix/                                        # Clean patches for Firefox
       01-test-<desc>.patch                     #   Regression test
@@ -154,8 +260,8 @@ from FAIL to PASS.
     debug/                                      # Firefox debug artifacts
       01-test-<desc>.patch                     #   Same test patch(es)
       02-debug-firefox-instrumentation.patch   #   Instrumentation on top
-      bug-<id>-debug-<desc>.log                #   Captured debug output
       bug-<id>-test-run.log                    #   Test execution output
+      bug-<id>-debug-<desc>.log                #   Captured debug output
   <library>/                                    # Only when third-party involved
     bug-<id>-upstream-<library>.md              # Upstream report (sanitized)
     fix/                                        # For upstream: clean, applicable
@@ -209,19 +315,12 @@ descriptive names after the prefix (e.g., `01-test-ogg-truncated-stream.patch`,
 `git am -3` (with three-way merge) or `git apply`. This requires committing
 changes before generating the patch.
 
-The patch author must be the user, not the AI agent. Resolve the author at the
-start of the session:
-```bash
-SHERLOCK_AUTHOR=$(.claude/skills/sherlock/sherlock-config --get-patch-author)
-```
-This reads `patch_author` from `~/.config/sherlock/config.toml` if set, otherwise
-falls back to `git config user.name` / `git config user.email`.
-
-Patch generation pattern (commits stay on the branch):
+Patch generation pattern (commits stay on the branch; `$SHERLOCK_AUTHOR` resolved
+in Phase 0):
 ```bash
 git add <files>
 git commit --author="$SHERLOCK_AUTHOR" -m "<descriptive message>"
-git format-patch -1 --stdout > <output-dir>/<path>/<NN>-<desc>.patch
+git format-patch -1 --stdout > <run-dir>/<path>/<NN>-<desc>.patch
 ```
 The commit message should describe what the patch does (e.g.,
 "Add gtest for OOB read in vorbis window function" or "Add debug
@@ -229,129 +328,39 @@ instrumentation for decode path tracing"). Commits are kept on the working
 branch — do NOT reset. The branch history IS the ordered patch series:
 `test-1 → test-2 → ... → fix-1 → fix-2 → ...`
 
-**Directory creation**: Create `firefox/` subdirectories after resolving the
-output directory. Create `<library>/` subdirectories when Step 1.5b activates
-and the library is identified (T1):
-```bash
-# Always (after resolving output directory):
-mkdir -p <output-dir>/firefox/fix
-mkdir -p <output-dir>/firefox/debug
-# When Step 1.5b activates (after T1 identifies the library):
-mkdir -p <output-dir>/<library>/fix
-mkdir -p <output-dir>/<library>/debug
-```
-
-### Fetch Bug Report
-
-**If report-path was provided**: read it directly. Look for `summary.md` or
-`bug-*.md` files if it's a directory.
-
-**If not provided**: use sherlock-config to fetch:
-```bash
-.claude/skills/sherlock/sherlock-config --fetch-bug <bug_id> -o <output-dir>/bug-<id>-report
-```
-
-The helper script orchestrates `bmo-to-md` (with API key export if needed) or
-falls back to the Bugzilla REST API. See `sherlock-config --help` for details.
-
-**If sherlock-config fails**: try MCP for public bugs:
-```
-mcp__moz__get_bugzilla_bug(bug_id: {bug_id})
-```
-
-**Determine Public vs Private:**
-- MCP returns content → **Public: Yes**
-- MCP returns "Bug not found" or authorization error → **Public: No**
-
-### Resolve Session-Wide Variables
-
-Resolve these at the start of the session and reuse throughout:
-
-**Patch author** (`$SHERLOCK_AUTHOR`):
-```bash
-SHERLOCK_AUTHOR=$(.claude/skills/sherlock/sherlock-config --get-patch-author)
-```
-Reads `patch_author` from `~/.config/sherlock/config.toml` if set, otherwise
-falls back to `git config user.name` / `git config user.email`. All generated
-patches use this as the commit author.
-
-**Searchfox revision** (`$SHERLOCK_REV`):
-
-Pin a searchfox revision for the entire session so all links are permanent:
-
-1. Get local HEAD: `git rev-parse HEAD`
-2. Validate on searchfox: `WebFetch https://searchfox.org/firefox-main/rev/<hash>/moz.configure`
-   - If the page loads (200): use this hash as `$SHERLOCK_REV`
-   - If 404 (not yet indexed): fetch `https://searchfox.org/firefox-main/source/moz.configure`
-     and extract the latest indexed revision from the page
-3. Use `$SHERLOCK_REV` for ALL searchfox links in this session
-4. For ESR/beta branches: repeat with the appropriate repo ID (e.g., `firefox-esr128`)
+`<library>/` subdirectories are created when Step 1.5b activates and the library
+is identified (T1): `mkdir -p <run-dir>/<library>/fix <run-dir>/<library>/debug`.
 
 ---
 
 ## Phase 1: Root Cause Analysis
 
-### Step 1.1: Understand the Bug
+### Step 1.1: Understand the Bug — Stage 2a teams (Team B + Team H)
 
-**Delegate** the raw collection of bug context to a subagent so the main
-context is not flooded with bug comments, duplicate descriptions, and
-Treeherder JSON. The main agent works only from the structured digest the
-subagent returns.
+Launch the **Stage 2a intake teams in one message** (two `Agent` calls) so they
+run concurrently. Full I/O contracts and prompt templates are in
+`references/agent-teams.md`:
 
-```
-Agent(
-  subagent_type: "general-purpose",
-  description: "Bug context digest for bug <id>",
-  prompt: <see template below>,
-)
-```
+- **Team B — bug-context digest.** Fetches the main bug + each duplicate +
+  attachments + Treeherder failure-distribution, and writes the digest to
+  `<run-dir>/teams/team-b-bug-context.md` (sections: Identity, STR, Attachments,
+  Duplicates, Treeherder, Pointers). This single fetch serves Steps 1.2
+  (duplicates), 1.3 (failure pattern), and 1.8a (attachments) — read the file,
+  do not re-fetch. If a `report-path` was provided in Phase 0, pass it as a
+  pointer so Team B skips the main fetch.
+- **Team H — hypothesis brainstorm (advisory).** Brainstorms ≥3 candidate
+  hypotheses (mechanism / confirming / refuting / probe cost) to *feed* the
+  main agent's hypothesis tree (Step 1.3b.5). It writes
+  `<run-dir>/teams/team-h-hypotheses.md`. **It does not rank or pick a primary
+  hypothesis** — that is main-agent work (anti-anchoring, Gotcha #10). Seed it
+  with the bug identity/STR/stack you already have (pass inline).
 
-Prompt template (substitute `<bug_id>`, `<output-dir>`, `<repo-root>`):
+Set plan.md rows 2 (Team B) and 3 (Team H) `in-progress` before launching. As
+each returns, verify its output file is non-empty and mark its row `completed`;
+if a team aborts, leave its row `in-progress` so `--resume` re-runs it.
 
-```
-You are gathering raw context for a Firefox bug investigation. Return a
-structured digest only — do NOT diagnose or speculate about root cause.
-
-Inputs:
-- Bug ID: <bug_id>
-- Output directory: <output-dir>
-- Repo root: <repo-root>
-- Sherlock config helper: <repo-root>/.claude/skills/sherlock/sherlock-config
-
-Tasks:
-1. Run `<sherlock-config> --fetch-bug <bug_id> -o <output-dir>/bug-<id>-report`
-   for the main bug.
-2. Parse duplicates from the bug report; for each, run the same fetch into
-   `<output-dir>/bug-<dup_id>-report`.
-3. Run `<sherlock-config> --fetch-attachments <bug_id> -o <output-dir>/bug-<id>-attachments`.
-4. Fetch the Treeherder failure-distribution endpoint:
-   `https://treeherder.mozilla.org/api/failuresbybug/?startday=YYYY-MM-DD&endday=YYYY-MM-DD&tree=all&bug=<bug_id>`
-   for the last 7 days.
-
-Return a single markdown digest (NOT the raw artifacts) with these sections:
-- **Identity**: title, component, severity, priority, status, public/private,
-  sec-* keywords (if any), depends/blocks list.
-- **STR & expected vs actual**: condensed.
-- **Attachments**: one line each (filename, size, type, brief purpose).
-- **Duplicates**: for each, one paragraph of *new* information not in the
-  main bug.
-- **Treeherder**: platforms, suites, build types, failure rate
-  (consistent / intermittent + count), trees, date range. If no
-  Treeherder hits, say so.
-- **Pointers**: relative paths to the fetched artifact directories so the
-  main agent can read them on demand.
-
-Hard rules:
-- Do NOT propose a root cause.
-- Do NOT speculate about which code is responsible.
-- Do NOT include the full text of bug comments — distill to the key facts.
-- Do NOT touch any API key file.
-```
-
-The main agent reads only the returned digest. Raw artifacts stay on disk
-for later targeted reads (e.g., a specific attachment).
-
-After receiving the digest, extract for the analysis doc:
+Then `Read <run-dir>/teams/team-b-bug-context.md` and extract for the analysis
+doc:
 - Bug title and description (condensed)
 - Component
 - Steps to reproduce (STR)
@@ -365,8 +374,8 @@ MUST include a **Security Rating** section.
 
 ### Step 1.2: Check Duplicates and Related Bugs
 
-The Step 1.1 digest already includes duplicate fetches and a "Duplicates"
-section. Read that section.
+Mark plan.md row 4 `in-progress`. Team B's digest already includes duplicate
+fetches and a "Duplicates" section. Read that section.
 
 Duplicates are valuable when they contain:
 - Additional STR or reproduction scripts
@@ -376,13 +385,15 @@ Duplicates are valuable when they contain:
 - Different affected versions or platforms
 
 If the digest's duplicate summary is thin and a duplicate seems important,
-read the raw report from `<output-dir>/bug-<duplicate_id>-report/` directly
+read the raw report from `<run-dir>/bug-<duplicate_id>-report/` directly
 — targeted Read, not full re-ingestion. If a duplicate adds a meaningfully
 different perspective, note it under **Related Context** in the analysis doc.
+Mark row 4 `completed`.
 
 ### Step 1.3: Failure Pattern Analysis
 
-The Step 1.1 digest has the Treeherder block. From it, extract:
+Mark plan.md row 5 `in-progress`. Team B's digest has the Treeherder block. From
+it, extract:
 - **Platforms** (e.g., Windows 11 only → OS-specific; Linux+Mac → cross-platform)
 - **Test suites** (e.g., `mochitest-media-wmfme` → Windows Media Foundation Engine)
 - **Build types** (debug/asan/opt)
@@ -404,12 +415,14 @@ The Step 1.1 digest has the Treeherder block. From it, extract:
 4. **Platform-specific conditions**: Hardware, OS version, driver.
 
 **Never assume** that because a test occasionally fails, the feature is broken.
-If it passes 95% of the time, something rare causes the failure.
+If it passes 95% of the time, something rare causes the failure. Write the
+Failure Pattern section into the analysis doc and mark row 5 `completed`.
 
 ### Step 1.3b: Plan the Investigation
 
-**Enter plan mode** before starting the deep investigation. Use `EnterPlanMode`
-to draft an investigation plan based on what Steps 1.1-1.3 revealed.
+Mark plan.md row 6 `in-progress`. **Enter plan mode** before starting the deep
+investigation. Use `EnterPlanMode` to draft an investigation plan based on what
+Steps 1.1-1.3 (and Team H's candidate hypotheses) revealed.
 
 The plan should cover:
 - **Hypothesis**: Initial theory about the root cause (to be confirmed or refuted)
@@ -423,14 +436,17 @@ The plan should cover:
 
 Present the plan to the user for review. The user may refine the hypothesis,
 suggest additional code areas, or redirect the investigation. Use `ExitPlanMode`
-after the user approves or provides feedback.
+after the user approves or provides feedback. Record plan decisions in plan.md
+Notes and mark row 6 `completed`.
 
 ### Step 1.3b.5: Build the Hypothesis Tree
 
-Before committing to a single line of investigation, **enumerate at least
-three** candidate root-cause hypotheses — even when one already feels
-obvious. Single-hypothesis RCAs anchor too early; the cost of generating two
-extra candidates is minutes, the cost of anchoring on the wrong one is hours.
+Mark plan.md row 7 `in-progress`. Read `<run-dir>/teams/team-h-hypotheses.md` for
+Team H's candidates, then **build the tree yourself** — Team H is advisory; you
+own selection, ranking, and pruning. **Enumerate at least three** candidate
+root-cause hypotheses — even when one already feels obvious. Single-hypothesis
+RCAs anchor too early; the cost of generating two extra candidates is minutes,
+the cost of anchoring on the wrong one is hours.
 
 For each hypothesis, fill in:
 
@@ -446,11 +462,13 @@ this table to the analysis doc under a `## Hypothesis Tree` section so
 reviewers can see what was considered and pruned.
 
 When investigation surfaces evidence that revives a pruned hypothesis, do
-not silently re-anchor — re-rank the table and update the analysis doc.
+not silently re-anchor — re-rank the table and update the analysis doc. Mark
+row 7 `completed`.
 
 ### Step 1.3c: Create Firefox Working Branch
 
-Create a working branch in the Firefox tree for all sherlock test and fix commits:
+Mark plan.md row 8 `in-progress`. Create a working branch in the Firefox tree for
+all sherlock test and fix commits:
 ```bash
 git checkout -b sherlock/bug-<id> HEAD
 ```
@@ -464,7 +482,7 @@ HEAD
 
 The `sherlock/bug-<id>/debug` branch is created later (Step 1.8e or B1.4) when
 instrumentation is needed. It forks from the last test commit and is used only for
-debug capture — it is not part of the final patch series.
+debug capture — it is not part of the final patch series. Mark row 8 `completed`.
 
 ### Step 1.4: Research Code Paths
 
@@ -488,77 +506,57 @@ jj log -r 'file(path/to/file)' -l 10
 
 For third-party libraries, consult `references/upstream-libs.md`.
 
-### Step 1.5: Trace Code Paths with Permanent Links
+### Step 1.5: Stage 2b research teams (C, L, D, X, T)
 
-Read `references/source-permalinks.md` for URL patterns. For EVERY code reference,
-produce a revision-pinned link using `$SHERLOCK_REV`.
+Once the primary hypothesis and entry symbols are chosen (Steps 1.3b.5/1.4),
+launch the **Stage 2b research teams in one message** (multiple `Agent` calls) so
+they run concurrently. Full I/O contracts and prompt templates are in
+`references/agent-teams.md`. All Stage 2b teams are **read-only** — none of them
+build. Set each applicable team's plan.md row `in-progress` before launching:
 
-**Delegate** the raw tracing to one or two subagents in parallel — Firefox
-side and (when applicable) library side. The main agent receives the
-finished trace and decides what to believe; raw searchfox dumps stay in the
-subagent's context.
+- **Team C — Firefox code-trace** (row 9). Numbered, revision-pinned trace of the
+  call path for the primary hypothesis → `teams/team-c-code-trace-firefox.md`.
+- **Team L — library code-trace** (row 10). Only when Step 1.5b applies; same
+  contract with upstream permalinks → `teams/team-l-code-trace-library.md`.
+  Vendored revision: `git show HEAD:media/<lib>/moz.yaml | grep revision`.
+- **Team D — design archaeology** (row 11). Git-history archaeology of the suspect
+  code → `teams/team-d-design-archaeology.md`. **Skip (row `skipped`) when Step
+  1.5b is active** — design intention is covered in the branch workflow
+  (A1/B1/C1).
+- **Team X — cross-browser / spec** (row 12). Spec citation + cross-engine
+  behaviour table → `teams/team-x-cross-browser.md`. Skip (row `skipped`) for
+  internal-only bugs with no web surface.
+- **Team T — test-framework scout + draft** (row 13). Per live hypothesis: pick a
+  framework, find a neighbour test, and draft the proof-test source →
+  `teams/team-t-frameworks.md`. Team T does NOT build (builds serialize — see
+  Step 1.8/1.9).
 
-```
-Agent(
-  subagent_type: "general-purpose",
-  description: "Code path trace: <hypothesis short name> (Firefox)",
-  prompt: <see template below>,
-)
-```
-
-When Step 1.5b is also active, dispatch a second subagent for the library
-trace **in parallel** in the same message.
-
-Prompt template (substitute the placeholders):
-
-```
-You are producing a code path trace for a Firefox root-cause investigation.
-Return the trace only — do NOT decide what the root cause is.
-
-Inputs:
-- Repo root: <repo-root>
-- Searchfox revision: <SHERLOCK_REV>
-- Entry symbol(s) / file(s): <list>
-- Hypothesis to trace: <one sentence — the failure mechanism the trace
-  should illuminate>
-- Side: <"firefox" | "library: <name> @ <upstream_revision>">
-
-Tasks:
-1. Use `searchfox-cli` (Firefox side) or upstream-permalink construction
-   (library side, see references/upstream-libs.md) to find the call path.
-2. Read each function in the path (do not skim — read the body).
-3. Produce a numbered trace, every step pinned to a revision-permalink.
-   Each step gets a one-line evidence note: what happens, what the function
-   returns, what state it mutates.
-
-Output shape:
-- A markdown numbered list, one entry per step.
-- Each entry: `[`Class::Method`](permalink#Lline) — one-line description`
-  followed by a sub-bullet with concrete evidence (what it does / where it
-  fails / what it returns).
-- After the trace, a 3-line "Notable observations" block flagging anything
-  that looks suspicious (early return on error swallowed, missing nullcheck,
-  unusual lifetime). DO NOT declare these as root cause; just flag.
-
-Hard rules:
-- Every link must be revision-pinned. Never use trunk URLs.
-- Do not invent line numbers. If you can't open a file, say so.
-- Do not propose fixes.
-- Do not declare root cause.
-```
-
-For third-party code, the subagent uses upstream permalinks. To find the
-vendored revision: `git show HEAD:media/<lib>/moz.yaml | grep revision` —
-include this in the subagent prompt as the upstream revision pin.
-
-After the subagent(s) return, the main agent integrates the traces into the
-analysis doc and reasons about which steps in the path correspond to the
-primary hypothesis from Step 1.3b.5.
+As each team returns, verify its output file is non-empty and mark its row
+`completed`; if a team aborts, leave its row `in-progress` for `--resume`. The
+main agent **reads the files** (not transcripts) during Synthesis and reasons
+about which trace steps correspond to the primary hypothesis. Read
+`references/source-permalinks.md` for URL patterns; every code reference is
+revision-pinned with `$SHERLOCK_REV`.
 
 ### Step 1.5b: Third-Party Library Sub-Workflow (Conditional)
 
+If the root cause does **not** involve vendored third-party code, mark plan.md
+rows 14 and 10 (Team L) `skipped` and continue at Step 1.6/1.7.5.
+
 If the root cause involves vendored third-party code (file paths matching
-`references/upstream-libs.md`), activate this sub-workflow.
+`references/upstream-libs.md`), activate this sub-workflow. It is **plan.md row
+14 — a gate**. T1/T2/T3 are sequential and main-agent-driven (NOT teams): T1 needs
+user input; T3 is a serialized diagnostic build whose result chooses the branch.
+
+Ordering with the Stage 2b teams: the read-only traces (Team C + Team L) launched
+in Step 1.5 run **before** T3's build, so the trace informs which path to test.
+After T3 resolves scope, **write the scope verdict (Branch A / B / C) into plan.md
+Notes** and **append the branch sub-rows** under row 14 (see
+`references/plan-template.md` "Dynamic rows"). Recording the verdict in Notes lets
+a resume that halts after T3 but before the rows are written reconstruct them.
+Mark row 14 `in-progress` now; mark it `completed` once the scope is recorded and
+the branch rows are appended. Branch downstream work then runs against those
+appended rows.
 
 #### T1: Check for Local Upstream Repo
 
@@ -615,7 +613,7 @@ git commit --author="$SHERLOCK_AUTHOR" -m "Add standalone test for <desc>"
 
 Generate the test patch:
 ```bash
-git format-patch -1 --stdout > <output-dir>/<library>/debug/01-test-<desc>.patch
+git format-patch -1 --stdout > <run-dir>/<library>/debug/01-test-<desc>.patch
 ```
 
 **2. Create the debug branch and add instrumentation:**
@@ -634,7 +632,7 @@ Common instrumentation patterns for C/C++ libraries:
 ```bash
 git add <instrumented files>
 git commit --author="$SHERLOCK_AUTHOR" -m "Add debug instrumentation for <desc>"
-git format-patch -1 --stdout > <output-dir>/<library>/debug/02-debug-lib-instrumentation.patch
+git format-patch -1 --stdout > <run-dir>/<library>/debug/02-debug-lib-instrumentation.patch
 ```
 
 **3. Code path trace**: Read and trace the suspected code path in the library's own
@@ -643,8 +641,8 @@ source files. Produce a numbered trace using permanent upstream links (e.g.,
 
 **4. Build and run** (on the debug branch — has both test + instrumentation):
 ```bash
-<build-command> 2>&1 | tee <output-dir>/<library>/debug/bug-<id>-debug-lib-build.log
-<test-command> 2>&1 | tee <output-dir>/<library>/debug/bug-<id>-debug-lib-<desc>.log
+<build-command> 2>&1 | tee <run-dir>/<library>/debug/bug-<id>-debug-lib-build.log
+<test-command> 2>&1 | tee <run-dir>/<library>/debug/bug-<id>-debug-lib-<desc>.log
 ```
 
 **5. Switch back to the test branch** for clean state:
@@ -662,7 +660,10 @@ will be created on top of the test branch.
 | Bug **does NOT reproduce** upstream | **(b) Firefox integration** | → Branch B |
 | Bug reproduces **differently** (e.g., different behavior, partial failure, or only under specific threading/config that Firefox uses) | **(a+b) Split scope** | → Branch C |
 
-Document the T3 result and confirmed scope in the analysis doc.
+Document the T3 result and confirmed scope in the analysis doc. **Write the scope
+verdict into plan.md Notes and append the branch sub-rows** under row 14 (Branch A
+→ A1/A2/A3/A4; Branch B → B1/B2; Branch C → the two-layer rows), per
+`references/plan-template.md` "Dynamic rows". Then mark row 14 `completed`.
 
 ---
 
@@ -697,14 +698,14 @@ the upstream fix resolves the problem in Firefox.
    git checkout sherlock/bug-<id>
    git add <test files>
    git commit --author="$SHERLOCK_AUTHOR" -m "Add regression test for <desc>"
-   git format-patch -1 --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
-   cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
+   git format-patch -1 --stdout > <run-dir>/firefox/fix/01-test-<desc>.patch
+   cp <run-dir>/firefox/fix/01-test-<desc>.patch <run-dir>/firefox/debug/01-test-<desc>.patch
    ```
    The commit stays on the branch — do NOT reset.
 6. Build and run against the unfixed tree:
    ```bash
    ./mach build
-   ./mach test <path> --headless 2>&1 | tee <output-dir>/firefox/debug/bug-<id>-test-run.log
+   ./mach test <path> --headless 2>&1 | tee <run-dir>/firefox/debug/bug-<id>-test-run.log
    ```
 
 **A3. Generate upstream report:**
@@ -712,7 +713,7 @@ the upstream fix resolves the problem in Firefox.
 Generate a second, concise analysis document for reporting to the upstream library
 maintainers. Read `references/upstream-report-template.md` for the template.
 
-Write to `<output-dir>/<library>/bug-<id>-upstream-<library>.md`.
+Write to `<run-dir>/<library>/bug-<id>-upstream-<library>.md`.
 
 **Critical rules for the upstream report:**
 - Use ONLY upstream permanent links — no searchfox, no Firefox paths
@@ -733,7 +734,7 @@ to a pull request / issue tracker entry.
 First, copy the test patch to `fix/` (now that scope (a) is confirmed and the test
 FAILS). Only copy if the test requires no code injection:
 ```bash
-cp <output-dir>/<library>/debug/01-test-<desc>.patch <output-dir>/<library>/fix/01-test-<desc>.patch
+cp <run-dir>/<library>/debug/01-test-<desc>.patch <run-dir>/<library>/fix/01-test-<desc>.patch
 ```
 
 Create the fix branch on top of the test branch in the library repo:
@@ -743,7 +744,7 @@ git checkout -b sherlock/bug-<id>/fix
 # ... implement the fix ...
 git add <fix files>
 git commit --author="$SHERLOCK_AUTHOR" -m "Fix <desc>"
-git format-patch -1 --stdout > <output-dir>/<library>/fix/02-fix-<desc>.patch
+git format-patch -1 --stdout > <run-dir>/<library>/fix/02-fix-<desc>.patch
 ```
 
 Verify:
@@ -853,7 +854,7 @@ If the library has a bug, undocumented limitation, or missing hardening that
 contributes to the issue, generate an upstream report following the same rules
 as Branch A step A3. Read `references/upstream-report-template.md`.
 
-Write to `<output-dir>/<library>/bug-<id>-upstream-<library>.md`.
+Write to `<run-dir>/<library>/bug-<id>-upstream-<library>.md`.
 
 **For split-scope reports, frame the issue from the library's perspective:**
 - If the library has a bug: report it as a bug
@@ -866,7 +867,7 @@ Write to `<output-dir>/<library>/bug-<id>-upstream-<library>.md`.
 
 If the T3 library test FAILS and requires no code injection, copy it to `fix/`:
 ```bash
-cp <output-dir>/<library>/debug/01-test-<desc>.patch <output-dir>/<library>/fix/01-test-<desc>.patch
+cp <run-dir>/<library>/debug/01-test-<desc>.patch <run-dir>/<library>/fix/01-test-<desc>.patch
 ```
 If the test PASSES (undocumented limitation), only the hardening fix goes in `fix/`
 — no test patch, since there's no FAIL→PASS transition to demonstrate.
@@ -878,7 +879,7 @@ git checkout -b sherlock/bug-<id>/fix
 # ... implement the fix ...
 git add <fix files>
 git commit --author="$SHERLOCK_AUTHOR" -m "Fix <desc>"
-git format-patch -1 --stdout > <output-dir>/<library>/fix/02-fix-<desc>.patch
+git format-patch -1 --stdout > <run-dir>/<library>/fix/02-fix-<desc>.patch
 ```
 
 Present separate strategies for each layer:
@@ -907,79 +908,23 @@ a better patch, or remove it entirely (if upstream now handles the case).
 | **(b) Firefox integration** | Diagnostic only (PASSES) | Yes (B1) — must FAIL | Only Firefox test is proof |
 | **(a+b/c) Split** | Yes — may PASS or FAIL | Yes (C2) — must FAIL | Both required, separate evidence |
 
-### Step 1.6: Study Design Intention
+### Step 1.6: Study Design Intention (Team D)
 
-**Note:** If Step 1.5b is active, skip this step — design intention is already
-covered within the branch workflow:
-- **Branch A**: done in A1 (library repo)
-- **Branch B**: done in B1 (Firefox integration code)
-- **Branch C**: done in C1 (both layers)
+Design archaeology is **Team D**, launched in the Stage 2b wave (Step 1.5). Its
+full contract and prompt are in `references/agent-teams.md`; it writes
+`teams/team-d-design-archaeology.md` (introducing commit, original purpose, design
+rationale, constraints, function contract, related code, drift signals) and does
+NOT claim how the root cause relates to the design.
 
-After identifying the root cause code, study HOW and WHY it was introduced.
-**Delegate** the archaeology to a subagent — heavy git-history reads stay
-out of main context. The main agent reads the returned summary and
-integrates it into the analysis doc.
+**Skip Team D when Step 1.5b is active** (set row 11 `skipped`) — design intention
+is covered within the branch workflow: Branch A in A1, Branch B in B1, Branch C in
+C1.
 
-```
-Agent(
-  subagent_type: "general-purpose",
-  description: "Design intention archaeology: <symbol/file>",
-  prompt: <see template below>,
-)
-```
-
-Prompt template:
-
-```
-You are doing git-history archaeology for a Firefox root-cause analysis.
-Return a structured Design Intention block; do NOT propose root cause or
-fixes.
-
-Inputs:
-- Repo root: <repo-root>
-- Files: <list of file paths>
-- Key symbols: <list — functions / classes / fields / state values>
-- Searchfox revision: <SHERLOCK_REV>
-
-Tasks:
-1. Find the introducing commit for each key symbol:
-   - `git log --oneline --follow -S "<symbol>" -- <file>` (head -10)
-   - `git blame -L <line>,<line> <file>` for the candidate region
-   - jj equivalents: `jj annotate <file>`,
-     `jj log -r 'ancestors(trunk())' -T builtin_log_oneline -s -- <file>`
-2. Read the introducing commit message in full. Follow the linked Bugzilla
-   bug (use `<repo-root>/.claude/skills/sherlock/sherlock-config --fetch-bug`).
-3. Read 2-3 commits before and after for context — was this a series? What
-   constraint shifted?
-4. Summarize the function's contract from the code: preconditions,
-   postconditions, invariants, threading expectations, ownership.
-5. Note related functions that follow the same pattern (or break it).
-
-Return a Design Intention block with:
-- **Introducing commit**: hash, summary, linked bug.
-- **Original purpose**: what problem this code was solving.
-- **Design rationale**: why this approach was chosen (cite commit message
-  and bug discussion).
-- **Constraints / tradeoffs**: what limited the design.
-- **Function contract**: preconditions, postconditions, invariants.
-- **Related code**: other places using the same pattern.
-- **Drift signals**: any sign the code has been patched ad-hoc since
-  introduction (multiple followup commits, comments referring to
-  workarounds, dead branches).
-
-Hard rules:
-- Cite commit hashes and bug numbers.
-- Do NOT claim how this relates to the current root cause — that is the
-  main agent's job. Stick to historical facts.
-- Do NOT propose fixes.
-```
-
-The main agent then writes the Design Intention section in the analysis
-doc, adding the sentence the subagent declined to write: **how the current
-root cause relates to (violates / reveals a gap in / drifts from) the
-original design intention**. That synthesis is reserved for the main agent.
-
-This understanding is critical for Phase 2: solutions that respect the original
+During Synthesis (Step 1.10 area) the main agent reads the Team D file and writes
+the Design Intention section in the analysis doc, **adding the sentence the team
+declined to write: how the current root cause relates to (violates / reveals a gap
+in / drifts from) the original design intention.** That synthesis is reserved for
+the main agent and is critical for Phase 2 — solutions that respect the original
 design intention are more likely to be correct and maintainable than patches that
 only address the symptom.
 
@@ -1007,7 +952,34 @@ only address the symptom.
 - [ ] If you claim "X never Y", confirm no branch does Y
 - [ ] For intermittency: distinguish known trigger vs plausible explanation
 
+### Step 1.7.5: Synthesis (main agent, not delegated)
+
+Mark plan.md row 15 `in-progress`. Read **all** Stage 2b team files (C, L, D, X,
+T) and the Stage 2a files (B, H) — the files, not the subagent transcripts — and
+write `<run-dir>/teams/synthesis.md`:
+
+1. Merged code-trace + design-intention narrative; note any drift.
+2. Re-rank the hypothesis tree against the gathered evidence. Revive any pruned
+   hypothesis the evidence warrants — do not silently re-anchor.
+3. Classify each hypothesis as `to-test` / `refuted` / `assumption-only`, citing
+   the Team C/L/D/X evidence that drove the classification.
+4. State the **verified root cause** with two-tier labels (Step 1.7), plus the
+   sentence on how it relates to the design intention (Step 1.6).
+5. **Append one row 16.x to plan.md per `to-test` hypothesis**, naming the target
+   proof-test patch and log paths (see `references/plan-template.md`). **If Step
+   1.5b is active**, the proof tests are tracked by the Branch rows under row 14
+   (A2/T3/C2) instead — append no 16.x rows and mark row 16 `skipped`.
+
+A team never declares the root cause — this synthesis is the main agent's. Mark
+row 15 `completed`.
+
 ### Step 1.8: Evaluate and Create Proof Tests
+
+This step processes the **row 16.x** entries Synthesis appended — one per
+`to-test` hypothesis. **Builds serialize**: Team T already scouted the framework
+and drafted the test source in parallel (`teams/team-t-frameworks.md`); the main
+agent now writes, builds, and runs each test **one at a time**. Mark each row 16.x
+`in-progress` before its build and `completed` after the result is captured.
 
 **Note:** If Step 1.5b is active, skip this step — proof tests are already created
 within the branch workflow:
@@ -1019,16 +991,16 @@ Read `references/test-frameworks.md` for framework selection and FuzzingFunction
 
 #### 1.8a: Check Bug Attachments for Existing Testcases
 
-```bash
-.claude/skills/sherlock/sherlock-config --fetch-attachments <bug_id> -o <output-dir>/bug-<id>-attachments
-```
-
-If a testcase exists and uses `FuzzingFunctions`, apply the mapping table from
-`references/test-frameworks.md`. Auto-convert to the appropriate framework.
+Team B already fetched attachments to `<run-dir>/bug-<id>-attachments` — read from
+there (do not re-fetch). If a testcase exists and uses `FuzzingFunctions`, apply
+the mapping table from `references/test-frameworks.md`. Auto-convert to the
+appropriate framework.
 
 #### 1.8b: Determine Test Framework
 
-Use the decision tree from `references/test-frameworks.md`:
+Team T already chose a framework and found a neighbour test per hypothesis
+(`teams/team-t-frameworks.md`). Confirm its choice against the decision tree in
+`references/test-frameworks.md`:
 - Crash → crashtest (HTML-triggerable) or gtest (C++ only)
 - Web-exposed + spec-defined → WPT (follow `references/spec-check.md` first)
 - Web-exposed + Firefox-specific → mochitest
@@ -1047,13 +1019,16 @@ Signals for sanitizer builds:
 
 If a special build is needed:
 - Read the mozconfig presets from `references/test-frameworks.md`
-- Auto-generate a mozconfig file: `<output-dir>/firefox/debug/bug-<id>-mozconfig`
+- Auto-generate a mozconfig file: `<run-dir>/firefox/debug/bug-<id>-mozconfig`
 - Present to user for review via AskUserQuestion before building
 - The user can invoke `/mozconfig` for full interactive configuration if preferred
 
 #### 1.8d: Write Proof Test
 
-The test must:
+Start from Team T's drafted test in `teams/team-t-frameworks.md` (adapt it; do not
+build inside Team T). Write the test into the tree, commit it on
+`sherlock/bug-<id>`, then **build it serialized** (one `./mach build` at a time; FE-only
+tests use `./mach build faster`). The test must:
 - **FAIL without fix** — proving the bug exists (the root cause claim is correct)
 - Be designed to **PASS after fix** — making it reusable for TDD development later
 - Serve as **EVIDENCE** for the root cause claim
@@ -1072,7 +1047,7 @@ execution. Commit and generate the patch:
 ```bash
 git add <instrumented files>
 git commit --author="$SHERLOCK_AUTHOR" -m "Add debug instrumentation for <desc>"
-git format-patch -1 --stdout > <output-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
+git format-patch -1 --stdout > <run-dir>/firefox/debug/02-debug-firefox-instrumentation.patch
 ```
 
 Common instrumentation patterns for Firefox C++/JS:
@@ -1106,16 +1081,17 @@ logs captured within the branch workflow:
 - **Branch B**: B1 ran the Firefox test with debug instrumentation
 - **Branch C**: T3 ran the library test; C2 ran the Firefox test
 
-**1. Build and run on the debug branch** (has test commits + instrumentation):
+**1. Build and run on the debug branch** (has test commits + instrumentation).
+Builds serialize — one at a time:
 ```bash
 # Should already be on sherlock/bug-<id>/debug from Step 1.8e
-./mach build
-./mach test <path> --headless 2>&1 | tee <output-dir>/firefox/debug/bug-<id>-test-run.log
+./mach build   # or: ./mach build faster   (FE-only proof tests)
+./mach test <path> --headless 2>&1 | tee <run-dir>/firefox/debug/bug-<id>-test-run.log
 ```
 
 Additional debug logs go in the `firefox/debug/` directory:
 ```
-<output-dir>/firefox/debug/bug-<id>-debug-<description>.log
+<run-dir>/firefox/debug/bug-<id>-debug-<description>.log
 ```
 
 **2. Switch back to the working branch:**
@@ -1130,37 +1106,39 @@ ready for fix commits in Phase 2).
 # Export all test commits as numbered patches
 git format-patch HEAD~N --stdout   # where N = number of test commits
 # Or export individually and copy to debug/:
-git format-patch -1 <commit> --stdout > <output-dir>/firefox/fix/01-test-<desc>.patch
-cp <output-dir>/firefox/fix/01-test-<desc>.patch <output-dir>/firefox/debug/01-test-<desc>.patch
+git format-patch -1 <commit> --stdout > <run-dir>/firefox/fix/01-test-<desc>.patch
+cp <run-dir>/firefox/fix/01-test-<desc>.patch <run-dir>/firefox/debug/01-test-<desc>.patch
 ```
 
-**4. Evaluate results:**
+**4. Evaluate results** (mark each row 16.x `completed` with its result in Notes):
 - Test **FAILS as expected** → confirms root cause, record as evidence
 - Test **PASSES** (contradicts hypothesis) → re-examine root cause, loop back to 1.4
 - Test **inconclusive** → note as `[Assumption]`, document what would make it conclusive
 
 ### Step 1.10: Generate Analysis Documents
 
+Mark plan.md row 17 `in-progress`.
+
 **Primary analysis document** (always required):
 
-Read `references/analysis-template.md` for the template structure.
-
-```bash
-mkdir -p <output-dir>
-```
-Use the Write tool to create `<output-dir>/bug-<id>-analysis.md`.
+Read `references/analysis-template.md` for the template structure. Source content
+from `synthesis.md` and the team files. Use the Write tool to create
+`<run-dir>/bug-<id>-analysis.md`.
 
 Requirements:
 - Fill ALL sections with actual content (no placeholders)
 - Verify with Read tool after creation
 - Verify all links are revision-pinned (not trunk URLs)
-- Ensure the Design Intention section is present and filled
+- Ensure the Design Intention section is present and filled (including the
+  main-agent sentence on how the root cause relates to the design)
+
+Mark row 17 `completed`.
 
 **Upstream report** (required for Branch A and Branch C with library-side fix):
 
 If Step 1.5b produced a Branch A (library bug) or Branch C (split scope with
 library-side component), the upstream report should already have been generated
-in step A3 or C3. Verify it exists at `<output-dir>/<library>/bug-<id>-upstream-<library>.md`.
+in step A3 or C3. Verify it exists at `<run-dir>/<library>/bug-<id>-upstream-<library>.md`.
 
 If not yet created, generate it now using `references/upstream-report-template.md`.
 The upstream report must:
@@ -1169,43 +1147,59 @@ The upstream report must:
 - Use ONLY upstream permanent links
 - Be self-contained and suitable for filing with the library's issue tracker
 
-### Step 1.10.5: Self-Critique Pass
+### Step 1.10.5: Structural self-check
 
-Before presenting Phase 1 to the user, the main agent does a focused
-self-critique. This is **not delegated** — it is the moment to apply
-judgment to your own work.
+Before launching the review team, the main agent does a quick **structural**
+self-check (not the full audit — that is now the review team's job):
 
-Run through this checklist mechanically:
+- [ ] Every analysis-doc section is filled with real content (no placeholders).
+- [ ] The Design Intention section ends with the sentence stating how the root
+  cause relates to the original design (violation / gap / drift). Without it,
+  Phase 2 has nothing to design against.
+- [ ] The Hypothesis Tree reflects the final ranking from Synthesis.
 
-- [ ] **Verified Claims still verify**: for every claim labeled as Verified
-  in the analysis doc, re-open the cited file at the cited line and confirm
-  it says what you claimed. If the line shifted, update the link.
-- [ ] **Links are revision-pinned**: grep the analysis doc for
-  `firefox-main/source/` (trunk) and replace any hits with `$SHERLOCK_REV`
-  links. Same for any unpinned upstream URLs.
-- [ ] **Proof test actually FAILs**: re-read `bug-<id>-test-run.log`. If the
-  log shows PASS or an error in test setup rather than a clean FAIL on the
-  bug, the test is not yet a proof.
-- [ ] **Hypothesis Tree still ranks correctly**: walk the table from Step
-  1.3b.5. For each pruned hypothesis, ask: did any evidence collected
-  since 1.3b.5 revive it? If yes, re-rank and update the doc.
-- [ ] **Assumptions are honest**: every claim that could not be verified
-  against code or logs is labeled `[Assumption]`. No claim says
-  "always" / "never" / "only" without code evidence.
-- [ ] **Design Intention closes the loop**: the Design Intention section
-  ends with a sentence stating how the root cause relates to the original
-  design (violation / gap / drift). Without that sentence, Phase 2 has
-  nothing to design against.
+If a check fails, fix it before launching the review team.
 
-If any check fails: loop back to the relevant step and re-do the work
-before the gate. The user's time is more valuable than yours; do not
-present an analysis that has known gaps.
+## Phase 5: Review team (L / T / R)
+
+The deep audit is done by an **independent review team**, not by the main agent
+grading its own work. Set plan.md rows 18/19/20 `in-progress` and launch the three
+reviewers **in one message** (full contracts in `references/agent-teams.md`). Each
+writes a dedicated file under `<run-dir>/review/`:
+
+- **Reviewer L (links / citations)** → `review/L.md`. Opens every code link in the
+  analysis doc via `Read`; confirms the cited file:line still says what the doc
+  claims; replaces any trunk URL with a `$SHERLOCK_REV` link.
+- **Reviewer T (test re-runner)** → `review/T.md`. Re-reads
+  `firefox/debug/bug-<id>-test-run.log` (and, if cheap, re-applies each
+  `firefox/fix/*.patch` and rebuilds); confirms the proof test FAILs on the bug,
+  not on a test-setup error.
+- **Reviewer R (red-pen on root cause)** → `review/R.md`. Invokes
+  `Skill(red-pen, <abs path to bug-<id>-analysis.md>)`; challenges the root cause,
+  the hypothesis-tree ranking, and the assumption labels.
+
+> Reviewer R judges the **root cause** (Phase 1). The Phase-2 `red-pen` (Step 2.3)
+> judges the **solutions**. Different targets — both fire.
+
+As each reviewer returns, verify its file exists and mark its row `completed`.
+Handle failures by looping back (offending row → `in-progress`, artifact
+rewritten); do not argue with the reviewer (Gotcha #11):
+
+- Reviewer L fail → Step 1.10 (re-edit doc + relink).
+- Reviewer T fail → Step 1.8/1.9 (fix/re-run the test) or Step 1.7.5 (correct the
+  verdict).
+- Reviewer R `revise` → Step 1.10. `redesign` → escalate to the user.
+  `reject` / `needs-more-info` → back to Stage 2b (gather more evidence).
+
+Only when all three reviewers pass (or their concerns are resolved) proceed to the
+Phase Gate.
 
 ---
 
 ## Phase Gate: User Review
 
-Present a summary of the Phase 1 findings to the user:
+Mark plan.md row 21 `blocked-on-user`. Present a summary of the Phase 1 findings
+to the user:
 - Root cause (1-2 sentences)
 - Key evidence (code path trace highlights)
 - Test results
@@ -1219,6 +1213,8 @@ or tell me what needs more investigation."**
 - If user wants changes → make the changes, re-present
 - Do NOT proceed to Phase 2 without explicit user agreement
 
+On agreement, mark row 21 `completed`.
+
 ---
 
 ## Phase 2: Solution Discussion
@@ -1229,8 +1225,9 @@ proposals — the analysis doc remains untouched until the user explicitly appro
 
 ### Step 2.1: Read Analysis Doc and Enter Plan Mode
 
-Re-read the analysis doc. Note the verified root cause, design intention, and
-proof test results. These ground the solution discussion.
+Mark plan.md row 22 `in-progress`. Re-read the analysis doc. Note the verified root
+cause, design intention, and proof test results. These ground the solution
+discussion.
 
 Then enter plan mode:
 ```
@@ -1277,7 +1274,7 @@ The skill will:
 1. Spawn the `red-pen-critic` subagent.
 2. The reviewer reads the analysis doc and the draft solutions, verifies
    citations against source, and writes a structured review to
-   `<output-dir>/bug-<id>-review.md`.
+   `<run-dir>/bug-<id>-review.md`.
 3. Return a 4-line summary (verdict + headline + path + iteration).
 
 Do **not** invoke the reviewer multiple times in parallel; one review per
@@ -1286,7 +1283,7 @@ file-path-only inputs.
 
 ### Step 2.4: Consider the Review
 
-Read the review doc at `<output-dir>/bug-<id>-review.md`. Handle by verdict:
+Read the review doc at `<run-dir>/bug-<id>-review.md`. Handle by verdict:
 
 | Verdict | Action |
 |---------|--------|
@@ -1345,6 +1342,10 @@ Then append the **## Proposed Solutions** section to the analysis doc with:
   reasoning, including any explicit user override of the reviewer's verdict
   (and why)
 
+Mark plan.md row 22 `completed` once the solution review concludes, and row 23
+`completed` once the solutions are written to the analysis doc. The run is then
+fully `completed`/`skipped` in plan.md.
+
 ---
 
 ## Tips
@@ -1363,10 +1364,11 @@ Then append the **## Proposed Solutions** section to the analysis doc with:
   - **Branch A** (library bug): library test + Firefox test, upstream fix
   - **Branch B** (Firefox integration): Firefox test only, integration fix
   - **Branch C** (split): both tests, fixes in both layers
-- **Subagent dispatch is parallel-friendly**: when both Step 1.5 (Firefox
-  trace) and Step 1.5b (library trace) apply, dispatch both tracer
-  subagents in the same message so they run concurrently. Same for any
-  independent design-intention archaeology tasks.
+- **Agent teams run in waves**: launch all Stage 2a teams (B, H) in one message,
+  then all applicable Stage 2b teams (C, L, D, X, T) in one message, then the
+  Phase-5 reviewers (L, T, R) in one message. Each team owns a file under
+  `teams/` or `review/`; the main agent reads files, never transcripts. See
+  `references/agent-teams.md`.
 - **Read the review doc, don't restate it**: when surfacing the
   `red-pen` result to the user, link the review doc instead of
   paraphrasing — paraphrasing dilutes the reviewer's exact wording and

@@ -74,6 +74,25 @@ def _read_toml_field(path, field):
     return None
 
 
+def _write_toml_field(path, field, value):
+    """Set a top-level field in a TOML file, preserving other lines."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lines = []
+    seen = False
+    if os.path.isfile(path):
+        with open(path) as f:
+            for line in f:
+                if line.strip().startswith(field):
+                    lines.append(f'{field} = "{value}"\n')
+                    seen = True
+                else:
+                    lines.append(line)
+    if not seen:
+        lines.append(f'{field} = "{value}"\n')
+    with open(path, "w") as f:
+        f.writelines(lines)
+
+
 # ---------------------------------------------------------------------------
 # API key resolution
 # ---------------------------------------------------------------------------
@@ -145,6 +164,20 @@ def get_output_dir():
     """Print the configured output_dir from sherlock config, or empty."""
     val = _read_toml_field(SHERLOCK_CONFIG, "output_dir")
     print(val or "")
+
+
+def set_output_dir(path):
+    """Persist output_dir (absolute) to the sherlock config."""
+    expanded = os.path.expanduser(path)
+    if not os.path.isabs(expanded):
+        print(
+            f"error: output_dir must be an absolute path, got {path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    os.makedirs(expanded, exist_ok=True)
+    _write_toml_field(SHERLOCK_CONFIG, "output_dir", expanded)
+    print(f"OK: output_dir = {expanded}")
 
 
 def get_patch_author():
@@ -500,6 +533,10 @@ def main():
         help="Print the configured output_dir, or empty string",
     )
     parser.add_argument(
+        "--set-output-dir", metavar="PATH",
+        help="Persist output_dir (absolute path) to the sherlock config",
+    )
+    parser.add_argument(
         "--get-patch-author", action="store_true",
         help="Print the patch author (from config or git config)",
     )
@@ -522,6 +559,7 @@ def main():
         args.check_setup,
         args.check_auth,
         args.get_output_dir,
+        args.set_output_dir is not None,
         args.get_patch_author,
         args.fetch_bug is not None,
         args.fetch_attachments is not None,
@@ -542,6 +580,10 @@ def main():
 
     if args.get_output_dir:
         get_output_dir()
+        return
+
+    if args.set_output_dir is not None:
+        set_output_dir(args.set_output_dir)
         return
 
     if args.get_patch_author:
