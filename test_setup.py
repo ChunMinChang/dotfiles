@@ -17,6 +17,7 @@ import os
 import sys
 import shutil
 import subprocess
+import unittest.mock
 from unittest.mock import patch
 
 # Import setup.py module
@@ -27,6 +28,30 @@ requires_symlinks = unittest.skipUnless(
     setup.can_create_symlinks(),
     "requires symlink capability (Developer Mode on Windows)",
 )
+
+
+def _force_rmtree(path):
+    """shutil.rmtree that survives read-only files on Windows.
+
+    Git on Windows sets loose object blobs (``.git/objects/xx/...``) and
+    pack metadata to read-only; the default rmtree raises PermissionError
+    on them in tearDown. The retry chmods the offender to writable and
+    re-runs the failing op.
+    """
+
+    def on_error(func, p, exc_info):
+        try:
+            os.chmod(p, 0o777)
+            func(p)
+        except Exception:
+            pass
+
+    # Python 3.12+ uses ``onexc=`` instead of ``onerror=``. Try both for
+    # portability across the supported Python range.
+    try:
+        shutil.rmtree(path, onexc=on_error)
+    except TypeError:
+        shutil.rmtree(path, onerror=on_error)
 
 
 def normalize_link_target(target):
@@ -83,6 +108,105 @@ class TestSymlinkCapabilityProbe(unittest.TestCase):
         with patch("setup.is_windows", return_value=False):
             self.assertTrue(setup.can_create_symlinks())
 
+    @requires_symlinks
+    def test_can_create_symlinks_with_probe_dir_uses_that_dir(self):
+        """When probe_dir is provided and writable, the temp probe
+        runs inside it (not the system temp drive). On non-Windows the
+        function short-circuits to True without touching either, so
+        this test forces the Windows code path with a patch."""
+        probe_dir = tempfile.mkdtemp()
+        try:
+            with patch("setup.is_windows", return_value=True), patch(
+                "tempfile.mkdtemp", wraps=tempfile.mkdtemp
+            ) as wrapped:
+                result = setup.can_create_symlinks(probe_dir=probe_dir)
+            self.assertTrue(result)
+            # First mkdtemp call should have been routed through probe_dir.
+            first_call = wrapped.call_args_list[0]
+            self.assertEqual(first_call.kwargs.get("dir"), probe_dir)
+            # Probe must clean up after itself.
+            self.assertEqual(os.listdir(probe_dir), [])
+        finally:
+            shutil.rmtree(probe_dir, ignore_errors=True)
+
+    def test_can_create_symlinks_falls_back_when_probe_dir_unwritable(self):
+        """A non-existent probe_dir should fall back to the system temp
+        drive instead of raising."""
+        with patch("setup.is_windows", return_value=True):
+            # Non-existent path → is_dir() False → falls back to default.
+            result = setup.can_create_symlinks(
+                probe_dir="/this/path/definitely/does/not/exist"
+            )
+        # Result depends on host symlink privilege; we just want no crash.
+        self.assertIn(result, (True, False))
+
+
+class TestWindowsElevationProbes(unittest.TestCase):
+    """Tests for is_windows_elevated() and is_windows_dev_mode_enabled()."""
+
+    def test_is_windows_elevated_non_windows_returns_false(self):
+        with patch("setup.is_windows", return_value=False):
+            self.assertFalse(setup.is_windows_elevated())
+
+    def test_is_windows_elevated_true(self):
+        fake_ctypes = unittest.mock.MagicMock()
+        fake_ctypes.windll.shell32.IsUserAnAdmin.return_value = 1
+        with patch("setup.is_windows", return_value=True), patch.dict(
+            sys.modules, {"ctypes": fake_ctypes}
+        ):
+            self.assertTrue(setup.is_windows_elevated())
+
+    def test_is_windows_elevated_false(self):
+        fake_ctypes = unittest.mock.MagicMock()
+        fake_ctypes.windll.shell32.IsUserAnAdmin.return_value = 0
+        with patch("setup.is_windows", return_value=True), patch.dict(
+            sys.modules, {"ctypes": fake_ctypes}
+        ):
+            self.assertFalse(setup.is_windows_elevated())
+
+    def test_is_windows_elevated_ctypes_raises_returns_false(self):
+        fake_ctypes = unittest.mock.MagicMock()
+        fake_ctypes.windll.shell32.IsUserAnAdmin.side_effect = OSError("nope")
+        with patch("setup.is_windows", return_value=True), patch.dict(
+            sys.modules, {"ctypes": fake_ctypes}
+        ):
+            self.assertFalse(setup.is_windows_elevated())
+
+    def test_is_windows_dev_mode_non_windows_returns_false(self):
+        with patch("setup.is_windows", return_value=False):
+            self.assertFalse(setup.is_windows_dev_mode_enabled())
+
+    def test_is_windows_dev_mode_returns_true_when_value_is_1(self):
+        fake_winreg = unittest.mock.MagicMock()
+        fake_winreg.HKEY_LOCAL_MACHINE = 0
+        cm = fake_winreg.OpenKey.return_value
+        cm.__enter__.return_value = "key"
+        fake_winreg.QueryValueEx.return_value = (1, 4)  # REG_DWORD
+        with patch("setup.is_windows", return_value=True), patch.dict(
+            sys.modules, {"winreg": fake_winreg}
+        ):
+            self.assertTrue(setup.is_windows_dev_mode_enabled())
+
+    def test_is_windows_dev_mode_returns_false_when_value_is_0(self):
+        fake_winreg = unittest.mock.MagicMock()
+        fake_winreg.HKEY_LOCAL_MACHINE = 0
+        cm = fake_winreg.OpenKey.return_value
+        cm.__enter__.return_value = "key"
+        fake_winreg.QueryValueEx.return_value = (0, 4)
+        with patch("setup.is_windows", return_value=True), patch.dict(
+            sys.modules, {"winreg": fake_winreg}
+        ):
+            self.assertFalse(setup.is_windows_dev_mode_enabled())
+
+    def test_is_windows_dev_mode_missing_key_returns_false(self):
+        fake_winreg = unittest.mock.MagicMock()
+        fake_winreg.HKEY_LOCAL_MACHINE = 0
+        fake_winreg.OpenKey.side_effect = FileNotFoundError()
+        with patch("setup.is_windows", return_value=True), patch.dict(
+            sys.modules, {"winreg": fake_winreg}
+        ):
+            self.assertFalse(setup.is_windows_dev_mode_enabled())
+
 
 @requires_symlinks
 class TestLinkFunction(unittest.TestCase):
@@ -97,7 +221,7 @@ class TestLinkFunction(unittest.TestCase):
     def tearDown(self):
         """Clean up temporary directory"""
         if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
+            _force_rmtree(self.test_dir)
 
     def test_link_creates_symlink(self):
         """Test that link() creates a symlink"""
@@ -206,7 +330,7 @@ class TestAppendNonexistentLinesToFile(unittest.TestCase):
     def tearDown(self):
         """Clean up temporary directory"""
         if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
+            _force_rmtree(self.test_dir)
 
     def test_append_to_empty_file(self):
         """Test appending to an empty file"""
@@ -301,7 +425,7 @@ class TestVerifySymlinks(unittest.TestCase):
         """Clean up"""
         setup.HOME_DIR = self.old_home
         if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
+            _force_rmtree(self.test_dir)
 
     def test_verify_symlinks_all_valid(self):
         """Test verify_symlinks() with all valid symlinks"""
@@ -349,7 +473,7 @@ class TestVerifyBashSyntax(unittest.TestCase):
     def tearDown(self):
         """Clean up"""
         if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
+            _force_rmtree(self.test_dir)
 
     def test_verify_bash_syntax_valid_syntax(self):
         """Test verify_bash_syntax() with valid bash syntax"""
@@ -624,7 +748,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         setup.ALWU_CLAUDE_SKILLS_EXCLUDE = self._orig_claude_exclude
         setup.ALWU_CLAUDE_SKILLS_RENAME = self._orig_claude_rename
         setup.MEDIA_SKILLS_RENAME = self._orig_media_rename
-        shutil.rmtree(self.test_dir)
+        _force_rmtree(self.test_dir)
 
     def _install(
         self, commit=False, new_branch=False, branch_name="test-overlay", **kwargs
@@ -654,9 +778,13 @@ class TestInstallFirefoxClaude(unittest.TestCase):
                 return new_branch
             return False
 
+        # Windows and POSIX now share the same commit path (mode-120000
+        # entries), so no is_windows patch is needed. Mock the Dev Mode
+        # check so the gate doesn't block on Windows hosts that happen
+        # not to have it enabled at test time.
         with patch("setup.get_user_input", side_effect=fake_input), patch(
             "setup.get_user_confirmation", side_effect=fake_confirmation
-        ):
+        ), patch("setup.is_windows_dev_mode_enabled", return_value=True):
             return setup.install_firefox_claude(self.firefox_dir, **kwargs)
 
     @staticmethod
@@ -1117,7 +1245,7 @@ class TestInstallFirefoxClaude(unittest.TestCase):
 
     def test_install_without_git_repo_succeeds(self):
         """No .git directory: install still creates symlinks."""
-        shutil.rmtree(self.firefox_dir)
+        _force_rmtree(self.firefox_dir)
         os.makedirs(self.firefox_dir)
         open(os.path.join(self.firefox_dir, "mach"), "w").close()
 
@@ -1891,6 +2019,457 @@ class TestMozillaCliTools(unittest.TestCase):
         )
 
 
+@requires_symlinks
+class TestWindowsDevModeGate(unittest.TestCase):
+    """Tests for verify_overlay_commitable() — the pre-commit gate
+    that refuses to commit a claude-overlay branch on Windows unless
+    Developer Mode is enabled (so the committed mode-120000 entries
+    can be checked out from any shell on the machine)."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.firefox_dir = os.path.join(self.test_dir, "firefox")
+        os.makedirs(self.firefox_dir)
+        open(os.path.join(self.firefox_dir, "mach"), "w").close()
+        TestInstallFirefoxClaude._git_init(self.firefox_dir)
+        # Make the gate's defensive `ensure_target_core_symlinks` a
+        # no-op (it would otherwise mutate git config for no benefit
+        # in this isolated test).
+        self._orig_ensure = setup.ensure_target_core_symlinks
+        setup.ensure_target_core_symlinks = lambda *a, **k: None
+
+    def tearDown(self):
+        setup.ensure_target_core_symlinks = self._orig_ensure
+        _force_rmtree(self.test_dir)
+
+    def test_gate_refuses_when_dev_mode_off_and_elevated(self):
+        with patch("setup.is_windows", return_value=True), patch(
+            "setup.is_windows_dev_mode_enabled", return_value=False
+        ), patch("setup.is_windows_elevated", return_value=True):
+            self.assertFalse(setup.verify_overlay_commitable(self.firefox_dir))
+
+    def test_gate_refuses_when_dev_mode_off_and_not_elevated(self):
+        with patch("setup.is_windows", return_value=True), patch(
+            "setup.is_windows_dev_mode_enabled", return_value=False
+        ), patch("setup.is_windows_elevated", return_value=False):
+            self.assertFalse(setup.verify_overlay_commitable(self.firefox_dir))
+
+    def test_gate_passes_when_dev_mode_on(self):
+        with patch("setup.is_windows", return_value=True), patch(
+            "setup.is_windows_dev_mode_enabled", return_value=True
+        ):
+            self.assertTrue(setup.verify_overlay_commitable(self.firefox_dir))
+
+    def test_gate_passes_on_posix(self):
+        with patch("setup.is_windows", return_value=False):
+            self.assertTrue(setup.verify_overlay_commitable(self.firefox_dir))
+
+
+@requires_symlinks
+class TestCommitOverlayBranchHandling(unittest.TestCase):
+    """Tests for _commit_overlay()'s branch-exists handling — the
+    user is offered to replace an existing branch (e.g. a stale
+    claude-overlay from an earlier run) instead of getting a hard
+    `git checkout -b` failure."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.firefox_dir = os.path.join(self.test_dir, "firefox")
+        os.makedirs(self.firefox_dir)
+        open(os.path.join(self.firefox_dir, "mach"), "w").close()
+        TestInstallFirefoxClaude._git_init(self.firefox_dir)
+        # Create a placeholder `existing-branch` pointing at HEAD so
+        # the branch-exists path fires.
+        subprocess.run(
+            ["git", "-C", self.firefox_dir, "branch", "existing-branch"],
+            check=True,
+            capture_output=True,
+        )
+
+    def tearDown(self):
+        _force_rmtree(self.test_dir)
+
+    def _run_commit_overlay(self, confirm_replace):
+        # Drop a sentinel file under .claude/ + a .gitignore so there's
+        # something to stage. We bypass the real install pipeline
+        # because branch-handling is the only thing under test.
+        os.makedirs(os.path.join(self.firefox_dir, ".claude"))
+        with open(os.path.join(self.firefox_dir, ".claude", "sentinel"), "w") as f:
+            f.write("x")
+        with open(os.path.join(self.firefox_dir, ".gitignore"), "w") as f:
+            f.write(".claude/\n")
+
+        def fake_confirmation(prompt="", default_non_interactive=False):
+            if "already exists" in prompt.lower():
+                return confirm_replace
+            return False
+
+        with patch(
+            "setup.get_user_confirmation", side_effect=fake_confirmation
+        ), patch("setup.verify_overlay_commitable", return_value=True):
+            return setup._commit_overlay(
+                self.firefox_dir,
+                include_claude_local=False,
+                new_branch="existing-branch",
+            )
+
+    def test_replace_existing_branch_when_confirmed(self):
+        original_sha = (
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    self.firefox_dir,
+                    "rev-parse",
+                    "existing-branch",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            .stdout.strip()
+        )
+        ok = self._run_commit_overlay(confirm_replace=True)
+        self.assertTrue(ok)
+        new_sha = (
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    self.firefox_dir,
+                    "rev-parse",
+                    "existing-branch",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            .stdout.strip()
+        )
+        self.assertNotEqual(original_sha, new_sha)
+        head = (
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    self.firefox_dir,
+                    "rev-parse",
+                    "--abbrev-ref",
+                    "HEAD",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            .stdout.strip()
+        )
+        self.assertEqual(head, "existing-branch")
+
+    def test_aborts_when_replace_declined(self):
+        original_sha = (
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    self.firefox_dir,
+                    "rev-parse",
+                    "existing-branch",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            .stdout.strip()
+        )
+        ok = self._run_commit_overlay(confirm_replace=False)
+        self.assertFalse(ok)
+        # Branch ref unchanged.
+        unchanged_sha = (
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    self.firefox_dir,
+                    "rev-parse",
+                    "existing-branch",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            .stdout.strip()
+        )
+        self.assertEqual(original_sha, unchanged_sha)
+
+
+class TestPostCheckoutHookInstaller(unittest.TestCase):
+    """Tests for install_post_checkout_hook() — Windows-only hook that
+    re-materializes mode-120000 entries under .claude/ via `ln -s`
+    after git checkout (works around Git for Windows' flaky
+    CreateSymbolicLinkW on absolute-path symlink blobs)."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.repo = os.path.join(self.test_dir, "repo")
+        os.makedirs(self.repo)
+        # Minimal `.git` so the installer treats it as a repo.
+        os.makedirs(os.path.join(self.repo, ".git", "hooks"))
+
+    def tearDown(self):
+        _force_rmtree(self.test_dir)
+
+    def _hook_path(self):
+        return os.path.join(self.repo, ".git", "hooks", "post-checkout")
+
+    def test_no_op_on_posix(self):
+        with patch("setup.is_windows", return_value=False):
+            setup.install_post_checkout_hook(self.repo)
+        self.assertFalse(os.path.exists(self._hook_path()))
+
+    def test_no_op_when_not_git_repo(self):
+        non_git = os.path.join(self.test_dir, "not-a-repo")
+        os.makedirs(non_git)
+        with patch("setup.is_windows", return_value=True):
+            setup.install_post_checkout_hook(non_git)
+        # Nothing created (no .git dir, nothing to do).
+        self.assertFalse(
+            os.path.exists(os.path.join(non_git, ".git", "hooks", "post-checkout"))
+        )
+
+    def test_installs_fresh_hook_on_windows(self):
+        with patch("setup.is_windows", return_value=True):
+            setup.install_post_checkout_hook(self.repo)
+        self.assertTrue(os.path.isfile(self._hook_path()))
+        with open(self._hook_path()) as f:
+            body = f.read()
+        self.assertIn("#!/bin/sh", body)
+        self.assertIn(setup.POST_CHECKOUT_HOOK_MARKER_BEGIN, body)
+        self.assertIn(setup.POST_CHECKOUT_HOOK_MARKER_END, body)
+        # Ln -s is the materialization command we expect.
+        self.assertIn("ln -s", body)
+
+    def test_idempotent_replaces_managed_block(self):
+        with patch("setup.is_windows", return_value=True):
+            setup.install_post_checkout_hook(self.repo)
+            first = open(self._hook_path()).read()
+            setup.install_post_checkout_hook(self.repo)
+            second = open(self._hook_path()).read()
+        # Same content, same single managed block (no stacking).
+        self.assertEqual(first, second)
+        self.assertEqual(second.count(setup.POST_CHECKOUT_HOOK_MARKER_BEGIN), 1)
+        self.assertEqual(second.count(setup.POST_CHECKOUT_HOOK_MARKER_END), 1)
+
+    def test_preserves_existing_user_hook(self):
+        # Pre-populate with a user-authored hook body.
+        with open(self._hook_path(), "w", newline="\n") as f:
+            f.write("#!/bin/sh\necho 'user hook'\n")
+        with patch("setup.is_windows", return_value=True):
+            setup.install_post_checkout_hook(self.repo)
+        body = open(self._hook_path()).read()
+        # User content survives, managed block was appended at the end.
+        self.assertIn("echo 'user hook'", body)
+        self.assertIn(setup.POST_CHECKOUT_HOOK_MARKER_BEGIN, body)
+        self.assertLess(
+            body.index("echo 'user hook'"),
+            body.index(setup.POST_CHECKOUT_HOOK_MARKER_BEGIN),
+        )
+
+
+@requires_symlinks
+class TestPostCheckoutHookRematerializes(unittest.TestCase):
+    """End-to-end: install the hook, simulate a failed-checkout state
+    by manually creating an index entry without the working-tree
+    symlink, then run the hook script and confirm the symlink appears."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.repo = os.path.join(self.test_dir, "repo")
+        os.makedirs(self.repo)
+        # _git_init expects a `mach` file to commit (Firefox-repo
+        # assumption); create one so the init succeeds.
+        open(os.path.join(self.repo, "mach"), "w").close()
+        TestInstallFirefoxClaude._git_init(self.repo)
+
+    def tearDown(self):
+        _force_rmtree(self.test_dir)
+
+    def test_hook_recreates_missing_symlink(self):
+        # Source file the symlink will point at.
+        src = os.path.join(self.test_dir, "target.txt")
+        with open(src, "w") as f:
+            f.write("content")
+
+        # Manufacture a mode-120000 entry on a branch with the working
+        # tree symlink intentionally absent.
+        env = {
+            **os.environ,
+            "GIT_AUTHOR_NAME": "Test",
+            "GIT_AUTHOR_EMAIL": "test@example.com",
+            "GIT_COMMITTER_NAME": "Test",
+            "GIT_COMMITTER_EMAIL": "test@example.com",
+        }
+        blob_hash = subprocess.check_output(
+            ["git", "-C", self.repo, "hash-object", "-w", "--stdin"],
+            input=src,
+            text=True,
+            env=env,
+        ).strip()
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                self.repo,
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                f"120000,{blob_hash},.claude/probe-link",
+            ],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", self.repo, "commit", "-m", "with symlink"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        # Drop the working-tree file to simulate git's failed
+        # materialization (the symlink is in the tree but not on disk).
+        link_path = os.path.join(self.repo, ".claude", "probe-link")
+        if os.path.exists(link_path) or os.path.islink(link_path):
+            os.remove(link_path)
+        self.assertFalse(os.path.islink(link_path))
+
+        # Install the hook (force Windows so the installer runs).
+        with patch("setup.is_windows", return_value=True):
+            setup.install_post_checkout_hook(self.repo)
+
+        # Execute the hook body the way git would invoke it: arguments
+        # are (prev-HEAD, new-HEAD, flag); flag=1 means branch checkout.
+        hook = os.path.join(self.repo, ".git", "hooks", "post-checkout")
+        result = subprocess.run(
+            ["sh", hook, "HEAD", "HEAD", "1"],
+            cwd=self.repo,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+
+        # The hook should have re-created the symlink via ln -s.
+        self.assertTrue(
+            os.path.islink(link_path),
+            f"hook did not re-materialize the symlink (stderr={result.stderr})",
+        )
+        self.assertEqual(
+            normalize_link_target(os.readlink(link_path)),
+            os.path.normpath(src),
+        )
+
+
+@requires_symlinks
+class TestStuckClaudeOverlayAutoSwitch(unittest.TestCase):
+    """Verifies the install auto-switches the primary worktree off a
+    stuck claude-overlay branch (current HEAD with `D .claude/...`
+    entries — the user's original symptom) before proceeding."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.firefox_dir = os.path.join(self.test_dir, "firefox")
+        os.makedirs(self.firefox_dir)
+        open(os.path.join(self.firefox_dir, "mach"), "w").close()
+        TestInstallFirefoxClaude._git_init(self.firefox_dir)
+
+        # Build a minimal overlay so install_firefox_claude has source
+        # files to symlink.
+        self.overlay_dir = os.path.join(self.test_dir, "overlay")
+        os.makedirs(os.path.join(self.overlay_dir, "skills", "my-skill"))
+        with open(
+            os.path.join(self.overlay_dir, "skills", "my-skill", "SKILL.md"), "w"
+        ) as f:
+            f.write("personal skill")
+        with open(
+            os.path.join(self.overlay_dir, "settings.local.json"), "w"
+        ) as f:
+            f.write('{"permissions":{"allow":[]}}')
+
+        self._orig_overlay = setup.FIREFOX_CLAUDE_OVERLAY
+        self._orig_media = setup.MEDIA_SKILLS_DIR
+        self._orig_alwu = setup.ALWU_CLAUDE_SKILLS_DIR
+        setup.FIREFOX_CLAUDE_OVERLAY = self.overlay_dir
+        setup.MEDIA_SKILLS_DIR = os.path.join(self.test_dir, "nope-media")
+        setup.ALWU_CLAUDE_SKILLS_DIR = os.path.join(self.test_dir, "nope-alwu")
+
+    def tearDown(self):
+        setup.FIREFOX_CLAUDE_OVERLAY = self._orig_overlay
+        setup.MEDIA_SKILLS_DIR = self._orig_media
+        setup.ALWU_CLAUDE_SKILLS_DIR = self._orig_alwu
+        _force_rmtree(self.test_dir)
+
+    def _make_stuck_state(self):
+        """Manufacture: a claude-overlay branch tracking a regular
+        .claude/skills/x file, HEAD on claude-overlay, and the working
+        tree's .claude/ deleted so git status shows `D ` entries."""
+        env = {
+            **os.environ,
+            "GIT_AUTHOR_NAME": "Test",
+            "GIT_AUTHOR_EMAIL": "test@example.com",
+            "GIT_COMMITTER_NAME": "Test",
+            "GIT_COMMITTER_EMAIL": "test@example.com",
+        }
+        claude_dir = os.path.join(self.firefox_dir, ".claude")
+        os.makedirs(claude_dir)
+        with open(os.path.join(claude_dir, "tracked"), "w") as f:
+            f.write("placeholder")
+        subprocess.run(
+            ["git", "-C", self.firefox_dir, "checkout", "-b", "claude-overlay"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", self.firefox_dir, "add", "-f", ".claude/tracked"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", self.firefox_dir, "commit", "-m", "track .claude"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        # Delete the working-tree file to produce the `D ` state.
+        os.remove(os.path.join(claude_dir, "tracked"))
+
+    def test_install_auto_switches_to_main_from_stuck_state(self):
+        self._make_stuck_state()
+
+        # Sanity: we are on claude-overlay with .claude/tracked
+        # showing as deleted.
+        head_before = subprocess.run(
+            ["git", "-C", self.firefox_dir, "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertEqual(head_before, "claude-overlay")
+
+        def fake_input(prompt, default=""):
+            return default
+
+        def fake_confirmation(prompt="", default_non_interactive=False):
+            return False
+
+        with patch(
+            "setup.get_user_input", side_effect=fake_input
+        ), patch(
+            "setup.get_user_confirmation", side_effect=fake_confirmation
+        ), patch("setup.is_windows", return_value=True):
+            setup.install_firefox_claude(self.firefox_dir)
+
+        head_after = subprocess.run(
+            ["git", "-C", self.firefox_dir, "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertEqual(head_after, "main")
+
+
 def run_tests():
     """Run all tests and return results"""
     # Create test suite
@@ -1898,6 +2477,9 @@ def run_tests():
     suite = unittest.TestSuite()
 
     # Add all test classes
+    suite.addTests(loader.loadTestsFromTestCase(TestPlatformHelpers))
+    suite.addTests(loader.loadTestsFromTestCase(TestSymlinkCapabilityProbe))
+    suite.addTests(loader.loadTestsFromTestCase(TestWindowsElevationProbes))
     suite.addTests(loader.loadTestsFromTestCase(TestLinkFunction))
     suite.addTests(loader.loadTestsFromTestCase(TestIsToolFunction))
     suite.addTests(loader.loadTestsFromTestCase(TestBashCommandGenerators))
@@ -1908,6 +2490,11 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestMainFunction))
     suite.addTests(loader.loadTestsFromTestCase(TestClaudeSecurityIntegration))
     suite.addTests(loader.loadTestsFromTestCase(TestInstallFirefoxClaude))
+    suite.addTests(loader.loadTestsFromTestCase(TestWindowsDevModeGate))
+    suite.addTests(loader.loadTestsFromTestCase(TestCommitOverlayBranchHandling))
+    suite.addTests(loader.loadTestsFromTestCase(TestPostCheckoutHookInstaller))
+    suite.addTests(loader.loadTestsFromTestCase(TestPostCheckoutHookRematerializes))
+    suite.addTests(loader.loadTestsFromTestCase(TestStuckClaudeOverlayAutoSwitch))
     suite.addTests(loader.loadTestsFromTestCase(TestMozillaCliTools))
 
     # Run tests with verbose output

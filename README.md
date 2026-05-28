@@ -33,6 +33,11 @@ symlink capability and prompt before any symlink-creating step.
 Mozilla toolkit aliases are skipped on Windows; Firefox dev on
 Windows uses `mozilla-build` directly.
 
+For `--install-firefox-claude`, setup.py refuses to commit the
+`claude-overlay` branch on Windows unless Developer Mode is
+enabled — this guarantees the committed symlink entries
+(mode 120000) can be checked out from any shell on the machine.
+
 **Git config:** `git/config` included via `~/.gitconfig`
 
 **Mozilla (optional):** Mach aliases, machrc, pernosco-submit,

@@ -131,7 +131,11 @@ See [README.md](README.md#testing) for how to run tests.
 
 **Test suites:**
 
-- `test_setup.py` - 26 tests (symlinks, file ops, main flow)
+- `test_setup.py` - 47 tests (symlinks, file ops, main flow,
+  Windows elevation/Dev Mode probes, Windows Dev Mode commit
+  gate, claude-overlay branch-exists handling, stuck-state
+  auto-switch, Windows post-checkout hook for re-materializing
+  symlink-blob entries that git checkout failed to create)
 - `test_shell_utils.sh` - 19 tests (functions, git utils)
 - `test_claude_security.py` - 23 tests (security hooks)
 - `test_prompt_colors.sh` - 22 tests (prompt colors)

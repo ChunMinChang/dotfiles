@@ -353,16 +353,26 @@ def rollback_changes(tracker):
         return True
 
 
-def can_create_symlinks():
+def can_create_symlinks(probe_dir=None):
     """Probe whether the current process can create symlinks.
 
     Returns True on macOS/Linux. On Windows, attempts os.symlink in a
     temp directory and returns False on OSError (WinError 1314 when
     Developer Mode is off and the process is unelevated).
+
+    ``probe_dir`` lets callers run the probe on a specific volume
+    (e.g. the target firefox repo) instead of the system temp drive,
+    since symlink privilege can differ by volume/ACL. When provided
+    and writable, the temp probe files are created inside it.
     """
     if not is_windows():
         return True
-    tmpdir = tempfile.mkdtemp()
+    parent = probe_dir if probe_dir and os.path.isdir(probe_dir) else None
+    try:
+        tmpdir = tempfile.mkdtemp(dir=parent)
+    except OSError:
+        # Fall back to the system temp drive if probe_dir is unwritable.
+        tmpdir = tempfile.mkdtemp()
     try:
         target = os.path.join(tmpdir, "t")
         link_path = os.path.join(tmpdir, "l")
@@ -375,6 +385,50 @@ def can_create_symlinks():
             return False
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def is_windows_elevated():
+    """Return True iff this process holds the Windows admin token.
+
+    Used to recognize the case where ``os.symlink`` only succeeds
+    because setup.py is running elevated, not because Developer Mode
+    is enabled — i.e. the committed branch will fail to re-materialize
+    symlinks in any non-elevated shell.
+    """
+    if not is_windows():
+        return False
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def is_windows_dev_mode_enabled():
+    """Return True iff Windows Developer Mode is enabled for this user.
+
+    Reads ``HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion
+    \\AppModelUnlock\\AllowDevelopmentWithoutDevLicense``. Any
+    registry error (missing key, denied access, non-Windows) returns
+    False — callers must treat this as a hint, not an authoritative
+    capability check (use ``can_create_symlinks()`` for that).
+    """
+    if not is_windows():
+        return False
+    try:
+        import winreg
+    except ImportError:
+        return False
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock",
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, "AllowDevelopmentWithoutDevLicense")
+            return int(value) == 1
+    except (OSError, ValueError):
+        return False
 
 
 def ensure_symlink_capability():
@@ -3646,6 +3700,166 @@ def ensure_target_core_symlinks(target_dir, dry_run=False):
     )
 
 
+def verify_overlay_commitable(target_dir):
+    """Pre-commit checks for ``_commit_overlay``.
+
+    Returns True if the commit may proceed; False on hard blockers.
+
+    On Windows, the commit stores mode-120000 (symlink) entries — same
+    as POSIX — so the committed branch must be checkout-able from
+    *every* shell on the machine, not just the (possibly elevated)
+    install session. The only Windows configuration that guarantees
+    this is Developer Mode enabled in the registry; we refuse the
+    commit otherwise with a clear message. POSIX has no equivalent
+    concept; the function is effectively a no-op there beyond the
+    defensive core.symlinks re-check.
+    """
+    # Defensive: make sure core.symlinks is still true. The install
+    # set it earlier; this catches the case where it got unset between
+    # install and commit.
+    ensure_target_core_symlinks(target_dir)
+
+    if not can_create_symlinks(probe_dir=target_dir):
+        print_error(
+            f"Cannot create symlinks in {target_dir} right now — the\n"
+            "  installed .claude/ symlinks are likely broken. Re-run\n"
+            "  setup.py from a shell with symlink privilege (Developer\n"
+            "  Mode on, or elevated)."
+        )
+        return False
+
+    if is_windows() and not is_windows_dev_mode_enabled():
+        if is_windows_elevated():
+            print_error(
+                "Refusing to commit: setup.py is running elevated, so\n"
+                "  this process can create symlinks, but Windows Developer\n"
+                "  Mode is OFF system-wide. The committed `claude-overlay`\n"
+                "  would store symlink entries (mode 120000) that fail to\n"
+                "  check out from non-elevated shells. Enable Developer\n"
+                "  Mode (Settings -> System -> For developers -> Developer\n"
+                "  Mode), restart the shell, and re-run."
+            )
+        else:
+            print_error(
+                "Refusing to commit: Windows Developer Mode is OFF\n"
+                "  system-wide. The committed `claude-overlay` would store\n"
+                "  symlink entries (mode 120000) that cannot be checked\n"
+                "  out without symlink privilege. Enable Developer Mode\n"
+                "  (Settings -> System -> For developers -> Developer\n"
+                "  Mode) and re-run."
+            )
+        return False
+
+    return True
+
+
+POST_CHECKOUT_HOOK_MARKER_BEGIN = (
+    "# === dotfiles setup.py managed post-checkout (firefox-claude) BEGIN ==="
+)
+POST_CHECKOUT_HOOK_MARKER_END = (
+    "# === dotfiles setup.py managed post-checkout (firefox-claude) END ==="
+)
+POST_CHECKOUT_HOOK_BODY = """\
+# Re-materialize mode-120000 entries under .claude/ that git failed to
+# create as symlinks. On Windows, Git for Windows' CreateSymbolicLinkW
+# intermittently returns ERROR_ACCESS_DENIED for absolute-path symlink
+# blobs even when Developer Mode is on, while MSYS's `ln -s` (which
+# this hook uses) succeeds in the same shell. The hook is idempotent
+# and a no-op when there's nothing to repair.
+[ "$3" = "1" ] || exit 0    # branch checkouts only
+_count=0
+while IFS= read -r line; do
+    case "$line" in "120000 "*) ;; *) continue ;; esac
+    blob=$(printf '%s' "$line" | awk '{print $3}')
+    path=$(printf '%s' "$line" | cut -f2)
+    [ -L "$path" ] && continue
+    target=$(git cat-file -p "$blob" 2>/dev/null) || continue
+    mkdir -p "$(dirname "$path")"
+    [ -e "$path" ] && rm -rf "$path"
+    if ln -s "$target" "$path" 2>/dev/null; then
+        _count=$((_count + 1))
+    fi
+done <<EOF
+$(git ls-tree -r HEAD -- .claude/ 2>/dev/null)
+EOF
+if [ "$_count" -gt 0 ]; then
+    echo "post-checkout: re-materialized $_count .claude/ symlinks via ln -s" \\
+         "(git's own symlink creation failed; this is expected on Windows" \\
+         "and the working tree is now correct)."
+fi
+"""
+
+
+def _build_post_checkout_managed_block():
+    return (
+        f"{POST_CHECKOUT_HOOK_MARKER_BEGIN}\n"
+        f"{POST_CHECKOUT_HOOK_BODY}"
+        f"{POST_CHECKOUT_HOOK_MARKER_END}\n"
+    )
+
+
+def install_post_checkout_hook(target_dir, dry_run=False):
+    """Install a Windows-only post-checkout hook that re-materializes
+    mode-120000 entries under .claude/ via ``ln -s`` after every branch
+    checkout. Works around Git for Windows' CreateSymbolicLinkW
+    intermittently failing with Permission denied on absolute-path
+    symlink blobs (see the hook body docstring for details).
+
+    No-op on POSIX (git checkout works correctly there) and on
+    non-git directories. Idempotent: if a managed block is already
+    present (matching the BEGIN/END markers), it's replaced; otherwise
+    the block is appended (preserving any pre-existing hook content).
+    """
+    if not is_windows():
+        return
+    git_marker = os.path.join(target_dir, ".git")
+    if not os.path.exists(git_marker):
+        return
+
+    hooks_dir = os.path.join(target_dir, ".git", "hooks")
+    hook_path = os.path.join(hooks_dir, "post-checkout")
+    managed_block = _build_post_checkout_managed_block()
+
+    existing = ""
+    if os.path.isfile(hook_path):
+        with open(hook_path, "r", encoding="utf-8", newline="") as f:
+            existing = f.read()
+
+    begin = POST_CHECKOUT_HOOK_MARKER_BEGIN
+    end = POST_CHECKOUT_HOOK_MARKER_END
+    if begin in existing and end in existing:
+        # Replace the existing managed block in place.
+        before, _, rest = existing.partition(begin)
+        _, _, after = rest.partition(end)
+        # Drop the trailing newline after the END marker if any, to
+        # avoid stacking newlines on repeated installs.
+        after = after.lstrip("\n")
+        new_content = before + managed_block + (("\n" + after) if after else "")
+        action = "Updated managed post-checkout block"
+    elif existing.strip():
+        # Preserve user content; append our managed block at the end.
+        sep = "" if existing.endswith("\n") else "\n"
+        new_content = existing + sep + "\n" + managed_block
+        action = "Appended managed post-checkout block"
+    else:
+        new_content = "#!/bin/sh\n\n" + managed_block
+        action = "Installed post-checkout hook"
+
+    if dry_run:
+        print(f"  Would {action.lower()}: {hook_path}")
+        return
+
+    os.makedirs(hooks_dir, exist_ok=True)
+    with open(hook_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(new_content)
+    try:
+        st = os.stat(hook_path)
+        os.chmod(hook_path, st.st_mode | 0o755)
+    except OSError:
+        pass
+    print(f"{action}: {hook_path}")
+
+
 def ensure_submodule_populated(submodule_path, label, dry_run=False):
     """Return True if ``submodule_path`` exists and has content.
 
@@ -3815,15 +4029,35 @@ def _commit_overlay(target_dir, include_claude_local, new_branch=None):
             )
             return False
 
+    if not verify_overlay_commitable(target_dir):
+        return False
+
     if new_branch:
-        checkout = _git("checkout", "-b", new_branch)
+        exists = (
+            _git("rev-parse", "--verify", f"refs/heads/{new_branch}").returncode == 0
+        )
+        if exists:
+            if not get_user_confirmation(
+                f"Branch '{new_branch}' already exists. "
+                "Replace it with the new commit? [y/N]: ",
+                default_non_interactive=False,
+            ):
+                print_hint("  Cancelled — commit not created.")
+                return False
+            # -B re-creates / resets the branch ref; safe here because
+            # we're about to switch the primary worktree to it.
+            checkout = _git("checkout", "-B", new_branch)
+            action = "Reset to new commit on"
+        else:
+            checkout = _git("checkout", "-b", new_branch)
+            action = "Switched to new branch"
         if checkout.returncode != 0:
             print_warning(
-                f"git checkout -b '{new_branch}' failed: "
+                f"git checkout {'-B' if exists else '-b'} '{new_branch}' failed: "
                 f"{checkout.stderr.decode().strip()}"
             )
             return False
-        print(f"Switched to new branch '{new_branch}'")
+        print(f"{action} '{new_branch}'")
 
     paths = [".claude/", ".gitignore"]
     if include_claude_local:
@@ -3907,6 +4141,79 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     # Make sure git checks out tracked symlinks as real symlinks in this repo
     # (and in any worktrees of it). Skipped silently if already true.
     ensure_target_core_symlinks(target_dir, dry_run=dry_run)
+
+    # Windows-only: install the post-checkout hook that re-materializes
+    # mode-120000 entries under .claude/ via `ln -s` after every branch
+    # checkout. Compensates for Git for Windows' CreateSymbolicLinkW
+    # intermittently failing on absolute-path symlink blobs.
+    install_post_checkout_hook(target_dir, dry_run=dry_run)
+
+    # Windows-only: detect the "stuck" state where the user is currently
+    # on `claude-overlay` but `.claude/` entries are deleted in the
+    # working tree (the original symptom of `git checkout claude-overlay`
+    # failing to materialize symlinks). Auto-switch to master/main so
+    # the install lands on a clean base.
+    if is_windows() and not dry_run:
+        head_check = subprocess.run(
+            ["git", "-C", target_dir, "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+        )
+        if head_check.stdout.strip() == "claude-overlay":
+            status = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    target_dir,
+                    "status",
+                    "--porcelain",
+                    "--",
+                    ".claude/",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            stuck = any(
+                line.startswith(" D ") or line.startswith("D  ")
+                for line in status.stdout.splitlines()
+            )
+            if stuck:
+                print("")
+                print_warning(
+                    "Detected stuck claude-overlay state (tracked .claude/\n"
+                    "  entries deleted in working tree). Switching to a base\n"
+                    "  branch before installing."
+                )
+                for candidate in ("master", "main"):
+                    verify = subprocess.run(
+                        [
+                            "git",
+                            "-C",
+                            target_dir,
+                            "rev-parse",
+                            "--verify",
+                            candidate,
+                        ],
+                        capture_output=True,
+                    )
+                    if verify.returncode == 0:
+                        co = subprocess.run(
+                            ["git", "-C", target_dir, "checkout", candidate],
+                            capture_output=True,
+                            text=True,
+                        )
+                        if co.returncode == 0:
+                            print(
+                                f"Switched to '{candidate}' "
+                                "(reproduce claude-overlay via the commit prompt)"
+                            )
+                            break
+                else:
+                    print_warning(
+                        "Cannot find master or main to switch to. Switch\n"
+                        "  manually and re-run setup.py."
+                    )
+                    return False
 
     target_claude_dir = os.path.join(target_dir, ".claude")
     target_hooks_dir = os.path.join(target_claude_dir, "hooks")
@@ -4381,6 +4688,7 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     # setup.py asks for it.
     print("")
     has_claude_local = os.path.isfile(target_claude_local)
+    committed = False
     commit_prompt = (
         "Commit the installed overlay now?\n"
         "  - Stages with: git add -f .claude/ .gitignore"
@@ -4390,11 +4698,11 @@ def install_firefox_claude(target_dir=None, dry_run=False):
         "  - Worktrees created from this commit will inherit the overlay.\n"
         "Commit now? [y/N]: "
     )
-    committed = False
     if get_user_confirmation(commit_prompt, default_non_interactive=False):
         new_branch = None
         if get_user_confirmation(
-            "Commit on a new branch (so the current branch stays clean)? " "[y/N]: ",
+            "Commit on a new branch (so the current branch stays clean)? "
+            "[y/N]: ",
             default_non_interactive=False,
         ):
             default_name = "claude-overlay"
@@ -4411,11 +4719,25 @@ def install_firefox_claude(target_dir=None, dry_run=False):
     if gitignore_entries:
         print_hint(f"  Added {len(gitignore_entries)} entries to .gitignore")
     if committed:
-        print_hint(
-            "  Overlay committed on current branch. Worktrees created\n"
-            "  from this commit (or branches off it) will inherit the\n"
-            "  hooks/skills automatically (core.symlinks=true is set)."
-        )
+        if is_windows():
+            print_hint(
+                "  Overlay committed as mode-120000 symlink blobs (same\n"
+                "  as POSIX). The .git/hooks/post-checkout hook installed\n"
+                "  earlier will re-materialize any symlinks that Git for\n"
+                "  Windows fails to create on `git checkout` (you may see\n"
+                "  'Permission denied' lines from git followed by a\n"
+                "  'post-checkout: re-materialized N .claude/ symlinks'\n"
+                "  summary — that's expected; the working tree ends up\n"
+                "  correct and git status is clean).\n"
+                "  Keep Windows Developer Mode enabled so symlinks remain\n"
+                "  createable by `ln -s` (which the hook uses)."
+            )
+        else:
+            print_hint(
+                "  Overlay committed on current branch. Worktrees created\n"
+                "  from this commit (or branches off it) will inherit the\n"
+                "  hooks/skills automatically (core.symlinks=true is set)."
+            )
     else:
         manual_files = ".claude/ .gitignore" + (
             " CLAUDE.local.md" if has_claude_local else ""
