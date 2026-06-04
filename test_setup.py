@@ -1358,7 +1358,12 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         os.makedirs(os.path.join(self.overlay_dir, "agents"))
         os.makedirs(os.path.join(self.overlay_dir, "skills", "sherlock"))
         with open(os.path.join(self.overlay_dir, "config.toml"), "w") as f:
-            f.write("[features]\nhooks = true\n")
+            f.write(
+                "[features]\nhooks = true\n\n"
+                "[profiles.rumination]\n"
+                'model = "gpt-5.5"\n'
+                'model_reasoning_effort = "xhigh"\n'
+            )
         with open(
             os.path.join(self.overlay_dir, "hooks", "post-apply-fixups.sh"), "w"
         ) as f:
@@ -1398,6 +1403,10 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         for path in expected_links:
             self.assertTrue(os.path.islink(path), f"{path} should be symlinked")
             self.assertIn(self.overlay_dir, os.readlink(path))
+        with open(os.path.join(codex_dir, "config.toml")) as f:
+            config = f.read()
+        self.assertIn("[profiles.rumination]", config)
+        self.assertIn('model_reasoning_effort = "xhigh"', config)
 
     def test_install_gitignore_includes_codex_entries(self):
         self._install()
