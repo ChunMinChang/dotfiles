@@ -14,8 +14,9 @@ python setup.py --claude-session-sync  # Add session transcript sync
 python setup.py --all                  # Install everything
 python setup.py --dry-run              # Preview changes first
 
-# Firefox Claude settings (per-project)
+# Firefox agent settings (per-project)
 python setup.py --install-firefox-claude /path/to/firefox
+python setup.py --install-firefox-codex /path/to/firefox
 
 bash uninstall.sh                  # Remove dotfiles
 ```
@@ -33,10 +34,11 @@ symlink capability and prompt before any symlink-creating step.
 Mozilla toolkit aliases are skipped on Windows; Firefox dev on
 Windows uses `mozilla-build` directly.
 
-For `--install-firefox-claude`, setup.py refuses to commit the
-`claude-overlay` branch on Windows unless Developer Mode is
-enabled — this guarantees the committed symlink entries
-(mode 120000) can be checked out from any shell on the machine.
+For `--install-firefox-claude` and `--install-firefox-codex`,
+setup.py refuses to commit overlay branches on Windows unless
+Developer Mode is enabled — this guarantees the committed symlink
+entries (mode 120000) can be checked out from any shell on the
+machine.
 
 **Git config:** `git/config` included via `~/.gitconfig`
 
@@ -175,18 +177,24 @@ enough trailing path components to disambiguate (`X/Z/` vs `Y/Z/`).
 
 ### Firefox Project Settings
 
-Install Firefox-specific Claude hooks and skills
-(auto-format, auto-lint, skills) to any Firefox project.
-Uses symlinks so updates propagate to all linked projects.
+Install Firefox-specific agent hooks and skills to any Firefox
+project. Uses symlinks so updates propagate to all linked projects.
 
 ```bash
 # Install (prompts for path)
 python setup.py --install-firefox-claude
 # Install to specific path
 python setup.py --install-firefox-claude /path/to/firefox
+# Install Codex settings and rewritten skills
+python setup.py --install-firefox-codex /path/to/firefox
 # Uninstall
 python setup.py --uninstall-firefox-claude /path/to/firefox
 ```
+
+The Claude installer links `.claude/hooks`, `.claude/agents`,
+`.claude/skills`, and `.claude/settings.local.json`. The Codex
+installer links `.codex/config.toml`, `.codex/hooks`, `.codex/agents`,
+and `.codex/skills` from `mozilla/firefox/dot.codex`.
 
 During installation you can provide a path to a
 **tech-docs index file**. This is a markdown file that
@@ -210,8 +218,8 @@ Example `INDEX.md`:
 Generate these documents with the `/tech-doc` skill
 after installation.
 
-Restart Claude Code after installation for changes
-to take effect.
+Restart the corresponding agent after installation for changes to
+take effect.
 
 ## Testing
 

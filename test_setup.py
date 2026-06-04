@@ -1342,6 +1342,117 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), before_sha)
 
 
+@requires_symlinks
+class TestInstallFirefoxCodex(unittest.TestCase):
+    """Test install of Firefox Codex settings."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.firefox_dir = os.path.join(self.test_dir, "firefox")
+        os.makedirs(self.firefox_dir)
+        open(os.path.join(self.firefox_dir, "mach"), "w").close()
+        TestInstallFirefoxClaude._git_init(self.firefox_dir)
+
+        self.overlay_dir = os.path.join(self.test_dir, "codex-overlay")
+        os.makedirs(os.path.join(self.overlay_dir, "hooks"))
+        os.makedirs(os.path.join(self.overlay_dir, "agents"))
+        os.makedirs(os.path.join(self.overlay_dir, "skills", "sherlock"))
+        with open(os.path.join(self.overlay_dir, "config.toml"), "w") as f:
+            f.write("[features]\nhooks = true\n")
+        with open(
+            os.path.join(self.overlay_dir, "hooks", "post-apply-fixups.sh"), "w"
+        ) as f:
+            f.write("#!/bin/bash\n")
+        with open(
+            os.path.join(self.overlay_dir, "agents", "red-pen-critic.toml"), "w"
+        ) as f:
+            f.write('name = "red_pen_critic"\n')
+        with open(
+            os.path.join(self.overlay_dir, "skills", "sherlock", "SKILL.md"), "w"
+        ) as f:
+            f.write("---\nname: sherlock\ndescription: test\n---\n")
+
+        self._orig_overlay = setup.FIREFOX_CODEX_OVERLAY
+        setup.FIREFOX_CODEX_OVERLAY = self.overlay_dir
+
+    def tearDown(self):
+        setup.FIREFOX_CODEX_OVERLAY = self._orig_overlay
+        _force_rmtree(self.test_dir)
+
+    def _install(self, **kwargs):
+        with patch("setup.get_user_confirmation", return_value=False), patch(
+            "setup.is_windows_dev_mode_enabled", return_value=True
+        ):
+            return setup.install_firefox_codex(self.firefox_dir, **kwargs)
+
+    def test_install_symlinks_codex_overlay(self):
+        self.assertTrue(self._install())
+
+        codex_dir = os.path.join(self.firefox_dir, ".codex")
+        expected_links = [
+            os.path.join(codex_dir, "config.toml"),
+            os.path.join(codex_dir, "hooks", "post-apply-fixups.sh"),
+            os.path.join(codex_dir, "agents", "red-pen-critic.toml"),
+            os.path.join(codex_dir, "skills", "sherlock"),
+        ]
+        for path in expected_links:
+            self.assertTrue(os.path.islink(path), f"{path} should be symlinked")
+            self.assertIn(self.overlay_dir, os.readlink(path))
+
+    def test_install_gitignore_includes_codex_entries(self):
+        self._install()
+
+        with open(os.path.join(self.firefox_dir, ".gitignore")) as f:
+            content = f.read()
+        self.assertIn("# Added by dotfiles setup (agent project settings)", content)
+        self.assertIn(".codex/config.toml", content)
+        self.assertIn(".codex/hooks/post-apply-fixups.sh", content)
+        self.assertIn(".codex/agents/red-pen-critic.toml", content)
+        self.assertIn(".codex/skills/sherlock/", content)
+
+    def test_dry_run_shows_codex_entries(self):
+        import io
+
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+            self._install(dry_run=True)
+            output = mock_stdout.getvalue()
+
+        self.assertIn(".codex/hooks/post-apply-fixups.sh", output)
+        self.assertIn(".codex/agents/red-pen-critic.toml", output)
+        self.assertIn(".codex/skills/sherlock", output)
+        self.assertIn(".codex/config.toml", output)
+
+    def test_install_does_not_link_claude_specific_skill_submodules(self):
+        """Codex install only links dot.codex skills, not Claude-only skill trees."""
+        alwu_dir = os.path.join(self.test_dir, "alwu-claude-skills")
+        media_dir = os.path.join(self.test_dir, "media-skills")
+        for root, skill in (
+            (alwu_dir, "bug-start"),
+            (media_dir, "bugzilla-wrangler"),
+        ):
+            skill_dir = os.path.join(root, skill)
+            os.makedirs(skill_dir)
+            with open(os.path.join(skill_dir, "SKILL.md"), "w") as f:
+                f.write(f"---\nname: {skill}\ndescription: claude-only\n---\n")
+
+        orig_alwu = setup.ALWU_CLAUDE_SKILLS_DIR
+        orig_media = setup.MEDIA_SKILLS_DIR
+        setup.ALWU_CLAUDE_SKILLS_DIR = alwu_dir
+        setup.MEDIA_SKILLS_DIR = media_dir
+        try:
+            self._install()
+        finally:
+            setup.ALWU_CLAUDE_SKILLS_DIR = orig_alwu
+            setup.MEDIA_SKILLS_DIR = orig_media
+
+        codex_skills = os.path.join(self.firefox_dir, ".codex", "skills")
+        self.assertTrue(os.path.islink(os.path.join(codex_skills, "sherlock")))
+        self.assertFalse(os.path.exists(os.path.join(codex_skills, "bug-start")))
+        self.assertFalse(
+            os.path.exists(os.path.join(codex_skills, "bugzilla-wrangler"))
+        )
+
+
 class TestMozillaCliTools(unittest.TestCase):
     """Tests for mozilla_cli_tools_init and the per-tool installers."""
 
@@ -2470,6 +2581,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestMainFunction))
     suite.addTests(loader.loadTestsFromTestCase(TestClaudeSecurityIntegration))
     suite.addTests(loader.loadTestsFromTestCase(TestInstallFirefoxClaude))
+    suite.addTests(loader.loadTestsFromTestCase(TestInstallFirefoxCodex))
     suite.addTests(loader.loadTestsFromTestCase(TestWindowsDevModeGate))
     suite.addTests(loader.loadTestsFromTestCase(TestCommitOverlayBranchHandling))
     suite.addTests(loader.loadTestsFromTestCase(TestPostCheckoutHookInstaller))

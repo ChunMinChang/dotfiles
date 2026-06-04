@@ -700,7 +700,10 @@ def append_nonexistent_lines_to_file(file, lines, tracker=None):
         return False
 
 
-DOTFILES_GITIGNORE_HEADER = "# Added by dotfiles setup (Claude Code settings)"
+DOTFILES_GITIGNORE_HEADER = "# Added by dotfiles setup (agent project settings)"
+LEGACY_DOTFILES_GITIGNORE_HEADERS = {
+    "# Added by dotfiles setup (Claude Code settings)",
+}
 
 
 def _split_gitignore_sections(lines):
@@ -720,7 +723,8 @@ def _split_gitignore_sections(lines):
     i = 0
     # Phase 1: before the header
     while i < len(lines):
-        if lines[i].rstrip("\n") == DOTFILES_GITIGNORE_HEADER:
+        line = lines[i].rstrip("\n")
+        if line == DOTFILES_GITIGNORE_HEADER or line in LEGACY_DOTFILES_GITIGNORE_HEADERS:
             header = lines[i]
             i += 1
             break
@@ -3488,6 +3492,7 @@ def show_claude_hooks():
 # ============================================================================
 
 FIREFOX_CLAUDE_OVERLAY = os.path.join(BASE_DIR, "mozilla", "firefox", "dot.claude")
+FIREFOX_CODEX_OVERLAY = os.path.join(BASE_DIR, "mozilla", "firefox", "dot.codex")
 MEDIA_SKILLS_DIR = os.path.join(BASE_DIR, "mozilla", "firefox", "media-skills")
 MEDIA_SKILLS_EXCLUDE = {"Template", "shared", ".git", ".github", "LICENSE", "README.md"}
 ALWU_CLAUDE_SKILLS_DIR = os.path.join(
@@ -3529,6 +3534,7 @@ def _is_our_source(link_target):
     """Does this symlink target belong to something setup.py installs?"""
     markers = (
         FIREFOX_CLAUDE_OVERLAY,
+        FIREFOX_CODEX_OVERLAY,
         ALWU_CLAUDE_SKILLS_DIR,
         MEDIA_SKILLS_DIR,
         ".dotfiles",
@@ -3691,12 +3697,12 @@ def ensure_target_core_symlinks(target_dir, dry_run=False):
     print(f"Set core.symlinks=true in {target_dir} (was {label})")
     print_hint(
         "  Without this, worktrees of this repo would check out tracked\n"
-        "  symlinks (e.g. .claude/skills/*) as plain text files containing\n"
-        "  the link target — Claude Code can't follow those, so skills\n"
+        "  symlinks (e.g. .claude/skills/* or .codex/skills/*) as plain text files containing\n"
+        "  the link target — agent tools can't follow those, so skills\n"
         "  disappear in every other worktree.\n"
         "  Existing worktrees with broken pseudo-symlinks can be repaired\n"
         "  by deleting the offending files and running:\n"
-        "    git -C <worktree> checkout -- .claude/"
+        "    git -C <worktree> checkout -- .claude/ .codex/"
     )
 
 
@@ -3722,7 +3728,7 @@ def verify_overlay_commitable(target_dir):
     if not can_create_symlinks(probe_dir=target_dir):
         print_error(
             f"Cannot create symlinks in {target_dir} right now — the\n"
-            "  installed .claude/ symlinks are likely broken. Re-run\n"
+            "  installed overlay symlinks are likely broken. Re-run\n"
             "  setup.py from a shell with symlink privilege (Developer\n"
             "  Mode on, or elevated)."
         )
@@ -3733,7 +3739,7 @@ def verify_overlay_commitable(target_dir):
             print_error(
                 "Refusing to commit: setup.py is running elevated, so\n"
                 "  this process can create symlinks, but Windows Developer\n"
-                "  Mode is OFF system-wide. The committed `claude-overlay`\n"
+                "  Mode is OFF system-wide. The committed overlay\n"
                 "  would store symlink entries (mode 120000) that fail to\n"
                 "  check out from non-elevated shells. Enable Developer\n"
                 "  Mode (Settings -> System -> For developers -> Developer\n"
@@ -3742,7 +3748,7 @@ def verify_overlay_commitable(target_dir):
         else:
             print_error(
                 "Refusing to commit: Windows Developer Mode is OFF\n"
-                "  system-wide. The committed `claude-overlay` would store\n"
+                "  system-wide. The committed overlay would store\n"
                 "  symlink entries (mode 120000) that cannot be checked\n"
                 "  out without symlink privilege. Enable Developer Mode\n"
                 "  (Settings -> System -> For developers -> Developer\n"
@@ -3760,7 +3766,7 @@ POST_CHECKOUT_HOOK_MARKER_END = (
     "# === dotfiles setup.py managed post-checkout (firefox-claude) END ==="
 )
 POST_CHECKOUT_HOOK_BODY = """\
-# Re-materialize mode-120000 entries under .claude/ that git failed to
+# Re-materialize mode-120000 entries under .claude/ or .codex/ that git failed to
 # create as symlinks. On Windows, Git for Windows' CreateSymbolicLinkW
 # intermittently returns ERROR_ACCESS_DENIED for absolute-path symlink
 # blobs even when Developer Mode is on, while MSYS's `ln -s` (which
@@ -3780,10 +3786,10 @@ while IFS= read -r line; do
         _count=$((_count + 1))
     fi
 done <<EOF
-$(git ls-tree -r HEAD -- .claude/ 2>/dev/null)
+$(git ls-tree -r HEAD -- .claude/ .codex/ 2>/dev/null)
 EOF
 if [ "$_count" -gt 0 ]; then
-    echo "post-checkout: re-materialized $_count .claude/ symlinks via ln -s" \\
+    echo "post-checkout: re-materialized $_count agent overlay symlinks via ln -s" \\
          "(git's own symlink creation failed; this is expected on Windows" \\
          "and the working tree is now correct)."
 fi
@@ -3800,7 +3806,7 @@ def _build_post_checkout_managed_block():
 
 def install_post_checkout_hook(target_dir, dry_run=False):
     """Install a Windows-only post-checkout hook that re-materializes
-    mode-120000 entries under .claude/ via ``ln -s`` after every branch
+    mode-120000 entries under .claude/ or .codex/ via ``ln -s`` after every branch
     checkout. Works around Git for Windows' CreateSymbolicLinkW
     intermittently failing with Permission denied on absolute-path
     symlink blobs (see the hook body docstring for details).
@@ -4090,6 +4096,366 @@ def _commit_overlay(target_dir, include_claude_local, new_branch=None):
         else "HEAD"
     )
     print(f"Committed overlay on '{branch_name}' ({sha})")
+    return True
+
+
+def _commit_codex_overlay(target_dir, new_branch=None):
+    """Stage and commit installed Codex overlay in ``target_dir``.
+
+    Uses ``git add -f`` because the installer intentionally gitignores the
+    symlinked project-local overlay entries. Returns True on success (or no-op
+    when nothing changed), False on errors.
+    """
+    git_marker = os.path.join(target_dir, ".git")
+    if not os.path.exists(git_marker):
+        print_hint(f"  {target_dir} is not a git checkout; skipping commit")
+        return False
+
+    def _git(*args):
+        return subprocess.run(["git", "-C", target_dir, *args], capture_output=True)
+
+    for key in ("user.email", "user.name"):
+        result = _git("config", "--get", key)
+        if result.returncode != 0 or not result.stdout.strip():
+            print_warning(
+                f"git {key} not configured in {target_dir}; skipping commit. "
+                f"Set it and re-run --install-firefox-codex."
+            )
+            return False
+
+    if not verify_overlay_commitable(target_dir):
+        return False
+
+    if new_branch:
+        exists = (
+            _git("rev-parse", "--verify", f"refs/heads/{new_branch}").returncode == 0
+        )
+        if exists:
+            if not get_user_confirmation(
+                f"Branch '{new_branch}' already exists. "
+                "Replace it with the new commit? [y/N]: ",
+                default_non_interactive=False,
+            ):
+                print_hint("  Cancelled — commit not created.")
+                return False
+            checkout = _git("checkout", "-B", new_branch)
+            action = "Reset to new commit on"
+        else:
+            checkout = _git("checkout", "-b", new_branch)
+            action = "Switched to new branch"
+        if checkout.returncode != 0:
+            print_warning(
+                f"git checkout {'-B' if exists else '-b'} '{new_branch}' failed: "
+                f"{checkout.stderr.decode().strip()}"
+            )
+            return False
+        print(f"{action} '{new_branch}'")
+
+    add = _git("add", "-f", ".codex/", ".gitignore")
+    if add.returncode != 0:
+        print_warning(f"git add failed: {add.stderr.decode().strip()}")
+        return False
+
+    diff = _git("diff", "--cached", "--quiet")
+    if diff.returncode == 0:
+        print_hint("  Nothing to commit; overlay already tracked on this branch")
+        return True
+
+    commit = _git("commit", "-m", "Install Codex overlay")
+    if commit.returncode != 0:
+        stderr = commit.stderr.decode().strip()
+        stdout = commit.stdout.decode().strip()
+        msg = stderr or stdout or "(no output)"
+        print_warning(f"git commit failed (pre-commit hook?): {msg}")
+        return False
+
+    rev = _git("rev-parse", "HEAD")
+    sha = rev.stdout.decode().strip()[:12] if rev.returncode == 0 else "?"
+    branch_result = _git("rev-parse", "--abbrev-ref", "HEAD")
+    branch_name = (
+        branch_result.stdout.decode().strip()
+        if branch_result.returncode == 0
+        else "HEAD"
+    )
+    print(f"Committed overlay on '{branch_name}' ({sha})")
+    return True
+
+
+def cleanup_stale_codex_overlay(target_codex_dir, target_dir, dry_run=False):
+    """Remove stale symlinks previously installed from ``FIREFOX_CODEX_OVERLAY``."""
+    if not os.path.isdir(target_codex_dir):
+        return []
+
+    stale_entries = []
+    external = []
+    managed_entries = _read_our_entries(os.path.join(target_dir, ".gitignore"))
+    managed_dirs = {
+        "hooks": False,
+        "agents": False,
+        "skills": True,
+    }
+
+    for dirname, is_dir_entry in managed_dirs.items():
+        directory = os.path.join(target_codex_dir, dirname)
+        if not os.path.isdir(directory):
+            continue
+        for name in sorted(os.listdir(directory)):
+            path = os.path.join(directory, name)
+            entry = f".codex/{dirname}/{name}" + ("/" if is_dir_entry else "")
+            if os.path.islink(path):
+                link_target = os.readlink(path)
+                broken = not os.path.exists(path)
+                ours = FIREFOX_CODEX_OVERLAY in link_target or ".dotfiles" in link_target
+                if broken and ours:
+                    if dry_run:
+                        print(f"  Would remove broken symlink: {path}")
+                    else:
+                        os.unlink(path)
+                        print(f"Removed broken symlink: {path}")
+                    stale_entries.append(entry)
+                elif broken:
+                    external.append((f"broken symlink -> {link_target}", path))
+                elif not ours:
+                    external.append((f"external symlink -> {link_target}", path))
+            elif os.path.isdir(path) and not os.listdir(path) and entry in managed_entries:
+                if dry_run:
+                    print(f"  Would remove empty directory: {path}")
+                else:
+                    os.rmdir(path)
+                    print(f"Removed empty directory: {path}")
+                stale_entries.append(entry)
+            elif os.path.exists(path):
+                external.append(("self-contained entry", path))
+
+    if external:
+        print_hint("Codex entries not managed by setup.py (left as-is):")
+        for label, path in external:
+            print_hint(f"  {path}  [{label}]")
+
+    if stale_entries:
+        remove_from_gitignore(target_dir, stale_entries, dry_run=dry_run)
+
+    return stale_entries
+
+
+def _link_codex_overlay_dir(source_dir, target_dir, gitignore_prefix, dir_entries=False):
+    """Symlink all entries from ``source_dir`` into ``target_dir``."""
+    gitignore_entries = []
+    if not os.path.isdir(source_dir):
+        return gitignore_entries
+
+    os.makedirs(target_dir, exist_ok=True)
+    for name in sorted(os.listdir(source_dir)):
+        src = os.path.join(source_dir, name)
+        dst = os.path.join(target_dir, name)
+
+        if os.path.islink(dst):
+            os.unlink(dst)
+        elif os.path.exists(dst):
+            print_warning(f"Skipping existing entry: {dst}")
+            continue
+
+        os.symlink(src, dst)
+        print(f"Linked: {name}")
+        suffix = "/" if dir_entries else ""
+        gitignore_entries.append(f"{gitignore_prefix}/{name}{suffix}")
+
+    return gitignore_entries
+
+
+def install_firefox_codex(target_dir=None, dry_run=False):
+    """
+    Install Firefox-specific Codex settings (hooks, agents, skills) to a target
+    project. Uses symlinks for easy management across multiple repos.
+    """
+    print_title("Install Firefox Codex Settings")
+
+    if not dry_run and not ensure_symlink_capability():
+        print_error("Symlink creation unavailable; cannot install Firefox Codex settings")
+        return False
+
+    if not os.path.isdir(FIREFOX_CODEX_OVERLAY):
+        print_error(f"Firefox Codex overlay not found: {FIREFOX_CODEX_OVERLAY}")
+        return False
+
+    if not target_dir:
+        target_dir = get_user_input("Enter Firefox project path: ")
+        if not target_dir:
+            print_error("No target directory provided.")
+            return False
+
+    target_dir = os.path.expanduser(target_dir)
+    if not os.path.isdir(target_dir):
+        print_error(f"Target directory does not exist: {target_dir}")
+        return False
+
+    mach_path = os.path.join(target_dir, "mach")
+    if not os.path.exists(mach_path):
+        print_warning(f'No "mach" found in {target_dir}')
+        if not get_user_confirmation("Continue anyway? [y/N]: "):
+            print("Aborted.")
+            return False
+
+    ensure_target_core_symlinks(target_dir, dry_run=dry_run)
+    install_post_checkout_hook(target_dir, dry_run=dry_run)
+
+    target_codex_dir = os.path.join(target_dir, ".codex")
+    target_hooks_dir = os.path.join(target_codex_dir, "hooks")
+    target_skills_dir = os.path.join(target_codex_dir, "skills")
+    target_agents_dir = os.path.join(target_codex_dir, "agents")
+    target_config = os.path.join(target_codex_dir, "config.toml")
+
+    existing_config = os.path.exists(target_config)
+    override_config = True
+
+    if existing_config and not dry_run:
+        print_warning(f"Existing Codex config found: {target_config}")
+        print("Options:")
+        print("  [o] Override - Replace with dotfiles config.toml (creates symlink)")
+        print("  [c] Cancel - Abort installation")
+        choice = get_user_input("Choose [o/c]: ", "c").lower()
+        if choice != "o":
+            print("Aborted.")
+            return False
+        override_config = True
+
+    if dry_run:
+        print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
+        print(f"  Target: {target_dir}")
+        print(f"  1. Create directory: {target_hooks_dir}")
+        print(f"  2. Create directory: {target_skills_dir}")
+        print(f"  3. Create directory: {target_agents_dir}")
+        gitignore_entries = []
+        step = 4
+        for label, subdir, target_subdir, dir_entries in [
+            ("hook", "hooks", target_hooks_dir, False),
+            ("agent", "agents", target_agents_dir, False),
+            ("skill", "skills", target_skills_dir, True),
+        ]:
+            source_subdir = os.path.join(FIREFOX_CODEX_OVERLAY, subdir)
+            if not os.path.isdir(source_subdir):
+                continue
+            for name in sorted(os.listdir(source_subdir)):
+                src = os.path.join(source_subdir, name)
+                dst = os.path.join(target_subdir, name)
+                print(f"  {step}. Symlink {label}: {dst} -> {src}")
+                suffix = "/" if dir_entries else ""
+                gitignore_entries.append(f".codex/{subdir}/{name}{suffix}")
+                step += 1
+
+        src_config = os.path.join(FIREFOX_CODEX_OVERLAY, "config.toml")
+        if existing_config:
+            print(f"  {step}. Existing config found: {target_config}")
+            print("       (You will be prompted to override when running without --dry-run)")
+        else:
+            print(f"  {step}. Symlink: {target_config} -> {src_config}")
+            gitignore_entries.append(".codex/config.toml")
+        step += 1
+
+        if os.path.isdir(target_codex_dir):
+            print(f"  {step}. Check for stale Codex overlay entries:")
+            cleanup_stale_codex_overlay(target_codex_dir, target_dir, dry_run=True)
+            step += 1
+
+        if gitignore_entries:
+            print(f"  {step}. Check/update .gitignore:")
+            add_to_gitignore(target_dir, gitignore_entries, dry_run=True)
+
+        print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
+        return True
+
+    os.makedirs(target_hooks_dir, exist_ok=True)
+    os.makedirs(target_skills_dir, exist_ok=True)
+    os.makedirs(target_agents_dir, exist_ok=True)
+    print(f"Created: {target_hooks_dir}")
+    print(f"Created: {target_skills_dir}")
+    print(f"Created: {target_agents_dir}")
+
+    gitignore_entries = []
+    gitignore_entries.extend(
+        _link_codex_overlay_dir(
+            os.path.join(FIREFOX_CODEX_OVERLAY, "hooks"),
+            target_hooks_dir,
+            ".codex/hooks",
+        )
+    )
+    gitignore_entries.extend(
+        _link_codex_overlay_dir(
+            os.path.join(FIREFOX_CODEX_OVERLAY, "agents"),
+            target_agents_dir,
+            ".codex/agents",
+        )
+    )
+    gitignore_entries.extend(
+        _link_codex_overlay_dir(
+            os.path.join(FIREFOX_CODEX_OVERLAY, "skills"),
+            target_skills_dir,
+            ".codex/skills",
+            dir_entries=True,
+        )
+    )
+
+    cleanup_stale_codex_overlay(target_codex_dir, target_dir)
+
+    src_config = os.path.join(FIREFOX_CODEX_OVERLAY, "config.toml")
+    if override_config:
+        if os.path.islink(target_config):
+            os.unlink(target_config)
+        elif os.path.exists(target_config):
+            backup = target_config + ".backup"
+            shutil.move(target_config, backup)
+            print_hint(f"Backed up existing config to: {backup}")
+        os.symlink(src_config, target_config)
+        print("Linked: config.toml")
+        gitignore_entries.append(".codex/config.toml")
+
+    if gitignore_entries:
+        add_to_gitignore(target_dir, gitignore_entries)
+
+    print("")
+    committed = False
+    commit_prompt = (
+        "Commit the installed Codex overlay now?\n"
+        "  - Stages with: git add -f .codex/ .gitignore\n"
+        "  - Commits as:  git commit -m 'Install Codex overlay'\n"
+        "  - Worktrees created from this commit will inherit the overlay.\n"
+        "Commit now? [y/N]: "
+    )
+    if get_user_confirmation(commit_prompt, default_non_interactive=False):
+        new_branch = None
+        if get_user_confirmation(
+            "Commit on a new branch (so the current branch stays clean)? [y/N]: ",
+            default_non_interactive=False,
+        ):
+            default_name = "codex-overlay"
+            entered = get_user_input(
+                f"New branch name [{default_name}]: ", default_name
+            ).strip()
+            new_branch = entered or default_name
+        committed = _commit_codex_overlay(target_dir, new_branch)
+
+    print("")
+    print(colors.OK + "✓ Firefox Codex settings installed" + colors.END)
+    print_hint(f"  Target: {target_dir}")
+    print_hint(f"  Hooks, agents, config, and skills are symlinked from: {FIREFOX_CODEX_OVERLAY}")
+    if gitignore_entries:
+        print_hint(f"  Added {len(gitignore_entries)} entries to .gitignore")
+    if committed:
+        print_hint(
+            "  Overlay committed. Worktrees created from this commit (or\n"
+            "  branches off it) will inherit the Codex hooks/skills."
+        )
+    else:
+        print_hint(
+            "  Changes left uncommitted. To share the overlay with worktrees:\n"
+            "    1. Switch to (or create) a side branch for personal config.\n"
+            "    2. git add -f .codex/ .gitignore\n"
+            "    3. git commit -m 'Install Codex overlay'\n"
+            "    4. git worktree add ../<name> <that-side-branch>"
+        )
+    print("")
+    print_warning("IMPORTANT: Restart Codex for changes to take effect")
+
     return True
 
 
@@ -5016,6 +5382,8 @@ Examples:
   python3 setup.py --remove-claude-security # Remove security hooks
   python3 setup.py --install-firefox-claude # Install Firefox Claude settings (prompts for path)
   python3 setup.py --install-firefox-claude /path/to/firefox # Install to specific path
+  python3 setup.py --install-firefox-codex # Install Firefox Codex settings (prompts for path)
+  python3 setup.py --install-firefox-codex /path/to/firefox # Install to specific path
   python3 setup.py --uninstall-firefox-claude # Remove Firefox Claude settings
         """,
     )
@@ -5078,6 +5446,13 @@ Examples:
         help="Install Firefox Claude settings (hooks, skills) to a project. Prompts for path if not provided.",
     )
     parser.add_argument(
+        "--install-firefox-codex",
+        nargs="?",
+        const="",
+        metavar="PATH",
+        help="Install Firefox Codex settings (hooks, agents, config, skills) to a project. Prompts for path if not provided.",
+    )
+    parser.add_argument(
         "--uninstall-firefox-claude",
         nargs="?",
         const="",
@@ -5120,10 +5495,14 @@ Examples:
     if args.remove_claude_security:
         return 0 if claude_security_remove(DRY_RUN) else 1
 
-    # Handle Firefox Claude install/uninstall (standalone commands)
+    # Handle Firefox project overlay installs/uninstalls (standalone commands)
     if args.install_firefox_claude is not None:
         target = args.install_firefox_claude if args.install_firefox_claude else None
         return 0 if install_firefox_claude(target, DRY_RUN) else 1
+
+    if args.install_firefox_codex is not None:
+        target = args.install_firefox_codex if args.install_firefox_codex else None
+        return 0 if install_firefox_codex(target, DRY_RUN) else 1
 
     if args.uninstall_firefox_claude is not None:
         target = (
