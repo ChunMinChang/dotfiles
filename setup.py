@@ -4263,6 +4263,163 @@ def _link_codex_overlay_dir(source_dir, target_dir, gitignore_prefix, dir_entrie
     return gitignore_entries
 
 
+_TOML_HEADER_RE = re.compile(r"^\s*(\[\[?)([^\]]+)(\]\]?)\s*(?:#.*)?$")
+_TOML_KEY_RE = re.compile(r"^\s*([A-Za-z0-9_.-]+)\s*=")
+
+
+def _toml_header(line):
+    match = _TOML_HEADER_RE.match(line)
+    if not match:
+        return None
+    return match.group(2).strip(), match.group(1) == "[["
+
+
+def _toml_key(line):
+    match = _TOML_KEY_RE.match(line)
+    return match.group(1) if match else None
+
+
+def _find_toml_table(lines, table_name):
+    """Return ``(header, start, end)`` for a non-array TOML table."""
+    for index, line in enumerate(lines):
+        header = _toml_header(line)
+        if header and header == (table_name, False):
+            end = len(lines)
+            for next_index in range(index + 1, len(lines)):
+                if _toml_header(lines[next_index]):
+                    end = next_index
+                    break
+            return index, index + 1, end
+    return None
+
+
+def _toml_table_names(lines):
+    result = []
+    for line in lines:
+        header = _toml_header(line)
+        if header and not header[1]:
+            result.append(header[0])
+    return result
+
+
+def _toml_table_key_lines(lines, table_name, keys=None):
+    found = _find_toml_table(lines, table_name)
+    if not found:
+        return []
+    _, start, end = found
+    wanted = set(keys) if keys is not None else None
+    result = []
+    for line in lines[start:end]:
+        key = _toml_key(line)
+        if key and (wanted is None or key in wanted):
+            result.append(line.rstrip("\n"))
+    return result
+
+
+def _append_toml_section(lines, section_lines):
+    if not section_lines:
+        return
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.extend(section_lines)
+    if lines[-1].strip():
+        lines.append("")
+
+
+def _merge_toml_table_keys(existing_lines, overlay_lines, table_name, keys=None):
+    source_lines = _toml_table_key_lines(overlay_lines, table_name, keys)
+    if not source_lines:
+        return
+
+    found = _find_toml_table(existing_lines, table_name)
+    if not found:
+        _append_toml_section(existing_lines, [f"[{table_name}]", *source_lines])
+        return
+
+    _, start, end = found
+    existing_keys = {
+        key
+        for key in (_toml_key(line) for line in existing_lines[start:end])
+        if key is not None
+    }
+    missing = [line for line in source_lines if _toml_key(line) not in existing_keys]
+    if not missing:
+        return
+
+    insert_at = end
+    while insert_at > start and not existing_lines[insert_at - 1].strip():
+        insert_at -= 1
+    existing_lines[insert_at:insert_at] = missing
+
+
+def _toml_array_block(lines, table_name):
+    for index, line in enumerate(lines):
+        header = _toml_header(line)
+        if header and header == (table_name, True):
+            return [item.rstrip("\n") for item in lines[index:]]
+    return []
+
+
+def _validate_toml_text(text, label):
+    """Validate TOML when stdlib tomllib is available."""
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        return True
+
+    try:
+        tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        print_error(f"Invalid TOML in {label}: {exc}")
+        return False
+    return True
+
+
+def _merge_codex_config_text(existing_text, overlay_text):
+    """Merge the Firefox Codex overlay config into existing TOML text.
+
+    The merge keeps existing keys authoritative and adds only missing overlay
+    keys, tables, and the post-apply hook block.
+    """
+    existing_lines = existing_text.splitlines()
+    overlay_lines = overlay_text.splitlines()
+
+    for table_name in _toml_table_names(overlay_lines):
+        _merge_toml_table_keys(existing_lines, overlay_lines, table_name)
+
+    if "post-apply-fixups.sh" not in existing_text:
+        _append_toml_section(
+            existing_lines, _toml_array_block(overlay_lines, "hooks.PostToolUse")
+        )
+
+    merged = "\n".join(existing_lines).rstrip() + "\n"
+    return merged
+
+
+def merge_codex_config(target_config, source_config):
+    """Merge the Codex overlay config into an existing project config."""
+    with open(target_config, "r", encoding="utf-8") as f:
+        existing_text = f.read()
+    with open(source_config, "r", encoding="utf-8") as f:
+        overlay_text = f.read()
+
+    if not _validate_toml_text(existing_text, target_config):
+        return False
+    if not _validate_toml_text(overlay_text, source_config):
+        return False
+
+    merged = _merge_codex_config_text(existing_text, overlay_text)
+    if not _validate_toml_text(merged, f"merged {target_config}"):
+        return False
+
+    if os.path.islink(target_config):
+        os.unlink(target_config)
+    with open(target_config, "w", encoding="utf-8", newline="\n") as f:
+        f.write(merged)
+    print(f"Merged config: {target_config}")
+    return True
+
+
 def install_firefox_codex(target_dir=None, dry_run=False):
     """
     Install Firefox-specific Codex settings (hooks, agents, skills) to a target
@@ -4306,18 +4463,31 @@ def install_firefox_codex(target_dir=None, dry_run=False):
     target_config = os.path.join(target_codex_dir, "config.toml")
 
     existing_config = os.path.exists(target_config)
+    merge_config = False
     override_config = True
 
     if existing_config and not dry_run:
         print_warning(f"Existing Codex config found: {target_config}")
         print("Options:")
+        print("  [m] Merge - Keep existing config and add Codex overlay settings")
         print("  [o] Override - Replace with dotfiles config.toml (creates symlink)")
         print("  [c] Cancel - Abort installation")
-        choice = get_user_input("Choose [o/c]: ", "c").lower()
-        if choice != "o":
+        choice = get_user_input("Choose [m/o/c]: ", "c").lower()
+        if choice == "c":
             print("Aborted.")
             return False
-        override_config = True
+        if choice not in ("m", "o"):
+            print_warning(f"Unknown choice: {choice}")
+            print("Aborted.")
+            return False
+        merge_config = choice == "m"
+        override_config = choice == "o"
+        if merge_config:
+            print_warning("Merge creates a local file, not a symlink.")
+            print_warning(
+                "Future updates to dotfiles config.toml will NOT auto-propagate."
+            )
+            print_warning("To get updates, re-run with override mode or manually edit.")
 
     if dry_run:
         print(f"\n{colors.HINT}DRY RUN MODE - Would perform these actions:{colors.END}")
@@ -4346,7 +4516,9 @@ def install_firefox_codex(target_dir=None, dry_run=False):
         src_config = os.path.join(FIREFOX_CODEX_OVERLAY, "config.toml")
         if existing_config:
             print(f"  {step}. Existing config found: {target_config}")
-            print("       (You will be prompted to override when running without --dry-run)")
+            print(
+                "       (You will be prompted to merge or override when running without --dry-run)"
+            )
         else:
             print(f"  {step}. Symlink: {target_config} -> {src_config}")
             gitignore_entries.append(".codex/config.toml")
@@ -4398,7 +4570,10 @@ def install_firefox_codex(target_dir=None, dry_run=False):
     cleanup_stale_codex_overlay(target_codex_dir, target_dir)
 
     src_config = os.path.join(FIREFOX_CODEX_OVERLAY, "config.toml")
-    if override_config:
+    if merge_config and existing_config:
+        if not merge_codex_config(target_config, src_config):
+            return False
+    elif override_config:
         if os.path.islink(target_config):
             os.unlink(target_config)
         elif os.path.exists(target_config):

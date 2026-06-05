@@ -1360,9 +1360,21 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         with open(os.path.join(self.overlay_dir, "config.toml"), "w") as f:
             f.write(
                 "[features]\nhooks = true\n\n"
+                "[agents]\n"
+                "max_threads = 8\n"
+                "max_depth = 1\n\n"
                 "[profiles.rumination]\n"
                 'model = "gpt-5.5"\n'
-                'model_reasoning_effort = "xhigh"\n'
+                'model_reasoning_effort = "xhigh"\n\n'
+                "[profiles.rumination.features]\n"
+                "multi_agent = true\n"
+                "tool_search = true\n\n"
+                "[[hooks.PostToolUse]]\n"
+                'matcher = "^apply_patch$"\n\n'
+                "[[hooks.PostToolUse.hooks]]\n"
+                'type = "command"\n'
+                'command = "bash post-apply-fixups.sh"\n'
+                "timeout = 180\n"
             )
         with open(
             os.path.join(self.overlay_dir, "hooks", "post-apply-fixups.sh"), "w"
@@ -1430,6 +1442,82 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         self.assertIn(".codex/agents/red-pen-critic.toml", output)
         self.assertIn(".codex/skills/sherlock", output)
         self.assertIn(".codex/config.toml", output)
+
+    def test_dry_run_existing_config_mentions_merge_option(self):
+        import io
+
+        codex_dir = os.path.join(self.firefox_dir, ".codex")
+        os.makedirs(codex_dir)
+        with open(os.path.join(codex_dir, "config.toml"), "w") as f:
+            f.write("[features]\ntool_search = false\n")
+
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+            self._install(dry_run=True)
+            output = mock_stdout.getvalue()
+
+        self.assertIn("Existing config found", output)
+        self.assertIn("merge or override", output)
+
+    def test_merge_codex_config_preserves_existing_values_and_adds_overlay(self):
+        codex_dir = os.path.join(self.firefox_dir, ".codex")
+        os.makedirs(codex_dir)
+        target_config = os.path.join(codex_dir, "config.toml")
+        with open(target_config, "w") as f:
+            f.write(
+                "[features]\n"
+                "tool_search = false\n\n"
+                "[profiles.rumination]\n"
+                'model = "local-model"\n'
+            )
+
+        self.assertTrue(
+            setup.merge_codex_config(
+                target_config, os.path.join(self.overlay_dir, "config.toml")
+            )
+        )
+
+        with open(target_config) as f:
+            content = f.read()
+        self.assertIn("tool_search = false", content)
+        self.assertIn("hooks = true", content)
+        self.assertIn("[agents]", content)
+        self.assertIn("max_threads = 8", content)
+        self.assertIn('model = "local-model"', content)
+        self.assertNotIn('model = "gpt-5.5"', content)
+        self.assertIn('model_reasoning_effort = "xhigh"', content)
+        self.assertIn("[profiles.rumination.features]", content)
+        self.assertIn("multi_agent = true", content)
+        self.assertIn("[[hooks.PostToolUse]]", content)
+        self.assertIn("post-apply-fixups.sh", content)
+
+    def test_install_merge_existing_codex_config(self):
+        codex_dir = os.path.join(self.firefox_dir, ".codex")
+        os.makedirs(codex_dir)
+        target_config = os.path.join(codex_dir, "config.toml")
+        with open(target_config, "w") as f:
+            f.write(
+                "[features]\n"
+                "tool_search = false\n\n"
+                "[profiles.rumination]\n"
+                'model = "local-model"\n'
+            )
+
+        with patch("setup.get_user_input", return_value="m"):
+            self.assertTrue(self._install())
+
+        self.assertFalse(os.path.islink(target_config))
+        with open(target_config) as f:
+            config = f.read()
+        self.assertIn('model = "local-model"', config)
+        self.assertIn('model_reasoning_effort = "xhigh"', config)
+        self.assertIn("post-apply-fixups.sh", config)
+
+        with open(os.path.join(self.firefox_dir, ".gitignore")) as f:
+            gitignore = f.read()
+        self.assertNotIn(".codex/config.toml", gitignore)
+        self.assertIn(".codex/hooks/post-apply-fixups.sh", gitignore)
+        self.assertIn(".codex/agents/red-pen-critic.toml", gitignore)
+        self.assertIn(".codex/skills/sherlock/", gitignore)
 
     def test_install_does_not_link_claude_specific_skill_submodules(self):
         """Codex install only links dot.codex skills, not Claude-only skill trees."""
