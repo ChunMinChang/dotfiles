@@ -724,7 +724,10 @@ def _split_gitignore_sections(lines):
     # Phase 1: before the header
     while i < len(lines):
         line = lines[i].rstrip("\n")
-        if line == DOTFILES_GITIGNORE_HEADER or line in LEGACY_DOTFILES_GITIGNORE_HEADERS:
+        if (
+            line == DOTFILES_GITIGNORE_HEADER
+            or line in LEGACY_DOTFILES_GITIGNORE_HEADERS
+        ):
             header = lines[i]
             i += 1
             break
@@ -4205,7 +4208,9 @@ def cleanup_stale_codex_overlay(target_codex_dir, target_dir, dry_run=False):
             if os.path.islink(path):
                 link_target = os.readlink(path)
                 broken = not os.path.exists(path)
-                ours = FIREFOX_CODEX_OVERLAY in link_target or ".dotfiles" in link_target
+                ours = (
+                    FIREFOX_CODEX_OVERLAY in link_target or ".dotfiles" in link_target
+                )
                 if broken and ours:
                     if dry_run:
                         print(f"  Would remove broken symlink: {path}")
@@ -4217,7 +4222,11 @@ def cleanup_stale_codex_overlay(target_codex_dir, target_dir, dry_run=False):
                     external.append((f"broken symlink -> {link_target}", path))
                 elif not ours:
                     external.append((f"external symlink -> {link_target}", path))
-            elif os.path.isdir(path) and not os.listdir(path) and entry in managed_entries:
+            elif (
+                os.path.isdir(path)
+                and not os.listdir(path)
+                and entry in managed_entries
+            ):
                 if dry_run:
                     print(f"  Would remove empty directory: {path}")
                 else:
@@ -4238,7 +4247,9 @@ def cleanup_stale_codex_overlay(target_codex_dir, target_dir, dry_run=False):
     return stale_entries
 
 
-def _link_codex_overlay_dir(source_dir, target_dir, gitignore_prefix, dir_entries=False):
+def _link_codex_overlay_dir(
+    source_dir, target_dir, gitignore_prefix, dir_entries=False
+):
     """Symlink all entries from ``source_dir`` into ``target_dir``."""
     gitignore_entries = []
     if not os.path.isdir(source_dir):
@@ -4428,7 +4439,9 @@ def install_firefox_codex(target_dir=None, dry_run=False):
     print_title("Install Firefox Codex Settings")
 
     if not dry_run and not ensure_symlink_capability():
-        print_error("Symlink creation unavailable; cannot install Firefox Codex settings")
+        print_error(
+            "Symlink creation unavailable; cannot install Firefox Codex settings"
+        )
         return False
 
     if not os.path.isdir(FIREFOX_CODEX_OVERLAY):
@@ -4612,7 +4625,9 @@ def install_firefox_codex(target_dir=None, dry_run=False):
     print("")
     print(colors.OK + "✓ Firefox Codex settings installed" + colors.END)
     print_hint(f"  Target: {target_dir}")
-    print_hint(f"  Hooks, agents, config, and skills are symlinked from: {FIREFOX_CODEX_OVERLAY}")
+    print_hint(
+        f"  Hooks, agents, config, and skills are symlinked from: {FIREFOX_CODEX_OVERLAY}"
+    )
     if gitignore_entries:
         print_hint(f"  Added {len(gitignore_entries)} entries to .gitignore")
     if committed:
