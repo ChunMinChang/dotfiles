@@ -1349,6 +1349,7 @@ class TestInstallFirefoxCodex(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.firefox_dir = os.path.join(self.test_dir, "firefox")
+        self.codex_home = os.path.join(self.test_dir, "codex-home")
         os.makedirs(self.firefox_dir)
         open(os.path.join(self.firefox_dir, "mach"), "w").close()
         TestInstallFirefoxClaude._git_init(self.firefox_dir)
@@ -1363,18 +1364,20 @@ class TestInstallFirefoxCodex(unittest.TestCase):
                 "[agents]\n"
                 "max_threads = 8\n"
                 "max_depth = 1\n\n"
-                "[profiles.rumination]\n"
-                'model = "gpt-5.5"\n'
-                'model_reasoning_effort = "xhigh"\n\n'
-                "[profiles.rumination.features]\n"
-                "multi_agent = true\n"
-                "tool_search = true\n\n"
                 "[[hooks.PostToolUse]]\n"
                 'matcher = "^apply_patch$"\n\n'
                 "[[hooks.PostToolUse.hooks]]\n"
                 'type = "command"\n'
                 'command = "bash post-apply-fixups.sh"\n'
                 "timeout = 180\n"
+            )
+        with open(os.path.join(self.overlay_dir, "rumination.config.toml"), "w") as f:
+            f.write(
+                'model = "gpt-5.5"\n'
+                'model_reasoning_effort = "xhigh"\n\n'
+                "[features]\n"
+                "multi_agent = true\n"
+                "tool_search = true\n"
             )
         with open(
             os.path.join(self.overlay_dir, "hooks", "post-apply-fixups.sh"), "w"
@@ -1396,9 +1399,16 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         setup.FIREFOX_CODEX_OVERLAY = self._orig_overlay
         _force_rmtree(self.test_dir)
 
-    def _install(self, **kwargs):
+    def _install(self, input_side_effect=None, **kwargs):
+        if input_side_effect is None:
+
+            def input_side_effect(prompt, default=""):
+                return default
+
         with patch("setup.get_user_confirmation", return_value=False), patch(
-            "setup.is_windows_dev_mode_enabled", return_value=True
+            "setup.get_user_input", side_effect=input_side_effect
+        ), patch("setup.is_windows_dev_mode_enabled", return_value=True), patch.dict(
+            os.environ, {"CODEX_HOME": self.codex_home}
         ):
             return setup.install_firefox_codex(self.firefox_dir, **kwargs)
 
@@ -1417,8 +1427,19 @@ class TestInstallFirefoxCodex(unittest.TestCase):
             self.assertIn(self.overlay_dir, os.readlink(path))
         with open(os.path.join(codex_dir, "config.toml")) as f:
             config = f.read()
-        self.assertIn("[profiles.rumination]", config)
-        self.assertIn('model_reasoning_effort = "xhigh"', config)
+        self.assertNotIn("[profiles.rumination]", config)
+        self.assertNotIn('model_reasoning_effort = "xhigh"', config)
+
+        profile_path = os.path.join(self.codex_home, "rumination.config.toml")
+        self.assertTrue(os.path.islink(profile_path))
+        self.assertEqual(
+            os.readlink(profile_path),
+            os.path.join(self.overlay_dir, "rumination.config.toml"),
+        )
+        with open(profile_path) as f:
+            profile = f.read()
+        self.assertIn('model = "gpt-5.5"', profile)
+        self.assertIn('model_reasoning_effort = "xhigh"', profile)
 
     def test_install_gitignore_includes_codex_entries(self):
         self._install()
@@ -1431,6 +1452,108 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         self.assertIn(".codex/agents/red-pen-critic.toml", content)
         self.assertIn(".codex/skills/sherlock/", content)
 
+    def test_install_tech_docs_index_creates_git_excluded_override(self):
+        agents_path = os.path.join(self.firefox_dir, "AGENTS.md")
+        index_path = os.path.join(self.firefox_dir, "INDEX.md")
+        with open(agents_path, "w") as f:
+            f.write("# Firefox Codex Instructions\n\nKeep this instruction.\n")
+        with open(index_path, "w") as f:
+            f.write("# Tech Docs Index\n")
+
+        def input_side_effect(prompt, default=""):
+            if prompt == "Path to index file: ":
+                return index_path
+            return default
+
+        self.assertTrue(self._install(input_side_effect=input_side_effect))
+
+        override_path = os.path.join(self.firefox_dir, "AGENTS.override.md")
+        self.assertTrue(os.path.isfile(override_path))
+        with open(override_path) as f:
+            content = f.read()
+        self.assertIn("# Firefox Codex Instructions", content)
+        self.assertIn("Keep this instruction.", content)
+        self.assertIn("For technical reference documents, read the index at", content)
+        self.assertIn(os.path.abspath(index_path), content)
+        self.assertIn("BEGIN dotfiles setup: Codex tech-doc index", content)
+        self.assertIn("END dotfiles setup: Codex tech-doc index", content)
+
+        with open(os.path.join(self.firefox_dir, ".git", "info", "exclude")) as f:
+            exclude = f.read()
+        self.assertIn("AGENTS.override.md", exclude)
+
+        with open(os.path.join(self.firefox_dir, ".gitignore")) as f:
+            gitignore = f.read()
+        self.assertNotIn("AGENTS.override.md", gitignore)
+
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                self.firefox_dir,
+                "status",
+                "--short",
+                "--",
+                "AGENTS.override.md",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(result.stdout.strip(), "")
+
+    def test_codex_tech_docs_index_updates_existing_override_block(self):
+        override_path = os.path.join(self.firefox_dir, "AGENTS.override.md")
+        old_index_path = "/tmp/old-tech-docs/INDEX.md"
+        new_index_path = os.path.join(self.firefox_dir, "INDEX.md")
+        with open(new_index_path, "w") as f:
+            f.write("# Tech Docs Index\n")
+        with open(override_path, "w") as f:
+            f.write(
+                "# Local Codex Instructions\n\n"
+                "Existing local override instruction.\n\n"
+                f"{setup.CODEX_TECH_DOC_START}\n"
+                "For technical reference documents, read the index at "
+                f"`{old_index_path}` and then read the relevant document as needed.\n"
+                f"{setup.CODEX_TECH_DOC_END}\n"
+            )
+
+        self.assertTrue(
+            setup.setup_codex_tech_docs_index(self.firefox_dir, new_index_path)
+        )
+
+        with open(override_path) as f:
+            content = f.read()
+        self.assertIn("Existing local override instruction.", content)
+        self.assertIn(os.path.abspath(new_index_path), content)
+        self.assertNotIn(old_index_path, content)
+        self.assertEqual(content.count(setup.CODEX_TECH_DOC_START), 1)
+        self.assertEqual(content.count(setup.CODEX_TECH_DOC_END), 1)
+
+    def test_codex_tech_docs_index_refreshes_generated_agents_snapshot(self):
+        agents_path = os.path.join(self.firefox_dir, "AGENTS.md")
+        index_path = os.path.join(self.firefox_dir, "INDEX.md")
+        override_path = os.path.join(self.firefox_dir, "AGENTS.override.md")
+        with open(index_path, "w") as f:
+            f.write("# Tech Docs Index\n")
+
+        with open(agents_path, "w") as f:
+            f.write("# Firefox Codex Instructions\n\nOriginal instruction.\n")
+        self.assertTrue(setup.setup_codex_tech_docs_index(self.firefox_dir, "INDEX.md"))
+
+        with open(agents_path, "w") as f:
+            f.write("# Firefox Codex Instructions\n\nUpdated instruction.\n")
+        self.assertTrue(setup.setup_codex_tech_docs_index(self.firefox_dir, "INDEX.md"))
+
+        with open(override_path) as f:
+            content = f.read()
+        self.assertIn("Updated instruction.", content)
+        self.assertNotIn("Original instruction.", content)
+        self.assertEqual(content.count(setup.CODEX_AGENTS_SNAPSHOT_START), 1)
+        self.assertEqual(content.count(setup.CODEX_AGENTS_SNAPSHOT_END), 1)
+        self.assertEqual(content.count(setup.CODEX_TECH_DOC_START), 1)
+        self.assertEqual(content.count(setup.CODEX_TECH_DOC_END), 1)
+
     def test_dry_run_shows_codex_entries(self):
         import io
 
@@ -1442,6 +1565,7 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         self.assertIn(".codex/agents/red-pen-critic.toml", output)
         self.assertIn(".codex/skills/sherlock", output)
         self.assertIn(".codex/config.toml", output)
+        self.assertIn("rumination.config.toml", output)
 
     def test_dry_run_existing_config_mentions_merge_option(self):
         import io
@@ -1482,11 +1606,10 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         self.assertIn("hooks = true", content)
         self.assertIn("[agents]", content)
         self.assertIn("max_threads = 8", content)
-        self.assertIn('model = "local-model"', content)
+        self.assertNotIn("[profiles.rumination]", content)
+        self.assertNotIn('model = "local-model"', content)
         self.assertNotIn('model = "gpt-5.5"', content)
-        self.assertIn('model_reasoning_effort = "xhigh"', content)
-        self.assertIn("[profiles.rumination.features]", content)
-        self.assertIn("multi_agent = true", content)
+        self.assertNotIn('model_reasoning_effort = "xhigh"', content)
         self.assertIn("[[hooks.PostToolUse]]", content)
         self.assertIn("post-apply-fixups.sh", content)
 
@@ -1502,15 +1625,23 @@ class TestInstallFirefoxCodex(unittest.TestCase):
                 'model = "local-model"\n'
             )
 
-        with patch("setup.get_user_input", return_value="m"):
-            self.assertTrue(self._install())
+        def input_side_effect(prompt, default=""):
+            if prompt == "Choose [m/o/c]: ":
+                return "m"
+            return default
+
+        self.assertTrue(self._install(input_side_effect=input_side_effect))
 
         self.assertFalse(os.path.islink(target_config))
         with open(target_config) as f:
             config = f.read()
-        self.assertIn('model = "local-model"', config)
-        self.assertIn('model_reasoning_effort = "xhigh"', config)
+        self.assertNotIn("[profiles.rumination]", config)
+        self.assertNotIn('model = "local-model"', config)
+        self.assertNotIn('model_reasoning_effort = "xhigh"', config)
         self.assertIn("post-apply-fixups.sh", config)
+
+        profile_path = os.path.join(self.codex_home, "rumination.config.toml")
+        self.assertTrue(os.path.islink(profile_path))
 
         with open(os.path.join(self.firefox_dir, ".gitignore")) as f:
             gitignore = f.read()

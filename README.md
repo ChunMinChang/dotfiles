@@ -194,14 +194,29 @@ python setup.py --uninstall-firefox-claude /path/to/firefox
 The Claude installer links `.claude/hooks`, `.claude/agents`,
 `.claude/skills`, and `.claude/settings.local.json`. The Codex
 installer links `.codex/config.toml`, `.codex/hooks`, `.codex/agents`,
-and `.codex/skills` from `mozilla/firefox/dot.codex`.
+and `.codex/skills` from `mozilla/firefox/dot.codex`. It also links
+the Firefox `rumination` profile to `$CODEX_HOME/rumination.config.toml`
+(or `~/.codex/rumination.config.toml`) because Codex does not support
+`[profiles.*]` inside project-local `.codex/config.toml`. Use it with
+`codex --profile rumination`.
 
 During installation you can provide a path to a
 **tech-docs index file**. This is a markdown file that
-lists generated technical documents so Claude can look up
-relevant references on demand. If `CLAUDE.local.md`
-already references the file, the prompt is skipped
-on re-runs.
+lists generated technical documents so the agent can look up
+relevant references on demand.
+
+For Claude, setup writes the reference to `CLAUDE.local.md`.
+For Codex, there is no direct additive `CLAUDE.local.md`
+equivalent that preserves `AGENTS.md` in the same directory:
+`AGENTS.override.md` shadows `AGENTS.md`. Codex setup therefore
+creates or updates a local `AGENTS.override.md` that includes a
+snapshot of the current `AGENTS.md` content and appends the
+tech-docs index reference. Re-run setup after `AGENTS.md`
+changes to refresh that local snapshot.
+
+Codex setup excludes `AGENTS.override.md` through `.git/info/exclude`,
+not tracked `.gitignore`, and the Codex overlay commit prompt still
+stages only `.codex/` and `.gitignore`.
 
 Example `INDEX.md`:
 

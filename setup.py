@@ -3517,6 +3517,8 @@ MEDIA_SKILLS_RENAME = {
     # SKILL.md `name: triage` collides with the personal triage skill.
     "media-bug-triage-v2": "media-bug-triage-v2",
 }
+CODEX_RUMINATION_PROFILE_NAME = "rumination"
+CODEX_RUMINATION_PROFILE_FILE = f"{CODEX_RUMINATION_PROFILE_NAME}.config.toml"
 
 
 def get_user_input(prompt, default=""):
@@ -4313,6 +4315,42 @@ def _toml_table_names(lines):
     return result
 
 
+def _remove_toml_tables(lines, table_predicate):
+    result = []
+    index = 0
+    while index < len(lines):
+        header = _toml_header(lines[index])
+        if header and table_predicate(header[0]):
+            index += 1
+            while index < len(lines) and not _toml_header(lines[index]):
+                index += 1
+            continue
+        result.append(lines[index])
+        index += 1
+    return result
+
+
+def _remove_top_level_toml_keys(lines, keys):
+    result = []
+    in_top_level = True
+    for line in lines:
+        if _toml_header(line):
+            in_top_level = False
+        key = _toml_key(line) if in_top_level else None
+        if key in keys:
+            continue
+        result.append(line)
+    return result
+
+
+def _strip_codex_project_unsupported_config(lines):
+    """Remove Codex keys that are unsupported in project-local config."""
+    lines = _remove_toml_tables(
+        lines, lambda name: name == "profiles" or name.startswith("profiles.")
+    )
+    return _remove_top_level_toml_keys(lines, {"profile"})
+
+
 def _toml_table_key_lines(lines, table_name, keys=None):
     found = _find_toml_table(lines, table_name)
     if not found:
@@ -4392,8 +4430,8 @@ def _merge_codex_config_text(existing_text, overlay_text):
     The merge keeps existing keys authoritative and adds only missing overlay
     keys, tables, and the post-apply hook block.
     """
-    existing_lines = existing_text.splitlines()
-    overlay_lines = overlay_text.splitlines()
+    existing_lines = _strip_codex_project_unsupported_config(existing_text.splitlines())
+    overlay_lines = _strip_codex_project_unsupported_config(overlay_text.splitlines())
 
     for table_name in _toml_table_names(overlay_lines):
         _merge_toml_table_keys(existing_lines, overlay_lines, table_name)
@@ -4428,6 +4466,210 @@ def merge_codex_config(target_config, source_config):
     with open(target_config, "w", encoding="utf-8", newline="\n") as f:
         f.write(merged)
     print(f"Merged config: {target_config}")
+    return True
+
+
+CODEX_TECH_DOC_START = "<!-- BEGIN dotfiles setup: Codex tech-doc index -->"
+CODEX_TECH_DOC_END = "<!-- END dotfiles setup: Codex tech-doc index -->"
+CODEX_AGENTS_SNAPSHOT_START = "<!-- BEGIN dotfiles setup: Codex AGENTS.md snapshot -->"
+CODEX_AGENTS_SNAPSHOT_END = "<!-- END dotfiles setup: Codex AGENTS.md snapshot -->"
+
+
+def _codex_agents_snapshot_block(agents_content):
+    return "\n".join(
+        [
+            CODEX_AGENTS_SNAPSHOT_START,
+            agents_content.rstrip(),
+            CODEX_AGENTS_SNAPSHOT_END,
+        ]
+    )
+
+
+def _codex_tech_doc_block(index_path):
+    return "\n".join(
+        [
+            CODEX_TECH_DOC_START,
+            (
+                "For technical reference documents, read the index at "
+                f"`{index_path}` and then read the relevant document as needed."
+            ),
+            CODEX_TECH_DOC_END,
+        ]
+    )
+
+
+def _replace_marked_block(content, start_marker, end_marker, replacement):
+    start = content.find(start_marker)
+    end = content.find(end_marker)
+    if start != -1 and end != -1 and end >= start:
+        end += len(end_marker)
+        return content[:start].rstrip() + "\n\n" + replacement + content[end:]
+    return content.rstrip() + "\n\n" + replacement + "\n"
+
+
+def _git_info_exclude_path(repo_dir):
+    result = subprocess.run(
+        ["git", "-C", repo_dir, "rev-parse", "--git-path", "info/exclude"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    path = result.stdout.strip()
+    if not path:
+        return None
+    if not os.path.isabs(path):
+        path = os.path.join(repo_dir, path)
+    return path
+
+
+def add_to_git_info_exclude(repo_dir, entries, dry_run=False):
+    """Add local-only entries to .git/info/exclude, not tracked .gitignore."""
+    exclude_path = _git_info_exclude_path(repo_dir)
+    if not exclude_path:
+        print_warning(
+            f"Could not resolve .git/info/exclude for {repo_dir}; "
+            "local-only files may appear as untracked."
+        )
+        return []
+
+    existing = set()
+    if os.path.exists(exclude_path):
+        with open(exclude_path, "r", encoding="utf-8") as f:
+            existing = {
+                line.strip()
+                for line in f
+                if line.strip() and not line.lstrip().startswith("#")
+            }
+
+    to_add = [entry for entry in entries if entry not in existing]
+    if not to_add:
+        return []
+
+    if dry_run:
+        for entry in to_add:
+            print(f"  Would add to .git/info/exclude: {entry}")
+        return to_add
+
+    os.makedirs(os.path.dirname(exclude_path), exist_ok=True)
+    needs_leading_newline = False
+    if os.path.exists(exclude_path):
+        with open(exclude_path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            if f.tell() > 0:
+                f.seek(-1, os.SEEK_END)
+                needs_leading_newline = f.read(1) != b"\n"
+    with open(exclude_path, "a", encoding="utf-8", newline="\n") as f:
+        if needs_leading_newline:
+            f.write("\n")
+        f.write("# Added by dotfiles setup (local Codex files)\n")
+        for entry in to_add:
+            f.write(entry + "\n")
+            print(f"Added to .git/info/exclude: {entry}")
+    return to_add
+
+
+def get_codex_home():
+    """Return the Codex home directory used for user-level profile files."""
+    return os.path.expanduser(os.environ.get("CODEX_HOME") or "~/.codex")
+
+
+def install_firefox_codex_user_profile(dry_run=False):
+    """Install the Firefox rumination profile as a user-level Codex profile."""
+    source_profile = os.path.join(FIREFOX_CODEX_OVERLAY, CODEX_RUMINATION_PROFILE_FILE)
+    if not os.path.isfile(source_profile):
+        print_error(f"Firefox Codex profile not found: {source_profile}")
+        return False
+
+    codex_home = get_codex_home()
+    target_profile = os.path.join(codex_home, CODEX_RUMINATION_PROFILE_FILE)
+
+    if dry_run:
+        print(f"  Would create directory: {codex_home}")
+        print(f"  Would symlink Codex profile: {target_profile} -> {source_profile}")
+        return True
+
+    os.makedirs(codex_home, exist_ok=True)
+    if os.path.islink(target_profile):
+        os.unlink(target_profile)
+    elif os.path.exists(target_profile):
+        backup = target_profile + ".backup"
+        shutil.move(target_profile, backup)
+        print_hint(f"Backed up existing Codex profile to: {backup}")
+
+    os.symlink(source_profile, target_profile)
+    print(f"Linked Codex profile: {target_profile}")
+    print_hint(f"  Use with: codex --profile {CODEX_RUMINATION_PROFILE_NAME}")
+    return True
+
+
+def setup_codex_tech_docs_index(target_dir, index_path, dry_run=False):
+    """Create/update local Codex instructions for an untracked tech-doc index."""
+    index_path = os.path.expanduser(index_path.strip())
+    if not index_path:
+        return False
+    if not os.path.isabs(index_path):
+        target_relative_path = os.path.join(target_dir, index_path)
+        if os.path.isfile(target_relative_path):
+            index_path = target_relative_path
+    if not os.path.isfile(index_path):
+        print_warning(f"File not found: {index_path}")
+        print_hint("You can set this up manually later.")
+        return False
+
+    index_path = os.path.abspath(index_path)
+    target_override = os.path.join(target_dir, "AGENTS.override.md")
+    target_agents = os.path.join(target_dir, "AGENTS.md")
+
+    if dry_run:
+        print(f"  Would update local Codex instructions: {target_override}")
+        print(f"  Would reference tech-docs index: {index_path}")
+        add_to_git_info_exclude(target_dir, ["AGENTS.override.md"], dry_run=True)
+        return True
+
+    agents_content = ""
+    if os.path.isfile(target_agents):
+        with open(target_agents, "r", encoding="utf-8") as f:
+            agents_content = f.read().rstrip()
+
+    if os.path.isfile(target_override):
+        with open(target_override, "r", encoding="utf-8") as f:
+            content = f.read()
+        if agents_content and CODEX_AGENTS_SNAPSHOT_START in content:
+            content = _replace_marked_block(
+                content,
+                CODEX_AGENTS_SNAPSHOT_START,
+                CODEX_AGENTS_SNAPSHOT_END,
+                _codex_agents_snapshot_block(agents_content),
+            )
+        elif agents_content and agents_content not in content:
+            print_warning(
+                "Existing AGENTS.override.md shadows AGENTS.md. "
+                "Setup will append the tech-doc reference, but you should "
+                "ensure AGENTS.md content is also present in the override."
+            )
+    elif agents_content:
+        content = (
+            "<!-- Local Codex override generated by dotfiles setup. "
+            "Codex loads AGENTS.override.md instead of AGENTS.md in the same "
+            "directory, so this file includes a snapshot of AGENTS.md. "
+            "Re-run setup after AGENTS.md changes. -->\n\n"
+            f"{_codex_agents_snapshot_block(agents_content)}\n"
+        )
+    else:
+        content = (
+            "# Local Codex Instructions\n\n"
+            "<!-- Local Codex override generated by dotfiles setup. -->\n"
+        )
+
+    block = _codex_tech_doc_block(index_path)
+    updated = _replace_marked_block(
+        content, CODEX_TECH_DOC_START, CODEX_TECH_DOC_END, block
+    )
+    with open(target_override, "w", encoding="utf-8", newline="\n") as f:
+        f.write(updated)
+    print(f"Updated: {target_override}")
+    add_to_git_info_exclude(target_dir, ["AGENTS.override.md"])
     return True
 
 
@@ -4545,6 +4787,10 @@ def install_firefox_codex(target_dir=None, dry_run=False):
         if gitignore_entries:
             print(f"  {step}. Check/update .gitignore:")
             add_to_gitignore(target_dir, gitignore_entries, dry_run=True)
+            step += 1
+
+        print(f"  {step}. Install user-level Codex rumination profile:")
+        install_firefox_codex_user_profile(dry_run=True)
 
         print(f"\n{colors.HINT}Run without --dry-run to apply changes{colors.END}")
         return True
@@ -4599,6 +4845,25 @@ def install_firefox_codex(target_dir=None, dry_run=False):
 
     if gitignore_entries:
         add_to_gitignore(target_dir, gitignore_entries)
+
+    if not install_firefox_codex_user_profile():
+        return False
+
+    print("")
+    print("Tech-docs index file for Codex to consult on demand (e.g. INDEX.md).")
+    print(
+        "Codex has no direct additive CLAUDE.local.md equivalent; "
+        "AGENTS.override.md shadows AGENTS.md."
+    )
+    print(
+        "Setup preserves the current AGENTS.md content in a local "
+        "AGENTS.override.md and appends the tech-doc reference there."
+    )
+    print("The local override is excluded through .git/info/exclude, not .gitignore.")
+    print("Press Enter to skip.")
+    index_path = get_user_input("Path to index file: ", "").strip()
+    if index_path:
+        setup_codex_tech_docs_index(target_dir, index_path)
 
     print("")
     committed = False
