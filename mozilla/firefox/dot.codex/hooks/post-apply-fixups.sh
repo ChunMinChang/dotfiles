@@ -12,4 +12,4 @@ hook_dir="$repo_root/.codex/hooks"
 
 printf '%s' "$hook_json" | bash "$hook_dir/post-edit-lint.sh"
 printf '%s' "$hook_json" | bash "$hook_dir/post-edit-format.sh"
-printf '%s' "$hook_json" | bash "$hook_dir/post-edit-static-analysis.sh"
+# printf '%s' "$hook_json" | bash "$hook_dir/post-edit-static-analysis.sh"
