@@ -21,6 +21,7 @@
     ]
   },
   "model": "opus",
+  "effortLevel": "xhigh",
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "moz"
