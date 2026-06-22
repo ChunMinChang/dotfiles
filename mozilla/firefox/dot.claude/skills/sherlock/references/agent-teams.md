@@ -176,7 +176,7 @@ Inputs:
   illuminate>
 
 Tasks:
-1. Use `searchfox-cli` to find the call path. Follow references/source-permalinks.md.
+1. Use `searchfox-cli` to find the call path. Follow the `source-permalinks` skill.
 2. Read each function in the path (do not skim — read the body).
 3. Produce a numbered trace, every step pinned to a revision-permalink, with a
    one-line evidence note per step (what happens, what it returns, what state it

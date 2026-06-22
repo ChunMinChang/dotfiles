@@ -1,3 +1,15 @@
+---
+name: source-permalinks
+description: >
+  Reference for constructing revision-pinned source, spec, and bug permalinks
+  (Searchfox, GitHub, GitLab, googlesource, Codeberg, Chromium, FFmpeg,
+  Bugzilla, specs) for Firefox/Codex analysis and reports. Use when citing
+  code, specs, or bugs and you need stable, revision-pinned URLs instead of
+  trunk/HEAD links.
+metadata:
+  short-description: Revision-pinned source/spec/bug permalinks
+---
+
 # Source Permalink Reference
 
 ## Golden Rule

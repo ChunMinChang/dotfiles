@@ -8,7 +8,7 @@ metadata:
 
 # Blindspot: hypothesis-driven bug investigation
 
-Follow `../sherlock/references/source-permalinks.md` for ALL source and documentation references.
+Follow the `source-permalinks` skill for ALL source and documentation references.
 Follow `../sherlock/references/spec-check.md` when verifying web specification compliance.
 Follow `../sherlock/references/gecko-architecture.md` for Gecko architecture lookups.
 Follow `references/test-frameworks.md` for test framework selection.
@@ -33,7 +33,7 @@ Parsing:
 
 1. **Every claim needs evidence or `[Assumption]` label** — never state hypotheses as
    facts. Read the actual code before asserting anything about its behaviour.
-2. **ALWAYS use revision-pinned links** — read `../sherlock/references/source-permalinks.md`.
+2. **ALWAYS use revision-pinned links** — follow the `source-permalinks` skill.
    Never use trunk/tip URLs (`firefox-main/source/...`) in the report.
 3. **Tests are PROOFS** — they must reproduce the user-facing consequence end-to-end,
    without monkey-patching the suspect function. Simulated tests (mocked returns, forced
@@ -330,7 +330,7 @@ Mark the Draft-report row `in-progress` in `plan.md`. Fill
 `references/analysis-template.md` into `<run_dir>/report.md`, sourcing content
 from `claim.md`, `synthesis.md`, and each team's output file. Every claim is
 labelled Verified or `[Assumption]`. Every link uses `$BLINDSPOT_REV` pinning.
-Reuse `the source permalink reference` for any external resource. Mark `completed`
+Reuse the `source-permalinks` skill for any external resource. Mark `completed`
 when the report file is written.
 
 The report's **Verdict** is one of:

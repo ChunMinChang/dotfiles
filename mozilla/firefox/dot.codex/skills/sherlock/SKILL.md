@@ -8,7 +8,7 @@ metadata:
 
 # Sherlock: Root Cause Analysis
 
-Follow `references/source-permalinks.md` for ALL source and documentation references.
+Follow the `source-permalinks` skill for ALL source and documentation references.
 Follow `references/spec-check.md` when verifying web specification compliance.
 Follow `references/gecko-architecture.md` for Gecko architecture lookups.
 Follow `references/agent-teams.md` for the Codex subagent I/O contracts and prompts.
@@ -44,7 +44,7 @@ Parse the arguments:
 
 1. **Every claim needs evidence or `[Assumption]` label** — do not state hypotheses
    as facts. Read the code before making any claim about code behavior.
-2. **ALWAYS use revision-pinned links** — read `references/source-permalinks.md`.
+2. **ALWAYS use revision-pinned links** — follow the `source-permalinks` skill.
    Never use trunk/tip URLs (`firefox-main/source/...`) in the analysis doc.
 3. **Tests are PROOFS for root cause claims** — they must demonstrate the root cause
    is correct. They are reusable for TDD later, but their primary purpose here is evidence.
@@ -515,7 +515,7 @@ As each team returns, verify its output file is non-empty and mark its row
 `completed`; if a team aborts, leave its row `in-progress` for `--resume`. The
 main agent **reads the files** (not transcripts) during Synthesis and reasons
 about which trace steps correspond to the primary hypothesis. Read
-`references/source-permalinks.md` for URL patterns; every code reference is
+the `source-permalinks` skill for URL patterns; every code reference is
 revision-pinned with `$SHERLOCK_REV`.
 
 ### Step 1.5b: Third-Party Library Sub-Workflow (Conditional)

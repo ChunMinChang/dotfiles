@@ -7,7 +7,7 @@
    ```bash
    git show HEAD:<moz_yaml_path> | grep -E '(revision|release):'
    ```
-3. Construct the permanent link using the forge URL pattern from source-permalinks.md
+3. Construct the permanent link using the forge URL pattern from the `source-permalinks` skill
 
 ## Library Table
 

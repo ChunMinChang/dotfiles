@@ -34,7 +34,7 @@ allowed-tools:
 
 # Blindspot: hypothesis-driven bug investigation
 
-Follow `../sherlock/references/source-permalinks.md` for ALL source and documentation references.
+Follow the `source-permalinks` skill for ALL source and documentation references.
 Follow `../sherlock/references/spec-check.md` when verifying web specification compliance.
 Follow `../sherlock/references/gecko-architecture.md` for Gecko architecture lookups.
 Follow `references/test-frameworks.md` for test framework selection.
@@ -59,7 +59,7 @@ Parsing:
 
 1. **Every claim needs evidence or `[Assumption]` label** — never state hypotheses as
    facts. Read the actual code before asserting anything about its behaviour.
-2. **ALWAYS use revision-pinned links** — read `../sherlock/references/source-permalinks.md`.
+2. **ALWAYS use revision-pinned links** — follow the `source-permalinks` skill.
    Never use trunk/tip URLs (`firefox-main/source/...`) in the report.
 3. **Tests are PROOFS** — they must reproduce the user-facing consequence end-to-end,
    without monkey-patching the suspect function. Simulated tests (mocked returns, forced
