@@ -3502,9 +3502,16 @@ ALWU_CLAUDE_SKILLS_DIR = os.path.join(
     BASE_DIR, "mozilla", "firefox", "alwu-claude-skills"
 )
 ALWU_CLAUDE_SKILLS_EXCLUDE = {".git", ".github", ".githooks", "CLAUDE.md", "README.md"}
-# Rename skills during install: {"original-name": "installed-name"}
+# Rename skills during install: {"original-name": "installed-name"}.
+# The fx-bug-toolkit plugin (installed separately, outside setup.py) now owns
+# /triage, /analyze-profile, /bug-start, /source-links, /spec-check,
+# /update-investigation (+ /review, /check-log). Upstream dropped those skills
+# from alwu-claude-skills so the unqualified /<name> resolves to the plugin.
+# The personal skills installed here keep distinct names, so none collide with
+# the plugin and personal skills always resolve by their own name.
 ALWU_CLAUDE_SKILLS_RENAME = {
-    "triage": "av-weekly-triage",
+    # sec-approval also ships in media-skills; rename the alwu copy so the
+    # media-skills /sec-approval keeps the canonical name. Not a plugin clash.
     "sec-approval": "sec-approval-draft",
 }
 # Same shape as the alwu map. media-skills sit at lower priority than personal
@@ -3615,24 +3622,36 @@ def _materialize_renamed_skill(src_dir, dst_dir, install_name):
             os.symlink(src_entry, dst_entry)
 
 
+def _has_materialized_skill_md(dst_dir):
+    """True if ``dst_dir`` has the structure setup.py materializes.
+
+    Signature: a real directory (not a symlink) holding a ``SKILL.md``
+    regular file. This is the shape produced by
+    ``_materialize_renamed_skill`` — the ``name:`` field is rewritten into a
+    real file while sibling entries are symlinked. It does not, on its own,
+    prove ownership; pair it with a managed ``.gitignore`` entry for that.
+    """
+    if not os.path.isdir(dst_dir) or os.path.islink(dst_dir):
+        return False
+    skill_md = os.path.join(dst_dir, "SKILL.md")
+    return os.path.isfile(skill_md) and not os.path.islink(skill_md)
+
+
 def _is_materialized_skill(dst_dir, install_name):
-    """True if ``dst_dir`` looks like a setup.py-installed renamed skill.
+    """True if ``dst_dir`` looks like a *current* setup.py-installed rename.
 
     Signature: directory name is one of the rename targets (alwu or
-    media-skills), contains a SKILL.md regular file, and is itself a real
-    directory (not a symlink).
+    media-skills) AND it has the materialized structure (real directory with
+    a SKILL.md regular file). A materialized directory whose name is no
+    longer a rename target is a ghost (see ``cleanup_stale_skills``), not a
+    live skill.
     """
     rename_targets = set(ALWU_CLAUDE_SKILLS_RENAME.values()) | set(
         MEDIA_SKILLS_RENAME.values()
     )
     if install_name not in rename_targets:
         return False
-    if not os.path.isdir(dst_dir) or os.path.islink(dst_dir):
-        return False
-    skill_md = os.path.join(dst_dir, "SKILL.md")
-    if not (os.path.isfile(skill_md) and not os.path.islink(skill_md)):
-        return False
-    return True
+    return _has_materialized_skill_md(dst_dir)
 
 
 def ensure_target_core_symlinks(target_dir, dry_run=False):
@@ -3984,8 +4003,22 @@ def cleanup_stale_skills(target_skills_dir, target_dir, dry_run=False):
                 stale_names.append(name)
             elif _is_materialized_skill(path, name):
                 # Managed: a renamed skill (alwu or media) materialized at
-                # install time.
+                # install time, still a current rename target.
                 pass
+            elif entry in managed_entries and _has_materialized_skill_md(path):
+                # Ghost: we materialized this skill on a previous run (its
+                # ``.claude/skills/<name>/`` entry sits in our managed
+                # .gitignore block), but it is no longer a current rename
+                # target — its rename entry was dropped or its upstream source
+                # was deleted — so the install pass won't recreate it. Remove
+                # the orphaned copy (e.g. ``av-weekly-triage`` after the alwu
+                # ``triage`` skill moved to the fx-bug-toolkit plugin).
+                if dry_run:
+                    print(f"  Would remove ghosted skill: {path}")
+                else:
+                    shutil.rmtree(path)
+                    print(f"Removed ghosted skill: {path}")
+                stale_names.append(name)
             else:
                 # Self-contained skill (populated, or empty but not ours).
                 external.append(("self-contained skill", path))

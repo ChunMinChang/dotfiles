@@ -1107,6 +1107,65 @@ class TestInstallFirefoxClaude(unittest.TestCase):
         self.assertNotIn("description: v1", content)
         self.assertIn("name: media-bug-start", content)
 
+    def test_cleanup_removes_ghosted_materialized_skill(self):
+        """A materialized skill whose rename entry is later dropped (or whose
+        upstream source disappears) becomes a ghost: the install pass no
+        longer recreates it, so cleanup must remove the orphaned directory
+        and its managed .gitignore entry.
+
+        Regression for av-weekly-triage, left behind when the alwu `triage`
+        skill moved to the fx-bug-toolkit plugin and its rename entry was
+        removed from ALWU_CLAUDE_SKILLS_RENAME.
+        """
+        self._write_alwu_skill_with_frontmatter("bug-start")
+        setup.ALWU_CLAUDE_SKILLS_RENAME = {"bug-start": "av-weekly-bug-start"}
+        self._install()
+
+        ghost = os.path.join(
+            self.firefox_dir, ".claude", "skills", "av-weekly-bug-start"
+        )
+        self.assertTrue(os.path.isdir(ghost), "materialized skill should install")
+
+        # Avoid the settings merge prompt blocking the second install.
+        settings_link = os.path.join(self.firefox_dir, ".claude", "settings.local.json")
+        if os.path.lexists(settings_link):
+            os.unlink(settings_link)
+
+        # Drop the rename: bug-start now installs under its own name, so the
+        # previously materialized av-weekly-bug-start is orphaned.
+        setup.ALWU_CLAUDE_SKILLS_RENAME = {}
+        self._install()
+
+        self.assertFalse(
+            os.path.exists(ghost),
+            "ghosted materialized skill should be removed on reinstall",
+        )
+        gitignore = os.path.join(self.firefox_dir, ".gitignore")
+        with open(gitignore) as f:
+            content = f.read()
+        self.assertNotIn(".claude/skills/av-weekly-bug-start/", content)
+
+    def test_cleanup_preserves_self_contained_skill(self):
+        """A real skill directory the user added themselves (not tracked in
+        our managed .gitignore block) must be left untouched by cleanup, even
+        though it has the same real-dir + SKILL.md shape as a materialized
+        skill. Ownership is decided by the managed .gitignore entry, not the
+        structure alone.
+        """
+        self._install()
+        skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
+        user_skill = os.path.join(skills_dir, "my-own-skill")
+        os.makedirs(user_skill)
+        with open(os.path.join(user_skill, "SKILL.md"), "w") as f:
+            f.write("---\nname: my-own-skill\ndescription: mine\n---\n\nbody\n")
+
+        setup.cleanup_stale_skills(skills_dir, self.firefox_dir)
+
+        self.assertTrue(
+            os.path.isdir(user_skill),
+            "self-contained user skill must not be removed by cleanup",
+        )
+
     def test_install_renamed_media_skill_keeps_personal_name_distinct(self):
         """A media-skill listed in MEDIA_SKILLS_RENAME with a SKILL.md `name:`
         that collides with a personal skill must be materialized with its
