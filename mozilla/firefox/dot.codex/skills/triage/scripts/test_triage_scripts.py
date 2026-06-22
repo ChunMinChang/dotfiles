@@ -32,7 +32,6 @@ import triage_paths
 
 
 class TestScopeProfiles(unittest.TestCase):
-
     def test_media_inference(self):
         self.assertEqual(
             scope_profiles.infer_profile("Core", "Audio/Video: Playback"), "media"
@@ -113,7 +112,6 @@ class TestScopeProfiles(unittest.TestCase):
 
 
 class TestPendingStore(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.mkdtemp(prefix="triage-test-")
         triage_paths.set_override(self._tmp)
@@ -232,7 +230,6 @@ class TestPendingStore(unittest.TestCase):
 
 
 class TestBmoRestKeyDiscovery(unittest.TestCase):
-
     def setUp(self):
         self._tmp_home = tempfile.mkdtemp(prefix="triage-home-")
         self._home_patcher = mock.patch.dict(os.environ, {"HOME": self._tmp_home})
@@ -277,7 +274,6 @@ class TestBmoRestKeyDiscovery(unittest.TestCase):
 
 
 class TestBmoRestRedaction(unittest.TestCase):
-
     def test_redact_masks_api_key(self):
         out = bmo_rest._redact(
             {
@@ -299,7 +295,6 @@ class TestBmoRestRedaction(unittest.TestCase):
 
 
 class TestBmoRestUrlBuilding(unittest.TestCase):
-
     def test_build_url_relative(self):
         url = bmo_rest._build_url("/bug/1")
         self.assertEqual(url, "https://bugzilla.mozilla.org/rest/bug/1")
@@ -337,7 +332,6 @@ class TestBmoRestWriteGate(unittest.TestCase):
 
 
 class TestBmoRestRequestShape(unittest.TestCase):
-
     def _mock_response(self, payload, status=200):
         class FakeResp:
             def __init__(self, data, code):
@@ -472,7 +466,6 @@ class _ApplyTestCase(unittest.TestCase):
 
 
 class TestApplyPendingExitCodes(_ApplyTestCase):
-
     def test_missing_pending_file_exits_2(self):
         with mock.patch.object(bmo_rest, "get_bug") as fetch:
             code = apply_pending.run(9999, dry_run=True, assume_yes=True)
@@ -579,7 +572,6 @@ class TestApplyPendingExitCodes(_ApplyTestCase):
 
 
 class TestApplyPendingFieldReconciliation(unittest.TestCase):
-
     def test_skip_already_set_scalar(self):
         pending = _make_pending(priority="P2", severity="S3")
         current = _make_bug(priority="P2", severity="S4")
@@ -607,7 +599,6 @@ class TestApplyPendingFieldReconciliation(unittest.TestCase):
 
 
 class TestRenderReport(unittest.TestCase):
-
     def test_header_contains_bug_id_and_url(self):
         bug = _make_bug(bug_id=42, summary="Foo")
         body = render_report.render(bug, _make_pending(bug_id=42), "media", {}, [])
@@ -667,7 +658,6 @@ class TestRenderReport(unittest.TestCase):
 
 
 class TestRenderReportCli(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.mkdtemp(prefix="render-cli-")
 
@@ -715,7 +705,6 @@ class TestRenderReportCli(unittest.TestCase):
 
 
 class TestTriagePathsResolution(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.mkdtemp(prefix="triage-paths-")
         self._cfg = os.path.join(self._tmp, "config.toml")
@@ -796,7 +785,6 @@ class TestTriagePathsResolution(unittest.TestCase):
 
 
 class TestTriagePathsCli(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.mkdtemp(prefix="triage-cli-")
         self._cfg = os.path.join(self._tmp, "config.toml")
@@ -840,7 +828,6 @@ class TestTriagePathsCli(unittest.TestCase):
 
 
 class TestSnapshotStaleCheck(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.mkdtemp(prefix="triage-snap-")
         triage_paths.set_override(self._tmp)
