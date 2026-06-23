@@ -1,3 +1,6 @@
+# shellcheck shell=bash
+# Sourced into the interactive shell as ~/.settings_linux (not executed).
+
 alias open='xdg-open'
 
 # Git
@@ -26,6 +29,7 @@ if [ -r "$DOTFILES/config.sh" ]; then
 fi
 
 # Use configured trash directory (defaults to standard Linux location)
+# shellcheck disable=SC2034  # consumed by the trash helper in utils.sh
 TRASH="${DOTFILES_TRASH_DIR:-$HOME/.local/share/Trash/files}"
 
 function OpenWithWayland()

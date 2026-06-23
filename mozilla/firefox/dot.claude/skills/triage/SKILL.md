@@ -104,22 +104,27 @@ are searched during the Bugzilla Investigation step (Step 6). Resolved
 at invocation — see Run Configuration.
 
 ### media
+
 - **Product:** Core
 - **Components:** Audio/Video, Audio/Video: cubeb, Audio/Video: GMP, Audio/Video: MediaStreamGraph, Audio/Video: Playback, Audio/Video: Recording, Audio/Video: Web Codecs
 
 ### web-conferencing
+
 - **Product:** Core
 - **Components:** WebRTC, WebRTC: Audio/Video, WebRTC: Networking, WebRTC: Signaling, DOM: Screen Capture
 
 ### media-and-web-conferencing
+
 - **Product:** Core
 - **Components:** Audio/Video, Audio/Video: cubeb, Audio/Video: GMP, Audio/Video: MediaStreamGraph, Audio/Video: Playback, Audio/Video: Recording, Audio/Video: Web Codecs, WebRTC, WebRTC: Audio/Video, WebRTC: Networking, WebRTC: Signaling, DOM: Screen Capture
 
 ### graphics
+
 - **Product:** Core
 - **Components:** Graphics, Graphics: Canvas2D, Graphics: CanvasWebGL, Graphics: Color Management, Graphics: Image Blocking, Graphics: ImageLib, Graphics: Layers, Graphics: Text, Graphics: WebGPU, Graphics: WebRender, Web Painting
 
 ### android
+
 - **Product:** Firefox for Android — **Components:** Media
 - **Product:** GeckoView — **Components:** Media
 
@@ -339,6 +344,7 @@ write a patch. See §Anti-Patterns.
 ### Step 8: Severity / Priority Assessment
 
 #### Severity Assessment (Mozilla Scale)
+
 | Severity | Meaning |
 |----------|---------|
 | **S1** | Catastrophic: Blocks development/testing, affects 25%+ users, data loss, no workaround |
@@ -349,6 +355,7 @@ write a patch. See §Anti-Patterns.
 | **--** | Unknown: Not enough information to assess |
 
 #### Priority Assessment (Mozilla Scale)
+
 | Priority | Meaning |
 |----------|---------|
 | **P1** | Fix in current release cycle (critical) |
@@ -767,21 +774,25 @@ interactive only.
 ## Guidelines
 
 ### Be Conservative
+
 - Only mark STR as present if genuinely actionable
 - Use "--" for severity/priority when uncertain
 - Don't close bugs without clear justification
 
 ### Be Helpful
+
 - Guide reporters on how to provide needed info
 - Link to relevant documentation (about:logging, mozregression, etc.)
 - Explain the triage process when helpful
 
 ### Be Professional
+
 - Maintain a welcoming tone for the open source community
 - Thank contributors for reports
 - Avoid jargon when possible
 
 ### Security Considerations
+
 - Flag potential security issues appropriately
 - Don't share sensitive crash data publicly
 - Escalate suspected security vulnerabilities
