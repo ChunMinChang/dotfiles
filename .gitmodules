@@ -2,6 +2,10 @@
 	path = mozilla/firefox/media-skills
 	url = https://github.com/ChunMinChang/media-skills
 	branch = triage-experiment
+	# Ignore regenerating build artifacts (e.g. __pycache__) so the
+	# submodule doesn't show as dirty; real commit (gitlink) changes
+	# still surface in `git status`.
+	ignore = untracked
 
 [submodule "mozilla/firefox/alwu-claude-skills"]
 	path = mozilla/firefox/alwu-claude-skills
