@@ -130,11 +130,11 @@ class TestPendingStore(unittest.TestCase):
         self.assertEqual(pending_store.state_dir(), self._tmp)
         self.assertEqual(
             pending_store.pending_path(123),
-            os.path.join(self._tmp, "bug-123", "pending.json"),
+            os.path.join(self._tmp, "triage-bug-123", "pending.json"),
         )
         self.assertEqual(
             pending_store.bug_snapshot_path(123),
-            os.path.join(self._tmp, "bug-123", "bug.json"),
+            os.path.join(self._tmp, "triage-bug-123", "bug.json"),
         )
         self.assertEqual(
             pending_store.log_path(),
@@ -745,17 +745,25 @@ class TestTriagePathsResolution(unittest.TestCase):
 
     def test_per_bug_paths(self):
         triage_paths.set_override("/root")
-        self.assertEqual(triage_paths.bug_dir(42), "/root/bug-42")
-        self.assertEqual(triage_paths.report_path(42), "/root/bug-42/triage.md")
-        self.assertEqual(triage_paths.pending_path(42), "/root/bug-42/pending.json")
-        self.assertEqual(triage_paths.test_page_path(42), "/root/bug-42/test.html")
-        self.assertEqual(triage_paths.bug_snapshot_path(42), "/root/bug-42/bug.json")
+        self.assertEqual(triage_paths.bug_dir(42), "/root/triage-bug-42")
+        self.assertEqual(triage_paths.report_path(42), "/root/triage-bug-42/triage.md")
+        self.assertEqual(
+            triage_paths.pending_path(42), "/root/triage-bug-42/pending.json"
+        )
+        self.assertEqual(
+            triage_paths.test_page_path(42), "/root/triage-bug-42/test.html"
+        )
+        self.assertEqual(
+            triage_paths.bug_snapshot_path(42), "/root/triage-bug-42/bug.json"
+        )
         self.assertEqual(triage_paths.log_path(), "/root/triage-log.json")
 
     def test_bug_id_coerced_from_string(self):
         triage_paths.set_override("/root")
-        self.assertEqual(triage_paths.bug_dir("99"), "/root/bug-99")
-        self.assertEqual(triage_paths.pending_path("99"), "/root/bug-99/pending.json")
+        self.assertEqual(triage_paths.bug_dir("99"), "/root/triage-bug-99")
+        self.assertEqual(
+            triage_paths.pending_path("99"), "/root/triage-bug-99/pending.json"
+        )
 
     def test_persist_writes_and_reads_back(self):
         triage_paths.persist_output_dir(self._tmp)

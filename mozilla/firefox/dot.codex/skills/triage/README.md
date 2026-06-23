@@ -26,7 +26,7 @@ Every artifact for one bug lives in one folder under `{OUTPUT_ROOT}`:
 ```
 {OUTPUT_ROOT}/
 ├── triage-log.json                  # append-only audit array
-└── bug-{ID}/
+└── triage-bug-{ID}/
     ├── triage.md                    # the report
     ├── pending.json                 # staged draft (consumed by apply_pending.py)
     ├── test.html                    # optional test page
@@ -84,7 +84,7 @@ issuing them.
 | `pending_store.py` | Library — atomic JSON I/O for pending drafts, bug snapshots, and the audit log. |
 | `scope_profiles.py` | Library — five profile tables + `infer_profile()`. |
 | `apply_pending.py` | CLI — invoked on `apply {id}`. Accepts `--output-dir PATH`. Exit codes 0/1/2/3/4/5/6. |
-| `render_report.py` | CLI — renders `{root}/bug-{id}/triage.md`. Accepts `--output-dir PATH`. |
+| `render_report.py` | CLI — renders `{root}/triage-bug-{id}/triage.md`. Accepts `--output-dir PATH`. |
 | `test_triage_scripts.py` | stdlib unittest, 74 tests. |
 
 ### Tests

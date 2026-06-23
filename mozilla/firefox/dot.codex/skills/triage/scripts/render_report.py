@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a triage report to {OUTPUT_ROOT}/bug-{id}/triage.md.
+"""Render a triage report to {OUTPUT_ROOT}/triage-bug-{id}/triage.md.
 
 Inputs (any combination, all optional):
 
@@ -8,7 +8,7 @@ Inputs (any combination, all optional):
   --scope NAME       Active scope profile.
   --usage PATH       JSON dict {bugs_fetched, searches_issued, inaccessible}.
   --findings PATH    JSON list of codebase findings (each {path, note}).
-  --out PATH         Override output path. Default: {root}/bug-{id}/triage.md.
+  --out PATH         Override output path. Default: {root}/triage-bug-{id}/triage.md.
   --output-dir PATH  Override output root for this run.
 
 Exit codes: 0 ok, 1 invalid input, 2 write failure.

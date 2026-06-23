@@ -155,15 +155,17 @@ A team never declares the root cause, the verdict, or the hypothesis ranking.
 
 ## Phase 0 — Intake and resume
 
-Every run lives in a **per-run subdirectory** `<output-dir>/bug-<id>/` (the
-**run dir**). `plan.md` (the progress table, from `references/plan-template.md`)
+Every run lives in a **per-run subdirectory** `<output-dir>/sherlock-bug-<id>/`
+(the **run dir**; the `sherlock-` prefix keeps it from colliding with other
+per-bug skills sharing an output root, e.g. `/triage`, which uses
+`triage-bug-<id>/`). `plan.md` (the progress table, from `references/plan-template.md`)
 and all artifacts live inside it. The bug id is the run identity — there is no
 slug. Re-running the same bug resumes the existing run dir.
 
 ### Resume branch
 
 Enter this branch if the invocation contains `--resume <run-dir>`, **or** if a
-fresh invocation's `<output-dir>/bug-<id>/plan.md` already exists (in which case
+fresh invocation's `<output-dir>/sherlock-bug-<id>/plan.md` already exists (in which case
 ask via `AskUserQuestion`: "Found an existing analysis for bug `<id>` at `<path>`.
 Resume, or start fresh?" — "start fresh" archives or overwrites per the user).
 
@@ -194,13 +196,13 @@ Resume, or start fresh?" — "start fresh" archives or overwrites per the user).
 3. **Parse** bug id and optional report-path (see Arguments above).
 4. **Create the run dir and subdirs:**
    ```bash
-   mkdir -p <output-dir>/bug-<id>/teams
-   mkdir -p <output-dir>/bug-<id>/review
-   mkdir -p <output-dir>/bug-<id>/firefox/fix
-   mkdir -p <output-dir>/bug-<id>/firefox/debug
+   mkdir -p <output-dir>/sherlock-bug-<id>/teams
+   mkdir -p <output-dir>/sherlock-bug-<id>/review
+   mkdir -p <output-dir>/sherlock-bug-<id>/firefox/fix
+   mkdir -p <output-dir>/sherlock-bug-<id>/firefox/debug
    ```
    `<library>/` subdirs are created later, when Step 1.5b activates (T1).
-   Hereafter `<run-dir>` = `<output-dir>/bug-<id>/`.
+   Hereafter `<run-dir>` = `<output-dir>/sherlock-bug-<id>/`.
 5. **Resolve `$SHERLOCK_REV`** (pin a searchfox revision for the whole run so all
    links are permanent):
    1. Get local HEAD: `git rev-parse HEAD`
@@ -236,7 +238,7 @@ Patches are numbered so they apply in order — test patches first, then fix
 patches on top, so reviewers can verify tests go from FAIL to PASS.
 
 ```
-<output-dir>/bug-<id>/                          # the run dir (resume key = bug-<id>)
+<output-dir>/sherlock-bug-<id>/                          # the run dir (resume key = bug-<id>)
   plan.md                                       # Progress table + resume doc
   bug-<id>-analysis.md                          # Primary analysis document
   bug-<id>-report/                              # Bug report from bmo-to-md (Team B)

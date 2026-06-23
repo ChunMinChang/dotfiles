@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Dispatch a staged triage draft to bugzilla.mozilla.org.
 
-Reads ``{OUTPUT_ROOT}/bug-{id}/pending.json``, re-fetches the bug,
+Reads ``{OUTPUT_ROOT}/triage-bug-{id}/pending.json``, re-fetches the bug,
 verifies the draft isn't stale (preferring the saved bug.json snapshot
 when present), prompts the user, then issues the REST calls in the
 order:

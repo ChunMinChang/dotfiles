@@ -15,7 +15,7 @@ Per-bug layout under the root:
 
     {OUTPUT_ROOT}/
       triage-log.json
-      bug-{ID}/
+      triage-bug-{ID}/
         triage.md       pending.json    test.html
         bug.json        findings.json   usage.json
 
@@ -166,7 +166,10 @@ def output_root():
 
 
 def bug_dir(bug_id):
-    return os.path.join(output_root(), "bug-{}".format(int(bug_id)))
+    # Prefixed with the skill name so a triage run dir never collides with
+    # another per-bug skill (e.g. /sherlock's sherlock-bug-<id>/) when both
+    # are pointed at the same output root.
+    return os.path.join(output_root(), "triage-bug-{}".format(int(bug_id)))
 
 
 def report_path(bug_id):

@@ -89,7 +89,7 @@ Helper scripts (this skill ships these in `scripts/`; invoke with
 - `apply_pending.py` — CLI; the user types `apply {id}` to run it.
   Accepts `--output-dir PATH` to override the configured root.
 - `render_report.py` — CLI; renders the report to
-  `{OUTPUT_ROOT}/bug-{ID}/triage.md`. Accepts `--output-dir PATH`.
+  `{OUTPUT_ROOT}/triage-bug-{ID}/triage.md`. Accepts `--output-dir PATH`.
 
 **API key.** REST writes need a BMO API key. The skill auto-discovers
 it in this order: `api_key` in `~/.config/firefox-triage/config.toml`,
@@ -135,7 +135,7 @@ output root:
 ```
 {OUTPUT_ROOT}/
 ├── triage-log.json                  # append-only audit
-└── bug-{ID}/
+└── triage-bug-{ID}/
     ├── triage.md                    # the report
     ├── pending.json                 # staged draft (for apply_pending.py)
     ├── test.html                    # optional test page (when generated)
@@ -202,11 +202,11 @@ output root before any fetch.
 
 ### Step 2: Stale-Draft Check
 
-Look up `{OUTPUT_ROOT}/bug-{ID}/pending.json`. If a pending draft
+Look up `{OUTPUT_ROOT}/triage-bug-{ID}/pending.json`. If a pending draft
 exists:
 
 1. Fetch the bug (Step 4) to get `last_change_time`.
-2. If a saved snapshot exists at `{OUTPUT_ROOT}/bug-{ID}/bug.json`,
+2. If a saved snapshot exists at `{OUTPUT_ROOT}/triage-bug-{ID}/bug.json`,
    compare against `snapshot.last_change_time` via
    `pending_store.is_stale_against_snapshot(...)`. Otherwise fall back
    to `pending_store.is_stale(payload, last_change_time)`.
@@ -253,7 +253,7 @@ etc.), proceed.
    Severity:  {SEVERITY}
    Priority:  {PRIORITY}
    Scope:     {ACTIVE_PROFILE}
-   Output:    {OUTPUT_ROOT}/bug-{BUG_ID}/
+   Output:    {OUTPUT_ROOT}/triage-bug-{BUG_ID}/
    ```
 3. **Classify against four signals.** Analyse the bug for:
 
@@ -407,18 +407,18 @@ Would you like me to generate and preview test.html? (yes/no)
 
 If the user says yes:
 1. Generate the test page following the requirements in "When Generating Test Pages" section.
-2. Write it directly to `{OUTPUT_ROOT}/bug-{BUG_ID}/test.html` (create
+2. Write it directly to `{OUTPUT_ROOT}/triage-bug-{BUG_ID}/test.html` (create
    the bug folder if it doesn't exist yet). No `/tmp` staging — the
    per-bug folder is the final home from the start.
 3. Show the user a summary of what the test page does.
 4. Offer to run it for verification:
    ```
-   Test page generated at {OUTPUT_ROOT}/bug-{BUG_ID}/test.html
+   Test page generated at {OUTPUT_ROOT}/triage-bug-{BUG_ID}/test.html
 
    Would you like me to open it in Firefox to verify it works? (yes/no)
    ```
 5. If user wants to verify, run:
-   `./mach run {OUTPUT_ROOT}/bug-{BUG_ID}/test.html` (absolute path —
+   `./mach run {OUTPUT_ROOT}/triage-bug-{BUG_ID}/test.html` (absolute path —
    `./mach run` accepts it).
 6. After verification (or if user skips), ask:
    ```
@@ -448,7 +448,7 @@ Test page requirements:
 
 If the bug needs HTTPS to reproduce (e.g. mixed-content / autoplay
 restrictions), `file://` won't suffice. Run `python3 -m http.server`
-from inside `{OUTPUT_ROOT}/bug-{BUG_ID}/` and load the page from
+from inside `{OUTPUT_ROOT}/triage-bug-{BUG_ID}/` and load the page from
 `http://localhost:8000/test.html`.
 
 <!-- END TEST PAGE GENERATION -->
@@ -466,7 +466,7 @@ Analysis complete!
 
 How would you like to proceed?
 
-1. **Save** - Save this analysis to {OUTPUT_ROOT}/bug-{BUG_ID}/triage.md and stage a pending draft
+1. **Save** - Save this analysis to {OUTPUT_ROOT}/triage-bug-{BUG_ID}/triage.md and stage a pending draft
 2. **Discuss** - Let's discuss the bug, refine the analysis, or investigate further before saving
 3. **Exit** - End without saving
 
@@ -477,27 +477,27 @@ Your choice (1/2/3):
 
 If user chooses to save:
 
-1. **Render the report** to `{OUTPUT_ROOT}/bug-{BUG_ID}/triage.md`.
+1. **Render the report** to `{OUTPUT_ROOT}/triage-bug-{BUG_ID}/triage.md`.
    Use `render_report.py` (which writes there by default) or render
    inline.
 2. **Stage the pending draft** to
-   `{OUTPUT_ROOT}/bug-{BUG_ID}/pending.json` via
+   `{OUTPUT_ROOT}/triage-bug-{BUG_ID}/pending.json` via
    `pending_store.save_pending(...)`. Use the schema in §Pending
    JSON Schema.
 3. **Save the bug snapshot** to
-   `{OUTPUT_ROOT}/bug-{BUG_ID}/bug.json` via
+   `{OUTPUT_ROOT}/triage-bug-{BUG_ID}/bug.json` via
    `pending_store.save_bug_snapshot(...)`. This is what the
    apply-flow stale check compares against.
 4. The test page (if generated and confirmed) is already at
-   `{OUTPUT_ROOT}/bug-{BUG_ID}/test.html` — no copy step needed. If
+   `{OUTPUT_ROOT}/triage-bug-{BUG_ID}/test.html` — no copy step needed. If
    the user declined to keep it, delete the file.
 5. Present the `apply` / `skip` choice:
 
    ```
    Saved:
-     {OUTPUT_ROOT}/bug-{BUG_ID}/triage.md
-     {OUTPUT_ROOT}/bug-{BUG_ID}/pending.json
-     {OUTPUT_ROOT}/bug-{BUG_ID}/bug.json
+     {OUTPUT_ROOT}/triage-bug-{BUG_ID}/triage.md
+     {OUTPUT_ROOT}/triage-bug-{BUG_ID}/pending.json
+     {OUTPUT_ROOT}/triage-bug-{BUG_ID}/bug.json
 
    Type "apply {BUG_ID}" to post to BMO (REST call after a final
    confirmation), or "skip {BUG_ID}" to discard the pending draft.
@@ -530,7 +530,7 @@ Continue the conversation, updating the in-memory analysis. When the
 user is satisfied, ask:
 
 ```
-Are you ready to save the updated analysis to {OUTPUT_ROOT}/bug-{BUG_ID}/triage.md
+Are you ready to save the updated analysis to {OUTPUT_ROOT}/triage-bug-{BUG_ID}/triage.md
 and stage the pending draft? (yes/no)
 ```
 
@@ -540,9 +540,9 @@ On yes, run the same save flow as Option 1.
 
 If user chooses to exit without saving:
 
-1. If a test page was generated to `{OUTPUT_ROOT}/bug-{BUG_ID}/test.html`,
+1. If a test page was generated to `{OUTPUT_ROOT}/triage-bug-{BUG_ID}/test.html`,
    ask whether to keep or delete it (and remove the otherwise-empty
-   `bug-{BUG_ID}/` directory if discarded).
+   `triage-bug-{BUG_ID}/` directory if discarded).
 2. Do NOT stage a pending draft.
 3. Confirm:
    ```
@@ -553,7 +553,7 @@ If user chooses to exit without saving:
 
 ## Pending JSON Schema
 
-`{OUTPUT_ROOT}/bug-{ID}/pending.json` — staged draft consumed by
+`{OUTPUT_ROOT}/triage-bug-{ID}/pending.json` — staged draft consumed by
 `apply_pending.py`.
 
 **Required:**
@@ -580,7 +580,7 @@ If user chooses to exit without saving:
 - `product` (str or null) — for component-move
 - `component` (str or null)
 - `test_page_path` (str or null) — absolute path to
-  `{OUTPUT_ROOT}/bug-{ID}/test.html` when a test page was generated
+  `{OUTPUT_ROOT}/triage-bug-{ID}/test.html` when a test page was generated
 
 **Example — §1a Needs Info:**
 
@@ -646,9 +646,9 @@ python3 {SKILL_DIR}/scripts/apply_pending.py {id}
 
 `apply_pending.py` does the following:
 
-1. Load `{OUTPUT_ROOT}/bug-{id}/pending.json` → exit 2 if missing.
+1. Load `{OUTPUT_ROOT}/triage-bug-{id}/pending.json` → exit 2 if missing.
 2. Re-fetch the bug via REST. If a saved snapshot exists at
-   `{OUTPUT_ROOT}/bug-{id}/bug.json`, the stale check compares the
+   `{OUTPUT_ROOT}/triage-bug-{id}/bug.json`, the stale check compares the
    fresh `last_change_time` against the snapshot's; otherwise it
    falls back to comparing against the draft's `created_at`. Exit 6
    (stale) and leave the pending file in place if stale.
@@ -860,7 +860,7 @@ Created:   2024-01-15
 Severity:  --
 Priority:  --
 Scope:     media
-Output:    /home/cm/triage/bug-1876543/
+Output:    /home/cm/triage/triage-bug-1876543/
 
 [Classification, regression timeline, confidence-gate Q1/Q2, Bugzilla
 investigation, codebase investigation, S/P assessment, draft response
@@ -870,7 +870,7 @@ Analysis complete!
 
 How would you like to proceed?
 
-1. **Save** - Save this analysis to /home/cm/triage/bug-1876543/triage.md and stage a pending draft
+1. **Save** - Save this analysis to /home/cm/triage/triage-bug-1876543/triage.md and stage a pending draft
 2. **Discuss** - Let's discuss the bug, refine the analysis, or investigate further before saving
 3. **Exit** - End without saving
 
@@ -878,9 +878,9 @@ Your choice (1/2/3):
 > 1
 
 Saved:
-  /home/cm/triage/bug-1876543/triage.md
-  /home/cm/triage/bug-1876543/pending.json
-  /home/cm/triage/bug-1876543/bug.json
+  /home/cm/triage/triage-bug-1876543/triage.md
+  /home/cm/triage/triage-bug-1876543/pending.json
+  /home/cm/triage/triage-bug-1876543/bug.json
 
 Type "apply 1876543" to post to BMO, or "skip 1876543" to discard the pending draft.
 
@@ -909,5 +909,5 @@ Log appended; pending draft removed.
 - `/triage 1234567 out:/tmp/scratch` — one-shot output-root override
   (does not touch the TOML config).
 
-> Note: the layout is `{OUTPUT_ROOT}/bug-{ID}/triage.md` (and
+> Note: the layout is `{OUTPUT_ROOT}/triage-bug-{ID}/triage.md` (and
 > sibling `pending.json`, `bug.json`, `test.html`).

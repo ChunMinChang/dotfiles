@@ -4,9 +4,9 @@
 Layout under the configured output root (see triage_paths.output_root()):
 
   {OUTPUT_ROOT}/
-    triage-log.json              Append-only JSON array of decision records.
-    bug-{id}/pending.json        Staged draft for one bug.
-    bug-{id}/bug.json            Snapshot of the bug we triaged against.
+    triage-log.json                  Append-only JSON array of decision records.
+    triage-bug-{id}/pending.json     Staged draft for one bug.
+    triage-bug-{id}/bug.json         Snapshot of the bug we triaged against.
 
 Writes are atomic (.tmp + os.replace). The triage-log append uses
 fcntl.flock on POSIX to serialise the read-modify-write window; if the
