@@ -31,5 +31,5 @@ TRASH="${DOTFILES_TRASH_DIR:-$HOME/.local/share/Trash/files}"
 function OpenWithWayland()
 {
   echo "$@"
-  "$@" --enable-features=UseOzonePlatform --ozone-platform=wayland --log debug
+  "$@" --ozone-platform-hint=auto --ozone-platform=wayland
 }
