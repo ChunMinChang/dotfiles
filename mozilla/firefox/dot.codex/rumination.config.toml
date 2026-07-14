@@ -2,9 +2,7 @@
 # Install to $CODEX_HOME/rumination.config.toml and run with:
 #   codex --profile rumination
 
-# "Latest" is concrete in Codex config. As of this Codex catalog, GPT-5.5 is
-# the strongest listed model and xhigh is the maximum reasoning effort.
-model = "gpt-5.5"
+model = "gpt-5.6"
 model_reasoning_effort = "xhigh"
 plan_mode_reasoning_effort = "xhigh"
 model_reasoning_summary = "detailed"
