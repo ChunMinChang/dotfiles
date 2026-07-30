@@ -5,7 +5,9 @@
 set +e  # Don't exit on first failure - run all tests
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+# The suites below use repo-relative paths, so bail out rather than run them
+# from an unexpected directory.
+cd "$SCRIPT_DIR" || exit 1
 
 echo "========================================================"
 echo "Running All Test Suites"

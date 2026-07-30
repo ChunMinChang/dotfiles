@@ -1,3 +1,8 @@
+# shellcheck shell=bash
+# Sourced into the interactive shell (bash and zsh), not executed.
+# Keep everything here portable to both; see test_shell_utils.sh
+# Test Suite 6 for the bash-isms that break zsh at runtime.
+
 # General
 # ------------------------------------------------
 alias ga='git add'
@@ -356,12 +361,18 @@ function GitDeleteBranch {
 
 function BranchInPrompt {
   if [ -n "$ZSH_VERSION" ]; then
-    # zsh: idempotent, skip if already added
+    # zsh: idempotent, skip if already added. The single quotes are
+    # deliberate -- we are matching the literal text '$(ParseGitBranch)'
+    # already present in PS1, not expanding it.
+    # shellcheck disable=SC2016
     case "$PS1" in
       *'$(ParseGitBranch)'*) return ;;
     esac
-    local GREEN="%{$(tput setaf 2)%}"
-    local DEFAULT="%{$(tput sgr0)%}"
+    # Declared separately from the assignment so a failing tput does not
+    # get masked by local's exit status (SC2155).
+    local GREEN DEFAULT
+    GREEN="%{$(tput setaf 2)%}"
+    DEFAULT="%{$(tput sgr0)%}"
     PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
   elif [ -n "$BASH_VERSION" ]; then
     # bash: drive the substitution from PROMPT_COMMAND instead of
@@ -391,6 +402,8 @@ function BranchInPrompt {
       _dotfiles_ps1_head=""
       _dotfiles_ps1_tail="$_dotfiles_original_ps1"
     fi
+    # Invoked indirectly, by name, from PROMPT_COMMAND below (SC2329).
+    # shellcheck disable=SC2329
     _dotfiles_set_branch_prompt() {
       local branch
       branch=$(ParseGitBranch)

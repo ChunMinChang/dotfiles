@@ -30,7 +30,7 @@ test_fail() {
 }
 
 echo -e "${BLUE}====================================\n"
-echo "Shell Utilities Test Suite\n"
+echo -e "Shell Utilities Test Suite\n"
 echo -e "====================================${NC}\n"
 
 # Test CommandExists
@@ -59,9 +59,8 @@ touch "$TEST_DIR/test.txt" "$TEST_DIR/sub/test.txt" "$TEST_DIR/other.md"
 
 TESTS_RUN=$((TESTS_RUN + 1))
 echo -n "  RecursivelyFind *.txt: "
-cd "$TEST_DIR"
-count=$(RecursivelyFind "*.txt" 2>/dev/null | wc -l)
-cd - >/dev/null
+# Run in a subshell so a failed cd cannot leak into the rest of the suite
+count=$(cd "$TEST_DIR" && RecursivelyFind "*.txt" 2>/dev/null | wc -l)
 if [ "$count" -eq 2 ]; then test_pass; else test_fail "expected 2, got $count"; fi
 
 rm -rf "$TEST_DIR"

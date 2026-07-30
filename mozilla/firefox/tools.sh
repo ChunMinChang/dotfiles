@@ -1,3 +1,6 @@
+# shellcheck shell=bash
+# Sourced into the interactive shell (bash and zsh), not executed.
+
 # Source configuration
 if [ -r "$DOTFILES/config.sh" ]; then
   # shellcheck source=../../config.sh

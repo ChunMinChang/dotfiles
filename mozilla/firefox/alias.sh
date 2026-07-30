@@ -1,3 +1,6 @@
+# shellcheck shell=bash
+# Sourced into the interactive shell (bash and zsh), not executed.
+
 # General
 alias mb='./mach build'
 alias mr='./mach run'

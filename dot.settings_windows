@@ -1,3 +1,6 @@
+# shellcheck shell=bash
+# Sourced into the interactive shell as ~/.settings_windows (not executed).
+
 # Windows / Git Bash settings
 # ====================================================================
 # Loaded by dot.bashrc when running under MINGW/MSYS/Cygwin
@@ -43,6 +46,7 @@ fi
 
 # Trash dir: the Recycle Bin isn't directly mountable, so default to a
 # regular directory under $HOME. Override via DOTFILES_TRASH_DIR_WINDOWS.
+# shellcheck disable=SC2034  # consumed by the trash helper in utils.sh
 TRASH="${DOTFILES_TRASH_DIR:-$HOME/.Trash}"
 
 # Add tool dirs that Windows installers populate but that are NOT on

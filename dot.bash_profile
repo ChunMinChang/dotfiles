@@ -1,3 +1,6 @@
+# shellcheck shell=bash
+# Sourced into the interactive shell as ~/.bash_profile (not executed).
+
 # Common Settings
 # ====================================================================
 [[ -r ~/.bashrc ]] && . ~/.bashrc

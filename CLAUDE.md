@@ -37,6 +37,31 @@
 - Uses `os.path.samefile()` to detect existing symlinks
 - Git config uses `include.path` mechanism
 
+**Cross-shell portability (bash + zsh):**
+
+- `utils.sh`, `git/utils.sh`, `dot.settings_*`, and the
+  `mozilla/firefox/*.sh` helpers are *sourced* into the interactive
+  shell — zsh on macOS, bash elsewhere. Bash-isms in them fail at
+  **runtime**, so `bash -n` and the syntax tests do not catch them.
+- Known traps, each of which shipped as a real bug:
+  - `[ x == y ]` — zsh's `[` builtin rejects `==` (`= not found`).
+    Use `=` or `[[ ]]`.
+  - `read -p` — in zsh `-p` means *read from the coprocess*, so it
+    errors with `no coprocess` and leaves the variable empty. Use the
+    `Confirm` helper in `utils.sh`.
+  - Single-keypress reads differ (`read -n 1` vs `read -k 1`), so
+    confirmations require Enter.
+  - zsh does not word-split unquoted variables, so `for f in $files`
+    and `cmd=$(...)` + `xargs $cmd` behave differently. Keep commands
+    in arrays and expand with `"${arr[@]}"`.
+  - zsh arrays are 1-based; avoid `${arr[0]}`.
+- `test_shell_utils.sh` Test Suite 6 greps for these patterns and
+  runs the sourced files under zsh. Add a guard there when you find
+  a new one.
+- Each sourced fragment starts with `# shellcheck shell=bash` (it has
+  no shebang, and shellcheck has no zsh dialect), so `shellcheck` is
+  a best-effort lint only — it will not flag the traps above.
+
 **Platform detection:**
 
 - `dot.bashrc` normalizes `uname -s` via a case statement
@@ -131,12 +156,13 @@ See [README.md](README.md#testing) for how to run tests.
 
 **Test suites:**
 
-- `test_setup.py` - 47 tests (symlinks, file ops, main flow,
+- `test_setup.py` - 127 tests (symlinks, file ops, main flow,
   Windows elevation/Dev Mode probes, Windows Dev Mode commit
   gate, claude-overlay branch-exists handling, stuck-state
   auto-switch, Windows post-checkout hook for re-materializing
   symlink-blob entries that git checkout failed to create)
-- `test_shell_utils.sh` - 19 tests (functions, git utils)
+- `test_shell_utils.sh` - 26 tests (functions, git utils, and
+  Test Suite 6's guards against bash-isms that break zsh)
 - `test_claude_security.py` - 23 tests (security hooks)
 - `test_prompt_colors.sh` - 22 tests (prompt colors)
 - `claude/test_session_sync.py` - 56 tests (parsing, rendering, manifest, discovery, env var)

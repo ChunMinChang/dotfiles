@@ -1,3 +1,6 @@
+# shellcheck shell=bash
+# Sourced into the interactive shell as ~/.settings_darwin (not executed).
+
 # Check homebrew
 # ====================================================================
 if ! CommandExists brew; then
@@ -41,4 +44,5 @@ if [ -r "$DOTFILES/config.sh" ]; then
 fi
 
 # Use configured trash directory (defaults to standard macOS location)
+# shellcheck disable=SC2034  # consumed by the trash helper in utils.sh
 TRASH="${DOTFILES_TRASH_DIR:-$HOME/.Trash}"

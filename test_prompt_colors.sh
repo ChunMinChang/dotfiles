@@ -39,21 +39,35 @@ print_fail() {
     ((TESTS_FAILED++))
 }
 
+# BranchInPrompt's bash path deliberately defers the work to PROMPT_COMMAND
+# instead of embedding $(ParseGitBranch) in PS1 (see git/utils.sh for why), so
+# the branch only lands in PS1 once that hook runs. Non-interactive bash never
+# fires PROMPT_COMMAND and leaves PS1 unset, so seed PS1 and run the hook by
+# hand to observe what an interactive prompt would actually render.
+render_bash_prompt() {
+    bash -c '
+        export BASH_VERSION="5.0.0"
+        unset ZSH_VERSION
+        source git/utils.sh
+        PS1="\u@\h \w\$ "
+        BranchInPrompt
+        eval "$PROMPT_COMMAND"
+        echo "$PS1"
+    '
+}
+
 # Test functions
 test_bash_escape_sequences() {
     print_section "Bash Escape Sequences"
 
     # Test 1: BranchInPrompt uses bash sequences when BASH_VERSION is set
     TESTS_RUN=$((TESTS_RUN + 1))
-    result=$(bash -c '
-        export BASH_VERSION="5.0.0"
-        unset ZSH_VERSION
-        source git/utils.sh
-        BranchInPrompt
-        echo "$PS1"
-    ')
+    result=$(render_bash_prompt)
 
-    if echo "$result" | grep -q '\\[\\033\[0;32m\\]'; then
+    # Match with -F: as a regex, '\[\033[0;32m\]' would parse the trailing
+    # [0;32m\] as a character class and match almost any backslash, which
+    # silently passed even when the escapes were malformed.
+    if echo "$result" | grep -qF '\[\033[0;32m\]'; then
         print_pass "Bash uses \\[\\033[0;32m\\] for green"
     else
         print_fail "Bash should use \\[\\033[0;32m\\] for green, got: $result"
@@ -61,7 +75,7 @@ test_bash_escape_sequences() {
 
     # Test 2: Bash uses closing escape sequence
     TESTS_RUN=$((TESTS_RUN + 1))
-    if echo "$result" | grep -q '\\[\\033\[0m\\]'; then
+    if echo "$result" | grep -qF '\[\033[0m\]'; then
         print_pass "Bash uses \\[\\033[0m\\] for reset"
     else
         print_fail "Bash should use \\[\\033[0m\\] for reset, got: $result"
@@ -150,14 +164,7 @@ test_shell_detection() {
 
     # Test 1: Detects bash
     TESTS_RUN=$((TESTS_RUN + 1))
-    result=$(bash -c '
-        export BASH_VERSION="5.0.0"
-        unset ZSH_VERSION
-        source git/utils.sh
-        # Check if bash path is taken
-        BranchInPrompt
-        echo "$PS1"
-    ')
+    result=$(render_bash_prompt)
 
     if echo "$result" | grep -qF '\['; then
         print_pass "Shell detection correctly identifies bash"
@@ -193,13 +200,7 @@ test_no_literal_escapes() {
 
     # Test bash
     TESTS_RUN=$((TESTS_RUN + 1))
-    result=$(bash -c '
-        export BASH_VERSION="5.0.0"
-        unset ZSH_VERSION
-        source git/utils.sh
-        BranchInPrompt
-        echo "$PS1"
-    ')
+    result=$(render_bash_prompt)
 
     if echo "$result" | grep -qF '\[' && echo "$result" | grep -qF '\]'; then
         print_pass "Bash prompt has properly formatted escape sequences"

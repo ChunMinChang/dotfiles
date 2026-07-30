@@ -52,7 +52,8 @@ UnlinkIfSymlink() {
   local expected_source="$2"
 
   if [ -L "$target" ]; then
-    local actual_source="$(readlink -f "$target")"
+    local actual_source
+    actual_source="$(readlink -f "$target")"
     if [ "$actual_source" = "$expected_source" ]; then
       if [ "$DRY_RUN" = true ]; then
         echo "[DRY-RUN] Would unlink $target"
@@ -78,8 +79,8 @@ UnlinkIfSymlink() {
 
 # Handle --show-manual mode (show manual cleanup steps only)
 if [ "$SHOW_MANUAL" = true ]; then
-  PrintTitle "\nManual Cleanup Steps\n"\
-"====================================================================\n"
+  PrintTitle "\nManual Cleanup Steps\n\
+====================================================================\n"
   echo "These items need manual removal to avoid losing your customizations:"
   echo ""
 
@@ -119,23 +120,23 @@ fi
 
 # Show dry-run banner if enabled
 if [ "$DRY_RUN" = true ]; then
-  PrintTitle "\n[DRY-RUN MODE] Previewing uninstall - no changes will be made\n"\
-"====================================================================\n"
+  PrintTitle "\n[DRY-RUN MODE] Previewing uninstall - no changes will be made\n\
+====================================================================\n"
 else
-  PrintTitle "\nUninstall personal environment settings\n"\
-"====================================================================\n"
+  PrintTitle "\nUninstall personal environment settings\n\
+====================================================================\n"
 fi
 
-PrintSubTitle "\nUnlink Mozilla stuff\n"\
-"--------------------------------------------------------------------\n"
+PrintSubTitle "\nUnlink Mozilla stuff\n\
+--------------------------------------------------------------------\n"
 # Unlink machrc
 MACHRC_GLOBAL="$HOME/.mozbuild/machrc"
 MACHRC_HERE="$SCRIPT_DIR/mozilla/firefox/machrc"
 UnlinkIfSymlink "$MACHRC_GLOBAL" "$MACHRC_HERE"
 
 
-PrintSubTitle "\nUninstall custom settings\n"\
-"--------------------------------------------------------------------\n"
+PrintSubTitle "\nUninstall custom settings\n\
+--------------------------------------------------------------------\n"
 # Load environment variables from dot.bashrc
 BASHRC_HERE="$SCRIPT_DIR/dot.bashrc"
 
@@ -164,14 +165,14 @@ if [ -z "$DOTFILES" ]; then
 fi
 
 # $PLATFORM is set in $BASHRC_HERE
-echo Uninstall personal environment settings on $PLATFORM
+echo "Uninstall personal environment settings on $PLATFORM"
 
 # Unlink the platform settings ($SETTINGS_PLATFORM is set in $BASHRC_HERE)
 SETTINGS_HERE="$SCRIPT_DIR/dot.settings_$PLATFORM"
 UnlinkIfSymlink "$SETTINGS_PLATFORM" "$SETTINGS_HERE"
 
 # Unlink the entry point of environment settings on darwin (MacOSX)
-if [ "$PLATFORM" == "darwin" ]; then
+if [ "$PLATFORM" = "darwin" ]; then
   ZSHRC_HERE="$SCRIPT_DIR/dot.zshrc"
   UnlinkIfSymlink "$HOME/.zshrc" "$ZSHRC_HERE"
 fi
@@ -197,8 +198,8 @@ elif [ -e "$BASHRC_GLOBAL" ] && [ "$PLATFORM" = "linux" ]; then
 fi
 
 # Summary
-PrintTitle "\nUninstall Summary\n"\
-"====================================================================\n"
+PrintTitle "\nUninstall Summary\n\
+====================================================================\n"
 
 # Show what was removed automatically
 if [ ${#REMOVED_ITEMS[@]} -gt 0 ]; then
@@ -250,8 +251,8 @@ fi
 
 # Final message
 if [ "$DRY_RUN" = true ]; then
-  PrintTitle "\n[DRY-RUN COMPLETE] No changes were made\n"\
-"====================================================================\n"
+  PrintTitle "\n[DRY-RUN COMPLETE] No changes were made\n\
+====================================================================\n"
   echo "To actually uninstall, run without --dry-run flag:"
   echo "  bash uninstall.sh"
   echo ""

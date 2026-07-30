@@ -1,3 +1,8 @@
+# shellcheck shell=bash
+# Sourced into the interactive shell as ~/.zshrc (not executed). This is zsh,
+# but shellcheck has no zsh dialect, so it is linted as bash on a best-effort
+# basis; zsh-only builtins below (setopt, autoload) are simply not recognised.
+
 # Common Settings
 # ====================================================================
 [[ -r ~/.bashrc ]] && . ~/.bashrc

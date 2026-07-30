@@ -1,3 +1,8 @@
+# shellcheck shell=bash
+# Sourced into the interactive shell (bash and zsh), not executed.
+# Keep everything here portable to both; see test_shell_utils.sh
+# Test Suite 6 for the bash-isms that break zsh at runtime.
+
 # Alias
 # ====================================================================
 alias RSSTimestamp='TZ=GMT date +"%a, %d %b %Y %T %Z %z"'
