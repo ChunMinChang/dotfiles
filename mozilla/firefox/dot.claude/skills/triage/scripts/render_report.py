@@ -148,8 +148,7 @@ def render(bug, pending, scope, usage, codebase_findings):
     # Regression timeline (only if signal present)
     if bug.get("regressed_by") or bug.get("cf_regressing_bug"):
         sections.append(
-            "## Regression Timeline\n\n"
-            "- **regressed_by:** {}\n".format(
+            "## Regression Timeline\n\n- **regressed_by:** {}\n".format(
                 ", ".join(str(b) for b in (bug.get("regressed_by") or []))
                 or _safe(bug.get("cf_regressing_bug"))
             )
@@ -177,7 +176,7 @@ def render(bug, pending, scope, usage, codebase_findings):
     # Draft Response
     if pending.get("comment"):
         sections.append(
-            "## Draft Response\n\n" "```\n{}\n```\n".format(pending["comment"].rstrip())
+            "## Draft Response\n\n```\n{}\n```\n".format(pending["comment"].rstrip())
         )
 
     # Recommended actions (derived from pending payload)
@@ -209,7 +208,7 @@ def render(bug, pending, scope, usage, codebase_findings):
     # Test Page reference
     if pending.get("test_page_path"):
         sections.append(
-            "## Test Page\n\n" "- **File:** {}\n".format(pending["test_page_path"])
+            "## Test Page\n\n- **File:** {}\n".format(pending["test_page_path"])
         )
 
     # Bugzilla Usage Tracking
@@ -276,7 +275,7 @@ def main(argv=None):
     bug_id = bug.get("id") or pending.get("bug_id")
     if not bug_id and not args.out:
         sys.stderr.write(
-            "render_report: need either --bug / --pending with an id, " "or --out\n"
+            "render_report: need either --bug / --pending with an id, or --out\n"
         )
         return 1
 
