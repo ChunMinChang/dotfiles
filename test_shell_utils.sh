@@ -104,6 +104,16 @@ TESTS_RUN=$((TESTS_RUN + 1))
 echo -n "  dot.bashrc syntax: "
 if bash -n "$SCRIPT_DIR/dot.bashrc" 2>/dev/null; then test_pass; else test_fail "syntax error"; fi
 
+# zsh's `[` builtin rejects `==`, so single-bracket tests must use `=`
+TESTS_RUN=$((TESTS_RUN + 1))
+echo -n "  no '[ x == y ]' in sourced files (zsh-incompatible): "
+if grep -nE '(^|[^[])\[ [^]]*==' "$SCRIPT_DIR/utils.sh" \
+       "$SCRIPT_DIR/git/utils.sh" "$SCRIPT_DIR/dot.bashrc" >/dev/null 2>&1; then
+    test_fail "use '=' or '[[ ]]' instead of '[ x == y ]'"
+else
+    test_pass
+fi
+
 # PLATFORM normalization (set by dot.bashrc)
 echo -e "\n${YELLOW}Test Suite 7: Platform Detection${NC}"
 TESTS_RUN=$((TESTS_RUN + 1))

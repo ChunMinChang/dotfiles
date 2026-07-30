@@ -27,46 +27,60 @@ alias gut='git'
 # ------------------------------------------------
 function GitLastCommit() {
   if [ -z "$1" ]; then
-    PrintError "Usage: GitLastCommit <command>"
+    PrintError "Usage: GitLastCommit <command> [args...]"
     return 1
   fi
 
-  local cmd="$1"
+  # Keep the command and its arguments as an array so multi-word commands work
+  local -a cmd
+  cmd=("$@")
   # Load edited files into tabs if cmd is vim
-  if [ "$cmd" == "vim" ]; then
-    cmd="vim -p" # open files in tabs
+  if [ "$1" = "vim" ]; then
+    shift
+    cmd=(vim -p "$@") # open files in tabs
   fi
 
-  # Get list of files from last commit
-  local files
-  files=$(git diff-tree --no-commit-id --name-only --diff-filter=d -r HEAD 2>&1)
-
-  if [ $? -ne 0 ]; then
+  # diff-tree prints paths relative to the repo root, so resolve it and run
+  # the command from there in case we are in a subdirectory
+  local root
+  root=$(git rev-parse --show-toplevel 2>/dev/null)
+  if [ -z "$root" ]; then
     PrintError "Failed to get files from last commit. Are you in a git repository?"
     return 1
   fi
 
-  if [ -z "$files" ]; then
+  # Get the number of files in the last commit
+  local file_count
+  file_count=$(git diff-tree --no-commit-id --name-only --diff-filter=d -r HEAD | wc -l)
+
+  if [ "$file_count" -eq 0 ]; then
     PrintWarning "No files in last commit"
     return 0
   fi
 
-  # Pass files to command
-  echo "$files" | xargs "$cmd"
+  # Pass files to command (using null-terminated list for safety)
+  (
+    cd "$root" || return 1
+    git diff-tree --no-commit-id --name-only --diff-filter=d -r -z HEAD |
+      xargs -0 "${cmd[@]}"
+  )
 }
 
 # Run commands on all uncommit files
 # ------------------------------------------------
 function GitUncommit() {
   if [ -z "$1" ]; then
-    PrintError "Usage: GitUncommit <command>"
+    PrintError "Usage: GitUncommit <command> [args...]"
     return 1
   fi
 
-  local cmd="$1"
+  # Keep the command and its arguments as an array so multi-word commands work
+  local -a cmd
+  cmd=("$@")
   # Load edited files into tabs if cmd is vim
-  if [ "$cmd" == "vim" ]; then
-    cmd="vim -p" # open files in tabs
+  if [ "$1" = "vim" ]; then
+    shift
+    cmd=(vim -p "$@") # open files in tabs
   fi
 
   # Check if there are any uncommitted files
@@ -79,7 +93,7 @@ function GitUncommit() {
   fi
 
   # Run command on uncommitted files (using null-terminated list for safety)
-  git ls-files --modified --deleted --others -z | xargs -0 "$cmd"
+  git ls-files --modified --deleted --others -z | xargs -0 "${cmd[@]}"
 }
 
 # Add some files except some certain files
