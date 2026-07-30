@@ -44,7 +44,9 @@ alias manal='./mach static-analysis check' # usage: `manal <FILE_PATH>`
 
 # Format all uncommit files
 function MozFormatUncommit() {
-  GitUncommit './mach clang-format --path'
+  # Pass the command as separate words: GitUncommit execs it via xargs, so a
+  # single quoted string would be looked up as one (nonexistent) binary name.
+  GitUncommit ./mach clang-format --path
 }
 alias mfmtuc='MozFormatUncommit'
 

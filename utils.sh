@@ -16,6 +16,21 @@ function CommandExists()
   fi
 }
 
+# Prompt for a yes/no confirmation; returns 0 only on an explicit yes.
+# Uses printf + plain `read` because bash's `read -p` prompt flag means
+# "read from the coprocess" in zsh, which errors out with "no coprocess".
+function Confirm()
+{
+  local prompt="${1:-Are you sure?}"
+  local reply
+  printf "%s [y/N] " "$prompt"
+  read -r reply || return 1
+  case "$reply" in
+    [Yy]|[Yy][Ee][Ss]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 function PrintError()
 {
   local msg="$1"
@@ -83,16 +98,13 @@ function RecursivelyRemove()
 
   # Show preview
   local count
-  count=$(echo "$files" | wc -l)
+  count=$(echo "$files" | wc -l | tr -d '[:space:]')
   echo "Found $count file(s) matching '$pattern':"
   echo "$files"
   echo
 
   # Ask for confirmation
-  read -p "Delete these files? [y/N] " -n 1 -r
-  echo
-
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
+  if Confirm "Delete these files?"; then
     echo "$files" | while IFS= read -r file; do
       if rm -f "$file" 2>/dev/null; then
         echo "Deleted: $file"

@@ -104,14 +104,57 @@ TESTS_RUN=$((TESTS_RUN + 1))
 echo -n "  dot.bashrc syntax: "
 if bash -n "$SCRIPT_DIR/dot.bashrc" 2>/dev/null; then test_pass; else test_fail "syntax error"; fi
 
+# These files are sourced by both bash and zsh, so bash-only constructs break
+# interactive zsh sessions at runtime (not at parse time, so bash -n misses them).
+SOURCED_FILES=(
+    "$SCRIPT_DIR/utils.sh"
+    "$SCRIPT_DIR/git/utils.sh"
+    "$SCRIPT_DIR/dot.bashrc"
+    "$SCRIPT_DIR/mozilla/firefox/alias.sh"
+    "$SCRIPT_DIR/mozilla/firefox/tools.sh"
+)
+
 # zsh's `[` builtin rejects `==`, so single-bracket tests must use `=`
 TESTS_RUN=$((TESTS_RUN + 1))
 echo -n "  no '[ x == y ]' in sourced files (zsh-incompatible): "
-if grep -nE '(^|[^[])\[ [^]]*==' "$SCRIPT_DIR/utils.sh" \
-       "$SCRIPT_DIR/git/utils.sh" "$SCRIPT_DIR/dot.bashrc" >/dev/null 2>&1; then
+if grep -nE '(^|[^[])\[ [^]]*==' "${SOURCED_FILES[@]}" >/dev/null 2>&1; then
     test_fail "use '=' or '[[ ]]' instead of '[ x == y ]'"
 else
     test_pass
+fi
+
+# In zsh, `read -p` means "read from the coprocess" and errors with
+# "no coprocess"; use the Confirm helper (or printf + read -r) instead
+TESTS_RUN=$((TESTS_RUN + 1))
+echo -n "  no 'read -p' in sourced files (zsh-incompatible): "
+if grep -nE '\bread\b[^|]*-p ' "${SOURCED_FILES[@]}" >/dev/null 2>&1; then
+    test_fail "use Confirm or 'printf + read -r' instead of 'read -p'"
+else
+    test_pass
+fi
+
+# Functional check under zsh, which is the interactive shell on macOS
+if command -v zsh >/dev/null 2>&1; then
+    TESTS_RUN=$((TESTS_RUN + 1))
+    echo -n "  sourced files load cleanly under zsh: "
+    zsh_errs=$(zsh -c "source '$SCRIPT_DIR/utils.sh'; source '$SCRIPT_DIR/git/utils.sh'" 2>&1)
+    if [ -z "$zsh_errs" ]; then test_pass; else test_fail "zsh errors: $zsh_errs"; fi
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+    echo -n "  Confirm accepts 'y' under zsh: "
+    if [ "$(echo y | zsh -c "source '$SCRIPT_DIR/utils.sh'; Confirm x >/dev/null && echo ok" 2>&1)" = "ok" ]; then
+        test_pass
+    else
+        test_fail "Confirm did not accept 'y' under zsh"
+    fi
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+    echo -n "  Confirm rejects 'n' under zsh: "
+    if [ "$(echo n | zsh -c "source '$SCRIPT_DIR/utils.sh'; Confirm x >/dev/null || echo ok" 2>&1)" = "ok" ]; then
+        test_pass
+    else
+        test_fail "Confirm did not reject 'n' under zsh"
+    fi
 fi
 
 # PLATFORM normalization (set by dot.bashrc)

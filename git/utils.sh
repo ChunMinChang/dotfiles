@@ -177,8 +177,7 @@ function CreateGitBranchForPullRequest {
   # Check if branch already exists
   if git show-ref --verify --quiet "refs/heads/$branch_name"; then
     PrintWarning "Branch '$branch_name' already exists"
-    read -p "Overwrite existing branch? [y/N]: " -r response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+    if ! Confirm "Overwrite existing branch?"; then
       echo "Cancelled"
       return 0
     fi
