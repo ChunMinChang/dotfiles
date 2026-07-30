@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck source-path=SCRIPTDIR
 # Sourced into the interactive shell (bash and zsh), not executed.
 
 # Source configuration

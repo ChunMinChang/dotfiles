@@ -5,6 +5,7 @@
 
 # Common Settings
 # ====================================================================
+# shellcheck source=dot.bashrc
 [[ -r ~/.bashrc ]] && . ~/.bashrc
 
 # Prompt for version control tool

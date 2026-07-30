@@ -21,6 +21,9 @@ case "$(uname -s)" in
 esac
 SETTINGS_PREFIX=$HOME/.settings_
 SETTINGS_PLATFORM=$SETTINGS_PREFIX$PLATFORM
+# Resolves to one of dot.settings_{darwin,linux,windows} at runtime, so there
+# is no single path a shellcheck source= directive could name.
+# shellcheck disable=SC1090
 [ -r "$SETTINGS_PLATFORM" ] && . "$SETTINGS_PLATFORM"
 
 # Common paths (after platform settings load config.sh)

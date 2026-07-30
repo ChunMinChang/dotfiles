@@ -142,6 +142,7 @@ BASHRC_HERE="$SCRIPT_DIR/dot.bashrc"
 
 # Source the file (don't check exit code - it's unreliable due to conditional sourcing inside)
 if [ -f "$BASHRC_HERE" ]; then
+  # shellcheck source=dot.bashrc
   source "$BASHRC_HERE" 2>/dev/null || true
   echo "Loaded environment variables from $BASHRC_HERE"
 fi
