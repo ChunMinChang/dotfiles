@@ -1,0 +1,4 @@
+interface:
+  display_name: "Media Security Report"
+  short_description: "Prepare private reports for Firefox media libraries"
+  default_prompt: "Use $media-security-report to prepare and validate a private upstream report from the available media-library security evidence."
