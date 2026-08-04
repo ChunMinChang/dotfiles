@@ -167,6 +167,17 @@ See [README.md](README.md#testing) for how to run tests.
 - `test_prompt_colors.sh` - 22 tests (prompt colors)
 - `claude/test_session_sync.py` - 56 tests (parsing, rendering, manifest, discovery, env var)
 
+Skill test suites (run manually, not part of `test_all.sh`):
+
+- `mozilla/firefox/dot.claude/skills/triage/scripts/test_triage_scripts.py` -
+  72 tests (scope profiles, pending store, BMO REST, apply-pending, render-report)
+- `mozilla/firefox/dot.claude/skills/media-security-report/scripts/test_media_security_report.py` -
+  54 tests (moz.yaml parsing, revision/BUG_COMPONENT fallbacks, checkout
+  resolution, forge grammars, revision pinning, report requirements per
+  channel, hygiene scan, policy/markdown sync)
+
+Both run with `python3 -m unittest discover -s <that scripts dir>`.
+
 **Coverage:**
 
 - Path handling, file operations, symlink validation
