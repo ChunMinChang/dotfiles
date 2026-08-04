@@ -1,0 +1,4 @@
+interface:
+  display_name: "FFmpeg Security Report"
+  short_description: "Create qualified standalone FFmpeg security reports"
+  default_prompt: "Prepare a standalone FFmpeg security report from the available bug evidence, reproduce it on pinned upstream source, and validate the ten security-report requirements."
