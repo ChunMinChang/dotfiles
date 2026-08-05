@@ -63,6 +63,22 @@ revision `<hash>`.">
 
 <n>. …
 
+## Crash Stacks
+
+<Label every stack with the failure type, exact revision, build configuration,
+platform, and thread role. Copy the complete symbolized stack exactly as emitted.
+Preserve every consecutive frame from the first (`#0` or `#1`) through the final
+`#N`; never omit middle frames, renumber an excerpt, or use an ellipsis. Put
+faulting-thread and thread-creation stacks in separate subsections.>
+
+### <failure / build / thread>
+
+```text
+#0 <first frame exactly as emitted>
+#1 <next frame exactly as emitted>
+#2 <continue with every consecutive frame through the final frame>
+```
+
 ## Test Cases
 
 <How many targets from how many source files. Whether inputs are embedded or

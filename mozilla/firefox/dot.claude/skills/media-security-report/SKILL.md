@@ -221,8 +221,13 @@ Hand the matrix to the repro-runner subagent when the builds are long, then read
   must distinguish vulnerable failure, fixed pass, and latest-upstream status.
   Repeat scheduling-sensitive tests enough to justify reliability and record the
   number of rounds.
-- Capture symbolized stacks with file and line numbers, each tied to one exact
-  revision.
+- Capture complete symbolized stacks with file and line numbers, each tied to
+  one exact revision and build. Preserve the original numbering and every frame
+  from the first emitted frame (`#0` or `#1`) through the final `#N`; never omit
+  frames in the middle or replace them with an ellipsis. Label and include each
+  stack separately when the report has faulting-thread, thread-creation, or
+  multiple-manifestation stacks. The validator rejects a stack that skips,
+  duplicates, reorders, or elides frames.
 - Use a uniquely named input. If a generator exists, run it and confirm it
   produces that input; if none can be recovered, say so rather than claiming
   reproducibility that was not tested.
@@ -234,16 +239,39 @@ write one — do not quietly settle for a command line. The routing block prints
 the harness, where its tests live, and how a new one is registered.
 
 Ask with `AskUserQuestion` first: the user may already have a test, or may not
-want one attached, and a build cycle is expensive. Then:
+want one attached, and a build cycle is expensive. Then follow sherlock's T3
+mechanism (`.claude/skills/sherlock/SKILL.md`, *Third-Party Library
+Sub-Workflow*) rather than inventing a scheme — three branches forked from the
+vendored revision, so test, instrumentation and fix stay separable:
+
+```text
+<vendored revision>
+  └── msr/<library>/test      ← the test commit, on its own
+        ├── msr/<library>/debug ← instrumentation on top of the test
+        └── msr/<library>/fix   ← the fix on top of the test
+```
 
 1. Read an existing test in that harness and copy its shape.
-2. Write the smallest test that fails on the vendored revision and passes with
-   the fix, and register it the way that harness requires (a FATE `.mak` entry
+2. On the `test` branch, write the smallest test that fails on the vendored
+   revision, and register it the way that harness requires (a FATE `.mak` entry
    and ref file, a `test.mk`/`CMakeLists.txt` line, a `meson.build` entry, a
-   `#[test]` fn, …).
-3. Run it both ways and record both results in the matrix.
-4. Export it as `01-test-<desc>.patch`, separate from the fix, and confirm it
-   applies and runs on its own.
+   `#[test]` fn, …). Export with
+   `git format-patch -1 --stdout > 01-test-<desc>.patch`.
+3. On the `debug` branch, add temporary logging to prove the traced path is
+   actually hit (`fprintf(stderr, "...")`, or the library's own debug macro —
+   `dav1d_log`, `aom_internal_error`). Build and run there, keep the log as
+   evidence, then switch back to `test` so the exported patches stay clean.
+   **Instrumentation never ships in an attached patch.**
+4. On the `fix` branch, make the change, and re-run the test both ways.
+5. Record both results in the matrix, and confirm the test patch applies and
+   runs on its own before the fix patch goes on top.
+
+**The gate is also a scope check**, exactly as sherlock's T3 result table treats
+it. If the test *does not* reproduce upstream at the vendored revision, the
+defect is probably in Firefox's integration or its local patches, not in the
+library — stop and say so rather than sending an upstream report that the
+maintainer cannot reproduce. If it reproduces *differently*, the scope is split
+and both halves need saying.
 
 Three libraries have no usable upstream suite — libsoundtouch (SoundStretch CLI
 only), nICEr and widevine-adapter. There, a self-contained `main()` or a Firefox
@@ -288,8 +316,9 @@ reason.
 
 Name the report for the defect, not the library alone —
 `vp9-frame-thread-flush-oob.md` tells a maintainer what it is before they open
-it. Fill every placeholder from evidence; never invent a name, an employer, a
-disclosure deadline, or an AI-usage statement — ask.
+it. Fill every placeholder from evidence; never invent or hardcode a name, an
+email address, an employer, a disclosure deadline, or an AI-usage statement —
+ask.
 
 **5b — channel packaging.** Apply the profile: deliver the crash input the way
 the channel requires, add the metadata it wants, and omit the metadata it
@@ -315,7 +344,8 @@ the confidentiality mechanics into the report so the user cannot miss them.
   report claims; confirm every link into the library's repository is pinned to
   the vendored revision; confirm the crash input is delivered the way the
   channel requires; confirm the fixed/unfixed/latest matrix matches the logs;
-  flag any downstream detail that leaked.
+  confirm every crash stack is complete and consecutively numbered with no
+  omitted middle frames; flag any downstream detail that leaked.
 - When a proposed fix exists, get a second opinion with `Skill(red-pen, …)`,
   passing the report path and the patch path. The reviewer may argue for a
   different fix design — that is in scope; escalate it to the user rather than

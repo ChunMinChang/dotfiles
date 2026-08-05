@@ -557,6 +557,98 @@ class TestCoreRequirements(unittest.TestCase):
         self.assertTrue(any("never named" in e for e in errors))
 
 
+class TestCrashStackCompleteness(unittest.TestCase):
+    def _errors(self, body):
+        return validator._check_stack_completeness(textwrap.dedent(body))
+
+    def test_complete_zero_and_one_based_stacks_pass(self):
+        for body in (
+            """\
+                #0 crash leaf.c:10
+                #1 caller caller.c:20
+                #2 main main.c:30
+                """,
+            """\
+                #1 crash leaf.c:10
+                #2 caller caller.c:20
+                #3 main main.c:30
+                """,
+        ):
+            with self.subTest(body=body):
+                self.assertEqual(self._errors(body), [])
+
+    def test_gap_in_the_middle_is_rejected(self):
+        errors = self._errors(
+            """\
+            #0 crash leaf.c:10
+            #1 caller caller.c:20
+            #3 main main.c:30
+            """
+        )
+        self.assertTrue(any("skips frame(s) #2" in error for error in errors), errors)
+
+    def test_stack_must_begin_at_zero_or_one(self):
+        errors = self._errors(
+            """\
+            #4 caller caller.c:20
+            #5 main main.c:30
+            """
+        )
+        self.assertTrue(any("starts at frame #4" in error for error in errors), errors)
+
+    def test_duplicate_or_out_of_order_frame_is_rejected(self):
+        errors = self._errors(
+            """\
+            #0 crash leaf.c:10
+            #1 caller caller.c:20
+            #2 main main.c:30
+            #2 duplicate main.c:30
+            """
+        )
+        self.assertTrue(
+            any("duplicate or out-of-order frame #2" in error for error in errors),
+            errors,
+        )
+
+    def test_ellipsis_omission_marker_is_rejected(self):
+        errors = self._errors(
+            """\
+            #0 crash leaf.c:10
+            #1 caller caller.c:20
+            ...
+            """
+        )
+        self.assertTrue(any("omission marker" in error for error in errors), errors)
+
+    def test_multiple_complete_stacks_are_checked_separately(self):
+        errors = self._errors(
+            """\
+            ## Faulting thread
+            ```
+            #0 crash leaf.c:10
+            #1 caller caller.c:20
+            ```
+
+            ## Thread creation
+            ```
+            #1 create thread.c:40
+            #2 main main.c:50
+            ```
+            """
+        )
+        self.assertEqual(errors, [])
+
+    def test_check_report_rejects_an_incomplete_stack(self):
+        text = textwrap.dedent(GOOD_REPORT).replace(
+            "#1 ogg_sync_pageseek framing.c:412",
+            "#1 ogg_sync_pageseek framing.c:412\n#3 main main.c:30",
+        )
+        errors, _ = validator.check_report(
+            text, "libogg", "gitlab-confidential", None, "v1.3.6"
+        )
+        self.assertTrue(any("skips frame(s) #2" in error for error in errors), errors)
+
+
 class TestProfileRequirements(unittest.TestCase):
     def test_gitlab_rejects_an_attached_input(self):
         text = textwrap.dedent(GOOD_REPORT).replace(
@@ -698,6 +790,7 @@ class TestPolicyTablesInSync(unittest.TestCase):
             "## Attribution and Identifiers",
             "## Summary",
             "## Code Path Trace",
+            "## Crash Stacks",
             "## Test Cases",
             "## Input Generation",
             "## How to Reproduce",
