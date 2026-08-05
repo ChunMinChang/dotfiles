@@ -506,6 +506,21 @@ class TestRevisionPinning(unittest.TestCase):
             validator.acceptable_ref("f20ebb8", self._Facts("full-hash"), "a" * 40)
         )
 
+    def test_markdown_link_delimiter_is_not_part_of_commit_ref(self):
+        revision = "a" * 40
+        facts = self._Facts("full-hash")
+        facts.forge = "github"
+        facts.repo_url = "https://github.com/FFmpeg/FFmpeg"
+        report = "[the fix](https://github.com/FFmpeg/FFmpeg/commit/" + revision + ")"
+
+        warnings = []
+        errors = validator._check_source_links(
+            report, None, facts, revision, True, warnings
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+
 
 class TestCoreRequirements(unittest.TestCase):
     def test_good_report_passes(self):

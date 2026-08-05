@@ -211,7 +211,8 @@ Hand the matrix to the repro-runner subagent when the builds are long, then read
   from the first emitted frame (`#0` or `#1`) through the final `#N`; never omit
   frames in the middle or replace them with an ellipsis. Label and include each
   stack separately when the report has faulting-thread, thread-creation, or
-  multiple-manifestation stacks.
+  multiple-manifestation stacks. The validator rejects a stack that skips,
+  duplicates, reorders, or elides frames.
 - Use a uniquely named input. If a generator exists, run it and confirm it
   produces that input; if none can be recovered, say so rather than claiming
   reproducibility that was not tested.
@@ -223,17 +224,39 @@ write one — do not quietly settle for a command line. The routing block prints
 the harness, where its tests live, and how a new one is registered.
 
 Ask the user directly first whether a test already exists and whether they want
-one attached; a build cycle is expensive. If no test is provided, evaluate the
-available harness and then:
+one attached; a build cycle is expensive. Then follow the T3 mechanism in
+`$sherlock` (`.codex/skills/sherlock/SKILL.md`, *Third-Party Library
+Sub-Workflow*) rather than inventing a scheme. Use three branches forked from
+the vendored revision so the test, instrumentation, and fix stay separable:
+
+```text
+<vendored revision>
+  └── msr/<library>/test        ← the test commit, on its own
+        ├── msr/<library>/debug ← instrumentation on top of the test
+        └── msr/<library>/fix   ← the fix on top of the test
+```
 
 1. Read an existing test in that harness and copy its shape.
-2. Write the smallest test that fails on the vendored revision and passes with
-   the fix, and register it the way that harness requires (a FATE `.mak` entry
+2. On the `test` branch, write the smallest test that fails on the vendored
+   revision, and register it the way that harness requires (a FATE `.mak` entry
    and ref file, a `test.mk`/`CMakeLists.txt` line, a `meson.build` entry, a
-   `#[test]` fn, …).
-3. Run it both ways and record both results in the matrix.
-4. Export it as `01-test-<desc>.patch`, separate from the fix, and confirm it
-   applies and runs on its own.
+   `#[test]` fn, …). Export it with
+   `git format-patch -1 --stdout > 01-test-<desc>.patch`.
+3. On the `debug` branch, add temporary logging to prove the traced path is
+   actually hit (`fprintf(stderr, "...")`, or a library-specific debug macro,
+   such as `dav1d_log` or `aom_internal_error`). Build and run there, keep the
+   log as evidence, then switch back to `test` so the exported patches stay
+   clean. **Instrumentation never ships in an attached patch.**
+4. On the `fix` branch, make the change and re-run the test both ways.
+5. Record both results in the matrix, and confirm the test patch applies and
+   runs on its own before the fix patch goes on top.
+
+**The gate is also a scope check**, exactly as the T3 result table in
+`$sherlock` treats it. If the test *does not* reproduce upstream at the
+vendored revision, the defect is probably in Firefox integration or its local
+patches, not in the library. Stop and say so instead of sending an upstream
+report that the maintainer cannot reproduce. If it reproduces *differently*,
+the scope is split and both halves must be reported.
 
 Three libraries have no usable upstream suite — libsoundtouch (SoundStretch CLI
 only), nICEr and widevine-adapter. There, a self-contained `main()` or a Firefox
@@ -349,5 +372,6 @@ The user files the report. This skill never does.
 - `scripts/media_lib_facts.py`: live per-library facts from the checkout.
 - `scripts/validate_media_report.py`: pre-submission structural checker.
 - `scripts/channel_policy.py`: the machine-readable policy tables.
+- `$sherlock` skill: T3 upstream test, debug, and fix branch discipline.
 - `$source-permalinks` skill: revision-pinned URL patterns per forge.
 - `$red-pen` skill: independent review of the proposed fix.
