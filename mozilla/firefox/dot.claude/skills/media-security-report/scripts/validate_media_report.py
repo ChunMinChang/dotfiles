@@ -196,7 +196,9 @@ def _check_source_links(text, lib, facts, expected, has_upstream, warnings):
         if base and not _normalize_repo(url).startswith(base + "/"):
             continue  # a link to some other project; not ours to police
         matched += 1
-        ref = match.group("ref")
+        # A commit or tree URL ends at the ref, so a Markdown link hands us the
+        # closing delimiter and whatever punctuation follows it.
+        ref = match.group("ref").rstrip(").,;:'\"")
         if not acceptable_ref(ref, facts, expected):
             errors.append(f"source link is not pinned to the vendored revision: {url}")
     if matched == 0:
