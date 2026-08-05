@@ -13,13 +13,14 @@ input and the analysis; it just has not written that down.
 A missing item is still reported explicitly. Never silently omit a field: write
 `Unknown`, `Not available`, or `Not applicable` with a reason.
 
-## The eleven core items
+## The core items
 
 | # | Item | Minimum acceptable evidence |
 | --- | --- | --- |
 | 1 | Human reviewer(s) | Names or aliases of the person(s) who personally verified the report. A bot, fuzzer, or automation account is not a human reviewer. |
 | 2 | Finder credit | Human finder name(s) or alias(es), or an explicit statement that the finder and reviewer are the same. |
 | 3 | Reproducible testcase | A copy/paste command or complete harness, the expected unfixed result, and a uniquely named input. Include build prerequisites and configuration. |
+| 3b | Standalone test status | A test in the library's own harness (FATE, googletest, meson test, `cargo test`, …), or the concrete reason one could not be written. See [library-policies.md](library-policies.md) for each library's harness. |
 | 4 | Source identifier | The vendored revision the report applies to, plus every other revision claimed. Full hash where the project pins a hash; the exact tag where it pins a tag. |
 | 5 | Stack traces | Symbolized stack(s) with function names, source file, and line numbers, tied to one exact revision and build. |
 | 6 | Analysis | Evidence-backed description of trigger, state transition, affected code, memory-safety consequence, and why the testcase reaches it. Separate verified facts from assumptions. |
@@ -39,7 +40,9 @@ belongs in every report regardless of destination.
 
 ## Suggested report order
 
-Keep this order unless the evidence demands another structure:
+[report-template.md](report-template.md) has the section skeleton to copy. The
+ordering below is what it encodes; keep it unless the evidence demands
+otherwise:
 
 1. Title and one-paragraph impact summary.
 2. Attribution and identifiers (reviewer, finder, AI disclosure, CVE).

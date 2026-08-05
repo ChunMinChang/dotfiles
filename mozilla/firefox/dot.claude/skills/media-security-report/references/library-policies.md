@@ -81,27 +81,47 @@ harness, and the code is cited with revision-pinned
 `searchfox.org/mozilla-central/rev/<hash>/` links. There is no upstream patch to
 propose — the fix lands in mozilla-central.
 
-## Build and test hints
+## Test harnesses
 
-For reproducing in the upstream tree. Confirm against the project's own docs;
-these change.
+Every library here has somewhere a regression test can live, so "there was no
+way to write a test" is almost never true. The skill checks rather than assumes:
+if the evidence has no test in the project's own harness, it decides whether one
+can be written, and records a concrete blocker when it declines. A CLI
+reproduction gets an issue triaged; a test in the harness gets it fixed and
+keeps it fixed.
 
-| Library | Build | Tests |
-| --- | --- | --- |
-| ffvpx / FFmpeg | `./configure && make` | FATE: `make fate` |
-| libvpx | `./configure && make` | `make test` (googletest) |
-| libaom | `cmake -B build && cmake --build build` | `ctest --test-dir build` |
-| dav1d | `meson setup build && ninja -C build` | `ninja -C build test` |
-| libopus | `cmake -B build && cmake --build build` | `ctest --test-dir build` |
-| libvorbis / libogg | `./autogen.sh && ./configure && make` | `make check` |
-| speexdsp | `./autogen.sh && ./configure && make` | `make check` |
-| libpng | `cmake -B build && cmake --build build` | `ctest --test-dir build` |
-| libjpeg-turbo | `cmake -B build && cmake --build build` | `ctest --test-dir build` |
-| libsoundtouch | `./bootstrap && ./configure && make` | `make check` |
-| libsrtp | `cmake -B build && cmake --build build` | `ctest --test-dir build` |
-| libwebrtc | `gn gen out/Default && ninja -C out/Default` | googletest binaries |
-| libyuv / libwebp | `cmake -B build && cmake --build build` | `ctest --test-dir build` |
-| no-upstream components | Firefox build | `./mach gtest`, `./mach test` |
+`scripts/channel_policy.py` holds this as `TEST_HARNESSES`, and
+`media_lib_facts.py` prints it in the routing block. Confirm the commands
+against the project's own docs — build systems change.
+
+| Library | Harness | Tests live in | How a new test is registered |
+| --- | --- | --- | --- |
+| `ffvpx` | FATE | `tests/fate/*.mak` + refs in `tests/ref/fate/` | add a `FATE_<GROUP>` entry and commit the ref file |
+| `libvpx` | googletest | `test/*_test.cc` | add the `.cc` to `test/test.mk` |
+| `libwebp` | ctest + fuzzer corpus | `tests/fuzzer/` | new fuzz target, or extend an existing seed corpus |
+| `libaom` | googletest | `test/*_test.cc` | add the `.cc` to `test.cmake` |
+| `libyuv` | googletest | `unit_test/*_test.cc` | add the `.cc` to the unittest target in `CMakeLists.txt` |
+| `libwebrtc` | googletest | the module's `*_unittest.cc` | add the file to the module's `BUILD.gn` test target |
+| `dav1d` | meson test + test-data submodule | `tests/` | add the case and reference the bitstream in `tests/meson.build` |
+| `libvorbis` | `make check` | `test/`, `examples/` | add the case to `test/Makefile.am` |
+| `libogg` | `make check` | `src/*_test.c` | extend `src/framing.c`'s test main or add a `Makefile.am` target |
+| `libopus` | ctest / `make check` | `tests/test_opus_*.c` | register in `CMakeLists.txt` and `Makefile.am` |
+| `speexdsp` | `make check` | `libspeexdsp/test_*.c` | add to `libspeexdsp/Makefile.am` `TESTS` |
+| `libpng` | pngtest + ctest | `pngtest.c`, `contrib/libtests/` | add a PNG under `contrib/testpngs/` or a case in `contrib/libtests/` |
+| `libjpeg-turbo` | ctest | the `tjunittest`/`djpeg` suite | add the case to the test list in `CMakeLists.txt` |
+| `libsrtp` | ctest drivers | `test/*_driver.c` | extend a driver or add one in `CMakeLists.txt` |
+| `nestegg` | `test/test.c` | `test/` | extend `test/test.c` with the malformed stream |
+| `cubeb` | googletest | `test/test_*.cpp` | add the `.cpp` to the test target in `CMakeLists.txt` |
+| `mp4parse-rust` | `cargo test` | `mp4parse/tests/` + `#[test]` fns | add the fixture and a `#[test]` that parses it |
+| `libsoundtouch` | **none upstream** | — SoundStretch CLI only | supply a self-contained `main()` instead |
+| `nicer` | **none upstream in practice** | Firefox transport gtests | add to the Firefox gtests |
+| `widevine-adapter` | **none** (interface headers) | Firefox GMP gtests | add to the Firefox gtests |
+| no-upstream components | Firefox gtest / crashtest | the module's gtest dir | add to the module's `moz.build` gtest target |
+
+Acceptable reasons to ship without one — state the specific blocker, not just
+"no test": there is no upstream suite at all; the input cannot be
+redistributed; the failure only shows under a sanitizer the harness does not
+build with; the failure is timing-dependent and unreliable under the runner.
 
 ## Known unknowns
 

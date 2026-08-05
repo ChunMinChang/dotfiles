@@ -160,6 +160,7 @@ Channel:      <profile>  →  <intake>
 Secondary:    <… or none>
 Crash input:  <attach | inline base64 | encrypted attachment | unverified>
 One-shot:     <the irreversible step, or none>
+Test harness: <framework> — <where its tests live>
 ```
 
 **Gate:** if the library has no upstream (`has_upstream: false` — libmkv,
@@ -226,6 +227,34 @@ Hand the matrix to the repro-runner subagent when the builds are long, then read
   produces that input; if none can be recovered, say so rather than claiming
   reproducibility that was not tested.
 
+**Standalone test gate.** A CLI reproduction gets the issue triaged; a test in
+the project's own harness gets it *fixed*, and stays as a regression guard
+afterwards. If the evidence does not already include one, decide whether you can
+write one — do not quietly settle for a command line. The routing block prints
+the harness, where its tests live, and how a new one is registered.
+
+Ask with `AskUserQuestion` first: the user may already have a test, or may not
+want one attached, and a build cycle is expensive. Then:
+
+1. Read an existing test in that harness and copy its shape.
+2. Write the smallest test that fails on the vendored revision and passes with
+   the fix, and register it the way that harness requires (a FATE `.mak` entry
+   and ref file, a `test.mk`/`CMakeLists.txt` line, a `meson.build` entry, a
+   `#[test]` fn, …).
+3. Run it both ways and record both results in the matrix.
+4. Export it as `01-test-<desc>.patch`, separate from the fix, and confirm it
+   applies and runs on its own.
+
+Three libraries have no usable upstream suite — libsoundtouch (SoundStretch CLI
+only), nICEr and widevine-adapter. There, a self-contained `main()` or a Firefox
+gtest is the honest substitute; say which you chose.
+
+If a test genuinely cannot be written, record the **concrete blocker**: no
+upstream suite at all, an input that cannot be redistributed, a failure that
+needs a sanitizer the harness does not build with, or timing dependence that
+makes it unreliable under the runner. "No test was written" with no reason is
+not an acceptable answer, and the validator rejects the report for it.
+
 ### 4. Trace the root cause and identify history
 
 The tracer and archaeologist subagents draft `research/code-path.md` and
@@ -252,9 +281,15 @@ verified, and writes the trace that ships.
 ### 5. Write the report and the submission draft
 
 **5a — core evidence.** Write `REPORT_DIR/<library>-security-report.md` using
-[report-core.md](references/report-core.md). Every one of the eleven items is
+the skeleton in [report-template.md](references/report-template.md) and the
+content rules in [report-core.md](references/report-core.md). Every core item is
 either populated or explicitly `Unknown`/`Not available`/`Not applicable` with a
 reason.
+
+Name the report for the defect, not the library alone —
+`vp9-frame-thread-flush-oob.md` tells a maintainer what it is before they open
+it. Fill every placeholder from evidence; never invent a name, an employer, a
+disclosure deadline, or an AI-usage statement — ask.
 
 **5b — channel packaging.** Apply the profile: deliver the crash input the way
 the channel requires, add the metadata it wants, and omit the metadata it
@@ -295,6 +330,7 @@ Hand off with this shape, and nothing more:
 - Channel: <profile> → <intake>   (secondary: <… | none>)
 - Revisions: vendored `<ref>` / vulnerable `<ref>` / latest `<ref>` / fixed `<ref|n/a>`
 - Crash input: <attached <name> | inline base64 | encrypted attachment>
+- Standalone test: <in <harness>, attached as <patch> | not feasible: <blocker>>
 - Artifacts: <list>
 - Validator: <PASS/FAILED, error and warning counts>
 - Do these in order when you file:
@@ -308,7 +344,9 @@ The user files the report. This skill never does.
 
 ## Resources
 
-- [report-core.md](references/report-core.md): the eleven universal items,
+- [report-template.md](references/report-template.md): the section skeleton a
+  finished report follows, derived from an accepted upstream report.
+- [report-core.md](references/report-core.md): the universal evidence core,
   report order, evidence rules, artifact naming, hygiene.
 - [channel-profiles.md](references/channel-profiles.md): the six channels, their
   mechanics, traps, and what each one wants or forbids.

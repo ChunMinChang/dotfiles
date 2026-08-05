@@ -9,32 +9,90 @@ Placeholders in `<angle brackets>` are filled from
 
 ## email-plain
 
-```text
+The mail is a readable summary that stands on its own; the attached report
+carries the full trace. Lead with the mechanism, not with the severity.
+
+````text
 To: <intake address>
 Subject: <library> <revision>: <vulnerability class> in <function>
 
-<One paragraph: what the issue is, what an attacker gets, which revision.>
+Hi <project> developers,
 
-Reviewer: <human who verified this>
-Finder: <human who found it>
-AI usage: <whether and where AI was used; who verified by hand>
-Affected revision: <ref> (<how the tree records it>)
-CVE: <identifier, or "none assigned at report time">
+We think we have found a <memory-safety / integer-overflow / …> bug in
+<component> <how it was found>, and we have <a one-line fix / no fix yet>. The
+attached report has the full code trace, <the sanitizer stacks> and the
+build/run steps; here is the short version.
 
-Reproduction:
-  <copy/paste command>
-Expected on the affected revision: <failure>
-With the proposed fix: <pass>
+Problem
 
-The full report is inline below; <input filename> is attached, together with
-<patch filenames>.
+<One or two paragraphs of mechanism, naming the functions and what state is
+mishandled. Then the manifestations:>
 
-<report body>
+    a <n>-byte <read/write> at `<expression>` in `<function>()`
+      (`<file>:<line>`), and
+    <the second manifestation, with its sanitizer classification and
+      `<file>:<line>`>
+
+The trigger is <an API sequence / a command line>. <If no CLI reproduces it,
+say so and how the input is carried instead: "No <tool> command line does this,
+so the packets are embedded as base64 inside the attached tests and no sample
+file is needed.">
+
+Still present on master `<hash>` (verified <date>, <platform> / <compiler>). It
+looks like it dates back to `<hash>` ("<commit subject>", <year>), which
+<what that commit introduced>.
+
+Suggested fix
+
+In `<function>()`:
+
+```c
+     <context>
++    <the added line>
+     <context>
 ```
+
+Tests
+
+The <n> test patches apply cleanly to master with `git am`, in order, and add
+<n> <harness> targets. Unfixed, all <n> fail, in both a sanitized and a plain
+build; with the fix applied, all <n> pass. <Call out any oracle that detects
+without a sanitizer, and how.>
+
+Attribution
+
+    Reviewer: <name> <<email>>
+    Finder: <who or what found it>
+    AI usage: <what AI assisted with>. Every claim, source line, stack trace
+      and reproduction step was verified by hand on the revisions above;
+      nothing is reported on the strength of an AI-generated result alone.
+    CVE: <identifier, or "none assigned at report time">
+
+<Your organisation>'s ETA
+
+<Your disclosure stance: whether a deadline is planned, a request for a rough
+ETA, and that you would rather take the fix from upstream than carry a local
+patch. Offer to follow up when you have one.>
+
+Attachments
+
+    <report>.md - full report
+    01-test-<desc>.patch - <what it detects>
+    0N-fix-<desc>.patch - the suggested fix
+
+Happy to reshape the tests or the fix into whatever form suits you.
+
+Thanks for taking a look,
+<name>
+````
 
 Attach the input and the patches. No key is published for these addresses, so
 assume the mail is readable in transit — say nothing in it you would not
 eventually publish.
+
+Fill every placeholder from the report and from what the user tells you. Do not
+invent a name, an employer, a disclosure deadline, or an AI-usage statement:
+ask.
 
 ## email-gpg
 

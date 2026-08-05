@@ -591,6 +591,159 @@ def profile_for(library_id):
 
 
 # --------------------------------------------------------------------------
+# Test harnesses
+# --------------------------------------------------------------------------
+
+# A CLI reproduction gets an issue triaged; a test in the project's own harness
+# gets it *fixed*, and stays as a regression guard once it is. Every library
+# here has one, so "there was no way to write a test" is almost never true --
+# the skill has to check rather than assume, and say why when it declines.
+
+TestHarness = namedtuple("TestHarness", "framework location command registration")
+
+TEST_HARNESSES = {
+    "ffvpx": TestHarness(
+        "FATE",
+        "tests/fate/*.mak plus reference output under tests/ref/fate/",
+        "./configure && make fate-<name>",
+        "add a FATE_<GROUP> entry in the relevant tests/fate/*.mak and commit the ref file",
+    ),
+    "libvpx": TestHarness(
+        "googletest",
+        "test/*_test.cc",
+        "./configure && make test && ./test_libvpx --gtest_filter=<name>",
+        "add the new .cc to test/test.mk",
+    ),
+    "libwebp": TestHarness(
+        "CMake/ctest plus the fuzzer corpus",
+        "tests/fuzzer/",
+        "cmake -B build -DWEBP_BUILD_FUZZTEST=ON && ctest --test-dir build",
+        "add the case to tests/fuzzer/ or extend an existing fuzz target's seed corpus",
+    ),
+    "libaom": TestHarness(
+        "googletest",
+        "test/*_test.cc",
+        "cmake -B build && cmake --build build && ctest --test-dir build -R <name>",
+        "add the new .cc to test/test_data_util.cmake / test.cmake",
+    ),
+    "libyuv": TestHarness(
+        "googletest",
+        "unit_test/*_test.cc",
+        "cmake -B build && cmake --build build && ./build/libyuv_unittest --gtest_filter=<name>",
+        "add the new .cc to the unittest target in CMakeLists.txt",
+    ),
+    "libwebrtc": TestHarness(
+        "googletest",
+        "the module's own *_unittest.cc",
+        "gn gen out/Default && ninja -C out/Default <target>_unittests",
+        "add the file to the module's BUILD.gn rtc_library test target",
+    ),
+    "dav1d": TestHarness(
+        "meson test plus the argon/dav1d test-data submodule",
+        "tests/",
+        "meson setup build && ninja -C build test",
+        "add a seek/decode case in tests/ and reference the bitstream in tests/meson.build",
+    ),
+    "libvorbis": TestHarness(
+        "autotools make check",
+        "test/ and examples/",
+        "./autogen.sh && ./configure && make check",
+        "add the case to test/Makefile.am",
+    ),
+    "libogg": TestHarness(
+        "autotools make check",
+        "src/*_test.c (built by make check)",
+        "./autogen.sh && ./configure && make check",
+        "extend src/framing.c's test main or add a target in src/Makefile.am",
+    ),
+    "libopus": TestHarness(
+        "ctest / make check",
+        "tests/test_opus_*.c",
+        "cmake -B build -DOPUS_BUILD_TESTING=ON && ctest --test-dir build",
+        "add the .c to tests/ and register it in CMakeLists.txt and Makefile.am",
+    ),
+    "speexdsp": TestHarness(
+        "autotools make check",
+        "libspeexdsp/test_*.c",
+        "./autogen.sh && ./configure && make check",
+        "add the .c to libspeexdsp/Makefile.am TESTS",
+    ),
+    "libpng": TestHarness(
+        "pngtest plus ctest",
+        "pngtest.c, contrib/libtests/",
+        "cmake -B build && ctest --test-dir build",
+        "add a PNG under contrib/testpngs/ or a case in contrib/libtests/",
+    ),
+    "libjpeg-turbo": TestHarness(
+        "ctest",
+        "the tjunittest/djpeg regression suite driven from CMakeLists.txt",
+        "cmake -B build && cmake --build build && ctest --test-dir build",
+        "add the case to the test list in CMakeLists.txt",
+    ),
+    "libsoundtouch": TestHarness(
+        "no upstream test suite",
+        "none — the project ships only the SoundStretch CLI",
+        "build SoundStretch and drive it with the input",
+        "there is nothing to register; supply a self-contained main() instead",
+    ),
+    "libsrtp": TestHarness(
+        "ctest driver programs",
+        "test/*_driver.c",
+        "cmake -B build && cmake --build build && ctest --test-dir build",
+        "extend the relevant *_driver.c or add one and register it in CMakeLists.txt",
+    ),
+    "nestegg": TestHarness(
+        "test/test.c",
+        "test/",
+        "cmake -B build && cmake --build build && ./build/test_nestegg",
+        "extend test/test.c with the malformed stream",
+    ),
+    "cubeb": TestHarness(
+        "googletest",
+        "test/test_*.cpp",
+        "cmake -B build && cmake --build build && ctest --test-dir build",
+        "add the .cpp to the test target in CMakeLists.txt",
+    ),
+    "mp4parse-rust": TestHarness(
+        "cargo test",
+        "mp4parse/tests/ plus #[test] fns beside the code",
+        "cargo test -p mp4parse",
+        "add the fixture under mp4parse/tests/ and a #[test] that parses it",
+    ),
+    "nicer": TestHarness(
+        "no upstream suite in practice",
+        "Mozilla drives it through dom/media/webrtc/transport tests",
+        "./mach gtest 'TransportTest*'",
+        "add the case to the Firefox transport gtests",
+    ),
+    "widevine-adapter": TestHarness(
+        "no upstream suite (interface headers only)",
+        "Firefox-side gtest",
+        "./mach gtest '*ClearKey*'",
+        "add the case to the Firefox GMP tests",
+    ),
+}
+
+# Components with no upstream: the test belongs in Firefox.
+_FIREFOX_HARNESS = TestHarness(
+    "Firefox gtest / crashtest",
+    "the module's own gtest directory in mozilla-central",
+    "./mach gtest '<Filter>*'",
+    "add the case to the module's moz.build gtest target",
+)
+
+
+def harness_for(library_id):
+    """The library's own test harness, or Firefox's when it has no upstream."""
+    if library_id in TEST_HARNESSES:
+        return TEST_HARNESSES[library_id]
+    lib = LIBRARIES.get(library_id)
+    if lib is not None and not lib.has_upstream:
+        return _FIREFOX_HARNESS
+    return None
+
+
+# --------------------------------------------------------------------------
 # Forge grammars
 # --------------------------------------------------------------------------
 
@@ -656,6 +809,23 @@ CORE_REQUIREMENTS = (
         "reproducible testcase",
         (r"reproduc", r"test\s*case", r"testcase", r"command\s+line", r"harness"),
         "copy/paste command or complete harness description",
+    ),
+    _req(
+        "standalone-test",
+        "standalone test status",
+        (
+            r"standalone\s+test",
+            r"\bfate-?\w*\b",
+            r"\bgtest\b",
+            r"\bctest\b",
+            r"meson\s+test",
+            r"cargo\s+test",
+            r"make\s+check",
+            r"test\s+patch",
+            r"no\s+standalone\s+test",
+            r"not\s+feasible\s+to\s+(?:write|add)\s+a\s+test",
+        ),
+        "a test in the library's own harness, or why one could not be written",
     ),
     _req(
         "source-identifier",
