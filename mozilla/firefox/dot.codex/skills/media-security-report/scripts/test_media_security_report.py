@@ -62,6 +62,7 @@ GOOD_REPORT = """\
 
     ## Reproduction
     Testcase: `./oggtest input-ogg-trigger.ogg` reproduces on the revision above.
+    Standalone test: added to the libogg `make check` suite as 01-test-oggpack-look.patch.
 
     ## Delivery
     Crash input: delivered inline as base64 below, never as an upload.
@@ -365,6 +366,72 @@ class TestLibraryResolution(unittest.TestCase):
                     self.assertEqual(lib.channels, ("bugzilla-restricted",))
 
 
+class TestTestHarnesses(unittest.TestCase):
+    def test_every_library_resolves_to_a_harness(self):
+        # "There was no way to write a test" must never be the default answer,
+        # so every library needs somewhere a regression test could live.
+        for name in channel_policy.LIBRARIES:
+            with self.subTest(library=name):
+                harness = channel_policy.harness_for(name)
+                self.assertIsNotNone(harness, f"{name} has no harness")
+                self.assertTrue(harness.framework)
+                self.assertTrue(harness.command)
+                self.assertTrue(harness.registration)
+
+    def test_no_upstream_components_fall_back_to_firefox(self):
+        harness = channel_policy.harness_for("psshparser")
+        self.assertIn("gtest", harness.framework.lower())
+        self.assertIn("mach", harness.command)
+
+    def test_harness_reaches_the_facts_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_tree(tmp, MINIMAL_CHECKOUT)
+            facts = media_lib_facts.collect("libogg", Path(tmp))
+        self.assertIsNotNone(facts.test_harness)
+        self.assertIn("check", facts.test_harness["command"])
+
+    def test_harness_table_is_documented(self):
+        path = REFERENCES / "library-policies.md"
+        text = path.read_text(encoding="utf-8")
+        for name in channel_policy.TEST_HARNESSES:
+            with self.subTest(library=name):
+                self.assertIn(f"`{name}`", text)
+
+
+class TestStandaloneTestRequirement(unittest.TestCase):
+    STANDALONE_LINE = (
+        "Standalone test: added to the libogg `make check` suite as "
+        "01-test-oggpack-look.patch."
+    )
+
+    def test_a_report_with_no_test_statement_is_rejected(self):
+        text = textwrap.dedent(GOOD_REPORT).replace(self.STANDALONE_LINE, "")
+        errors, _ = validator.check_report(
+            text, "libogg", "gitlab-confidential", None, "v1.3.6"
+        )
+        self.assertTrue(any("standalone test status" in e for e in errors), errors)
+
+    def test_an_explicit_blocker_satisfies_it(self):
+        text = textwrap.dedent(GOOD_REPORT).replace(
+            self.STANDALONE_LINE,
+            "No standalone test: the failure only shows under ASan, which this "
+            "harness does not build with.",
+        )
+        errors, _ = validator.check_report(
+            text, "libogg", "gitlab-confidential", None, "v1.3.6"
+        )
+        self.assertFalse(any("standalone test status" in e for e in errors), errors)
+
+    def test_a_harness_test_satisfies_it(self):
+        for phrasing in ("make check", "FATE", "cargo test", "gtest", "meson test"):
+            with self.subTest(phrasing=phrasing):
+                text = textwrap.dedent(GOOD_REPORT) + f"\nAdded a {phrasing} case.\n"
+                errors, _ = validator.check_report(
+                    text, "libogg", "gitlab-confidential", None, "v1.3.6"
+                )
+                self.assertFalse(any("standalone test status" in e for e in errors))
+
+
 class TestForgeRefExtraction(unittest.TestCase):
     def _ref(self, forge, url):
         match = re.search(channel_policy.FORGE_PATTERNS[forge], url, re.I)
@@ -488,6 +555,98 @@ class TestCoreRequirements(unittest.TestCase):
             text, "libogg", "gitlab-confidential", None, "v1.3.6"
         )
         self.assertTrue(any("never named" in e for e in errors))
+
+
+class TestCrashStackCompleteness(unittest.TestCase):
+    def _errors(self, body):
+        return validator._check_stack_completeness(textwrap.dedent(body))
+
+    def test_complete_zero_and_one_based_stacks_pass(self):
+        for body in (
+            """\
+                #0 crash leaf.c:10
+                #1 caller caller.c:20
+                #2 main main.c:30
+                """,
+            """\
+                #1 crash leaf.c:10
+                #2 caller caller.c:20
+                #3 main main.c:30
+                """,
+        ):
+            with self.subTest(body=body):
+                self.assertEqual(self._errors(body), [])
+
+    def test_gap_in_the_middle_is_rejected(self):
+        errors = self._errors(
+            """\
+            #0 crash leaf.c:10
+            #1 caller caller.c:20
+            #3 main main.c:30
+            """
+        )
+        self.assertTrue(any("skips frame(s) #2" in error for error in errors), errors)
+
+    def test_stack_must_begin_at_zero_or_one(self):
+        errors = self._errors(
+            """\
+            #4 caller caller.c:20
+            #5 main main.c:30
+            """
+        )
+        self.assertTrue(any("starts at frame #4" in error for error in errors), errors)
+
+    def test_duplicate_or_out_of_order_frame_is_rejected(self):
+        errors = self._errors(
+            """\
+            #0 crash leaf.c:10
+            #1 caller caller.c:20
+            #2 main main.c:30
+            #2 duplicate main.c:30
+            """
+        )
+        self.assertTrue(
+            any("duplicate or out-of-order frame #2" in error for error in errors),
+            errors,
+        )
+
+    def test_ellipsis_omission_marker_is_rejected(self):
+        errors = self._errors(
+            """\
+            #0 crash leaf.c:10
+            #1 caller caller.c:20
+            ...
+            """
+        )
+        self.assertTrue(any("omission marker" in error for error in errors), errors)
+
+    def test_multiple_complete_stacks_are_checked_separately(self):
+        errors = self._errors(
+            """\
+            ## Faulting thread
+            ```
+            #0 crash leaf.c:10
+            #1 caller caller.c:20
+            ```
+
+            ## Thread creation
+            ```
+            #1 create thread.c:40
+            #2 main main.c:50
+            ```
+            """
+        )
+        self.assertEqual(errors, [])
+
+    def test_check_report_rejects_an_incomplete_stack(self):
+        text = textwrap.dedent(GOOD_REPORT).replace(
+            "#1 ogg_sync_pageseek framing.c:412",
+            "#1 ogg_sync_pageseek framing.c:412\n#3 main main.c:30",
+        )
+        errors, _ = validator.check_report(
+            text, "libogg", "gitlab-confidential", None, "v1.3.6"
+        )
+        self.assertTrue(any("skips frame(s) #2" in error for error in errors), errors)
 
 
 class TestProfileRequirements(unittest.TestCase):
@@ -624,6 +783,39 @@ class TestPolicyTablesInSync(unittest.TestCase):
             with self.subTest(profile=name):
                 self.assertIn(name, profiles_doc)
                 self.assertIn(profile.draft_anchor, drafts_doc)
+
+    def test_report_template_has_its_sections(self):
+        text = self._read("report-template.md")
+        for heading in (
+            "## Attribution and Identifiers",
+            "## Summary",
+            "## Code Path Trace",
+            "## Crash Stacks",
+            "## Test Cases",
+            "## Input Generation",
+            "## How to Reproduce",
+            "## Suggested Fix",
+        ):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, text)
+
+    def test_references_carry_no_personal_identity(self):
+        # The template is derived from a real report; names, addresses and
+        # employers from it must stay placeholders.
+        leaked = re.compile(
+            r"cchang@|chun-?min|@mozilla\.com|\bbugmon\b",
+            re.I,
+        )
+        for name in (
+            "report-template.md",
+            "submission-drafts.md",
+            "report-core.md",
+            "channel-profiles.md",
+            "library-policies.md",
+        ):
+            with self.subTest(reference=name):
+                hits = leaked.findall(self._read(name))
+                self.assertEqual(hits, [], f"{name} hardcodes an identity: {hits}")
 
     def test_no_orphan_profiles(self):
         used = {c for lib in channel_policy.LIBRARIES.values() for c in lib.channels}

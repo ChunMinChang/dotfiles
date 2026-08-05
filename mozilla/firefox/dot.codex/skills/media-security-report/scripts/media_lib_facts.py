@@ -86,6 +86,7 @@ class LibraryFacts:
     intake: str | None = None
     cc_external: tuple = ()
     local_patches: tuple = ()
+    test_harness: dict | None = None
     notes: str = ""
     warnings: tuple = ()
 
@@ -345,6 +346,11 @@ def collect(library_id, root=None):
         profile=lib.channels[0],
         intake=lib.intake,
         cc_external=lib.cc_external,
+        test_harness=(
+            harness._asdict()
+            if (harness := channel_policy.harness_for(lib.id))
+            else None
+        ),
         notes=lib.notes,
         repo_url=lib.repo_url,
         forge=lib.forge,
@@ -479,6 +485,11 @@ def main(argv=None):
         print(f"intake:     {facts.intake}")
         if facts.cc_external:
             print(f"cc:         {', '.join(facts.cc_external)}")
+        if facts.test_harness:
+            harness = facts.test_harness
+            print(f"test:       {harness['framework']} — {harness['location']}")
+            print(f"  run:      {harness['command']}")
+            print(f"  register: {harness['registration']}")
         if facts.local_patches:
             print(f"patches:    {', '.join(facts.local_patches)}")
         if facts.notes:

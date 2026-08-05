@@ -12,8 +12,9 @@ the core plus two rows of ``LIBRARY_REQUIREMENTS["ffvpx"]``.
 
 Beyond requirements it enforces the rules that are easiest to get wrong by
 hand: every link into the library's own repository must be pinned to the
-vendored revision, no downstream Firefox detail may leak into an upstream
-report, and metadata one channel wants may be metadata another forbids.
+vendored revision, every numbered crash stack must be complete and consecutive,
+no downstream Firefox detail may leak into an upstream report, and metadata one
+channel wants may be metadata another forbids.
 """
 
 from __future__ import annotations
@@ -33,6 +34,11 @@ import media_lib_facts  # noqa: E402
 FULL_HASH = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])", re.I)
 LINE_ANCHOR = re.compile(r"#L?\d+(?:-L?\d+)?\b")
 STACK_FRAME = re.compile(r"#\d+[^\n]*(?:\.[A-Za-z0-9_+-]+:\d+|:\d+)")
+STACK_FRAME_LINE = re.compile(r"(?m)^[ \t]*#(?P<number>\d+)(?:[ \t]+|$)")
+STACK_OMISSION_LINE = re.compile(
+    r"^\s*(?:\.{3}(?:.*\.{3})?|…|[<\[].*(?:omitted|skipped|elided).*[>\]])\s*$",
+    re.I,
+)
 STACK_UNAVAILABLE = re.compile(r"stack\s+trace.*(?:not available|unknown)", re.I | re.S)
 CODE_FENCE = re.compile(r"```.*?```", re.S)
 
@@ -96,6 +102,72 @@ def _claims_attachment(text):
     return bool(ATTACH_CLAIMS.search(CODE_FENCE.sub("", text)))
 
 
+def _stack_blocks(text):
+    """Return ``(frame_numbers, has_omission_marker)`` for each stack block."""
+    blocks = []
+    current = []
+    has_omission = False
+    for line in text.splitlines():
+        match = STACK_FRAME_LINE.match(line)
+        if match:
+            number = int(match.group("number"))
+            if current and number in (0, 1) and number <= current[-1]:
+                blocks.append((current, has_omission))
+                current = []
+                has_omission = False
+            current.append(number)
+            continue
+        if current and STACK_OMISSION_LINE.match(line):
+            has_omission = True
+            continue
+        if current and (
+            not line.strip() or re.match(r"^\s*(?:`{3,}|~{3,}|#{1,6}\s)", line)
+        ):
+            blocks.append((current, has_omission))
+            current = []
+            has_omission = False
+    if current:
+        blocks.append((current, has_omission))
+    return blocks
+
+
+def _check_stack_completeness(text):
+    """Reject crash stacks that omit, duplicate, or reorder numbered frames."""
+    errors = []
+    for index, (frames, has_omission) in enumerate(_stack_blocks(text), start=1):
+        if has_omission:
+            errors.append(
+                f"crash stack {index} uses an omission marker; include every "
+                "numbered frame through the last frame"
+            )
+            continue
+        first = frames[0]
+        if first not in (0, 1):
+            errors.append(
+                f"crash stack {index} starts at frame #{first}; include every frame "
+                "from #0 or #1 through the last frame"
+            )
+            continue
+        for previous, current in zip(frames, frames[1:]):
+            if current == previous + 1:
+                continue
+            if current > previous + 1:
+                missing = ", ".join(
+                    f"#{number}" for number in range(previous + 1, current)
+                )
+                errors.append(
+                    f"crash stack {index} skips frame(s) {missing}; include the "
+                    "full consecutive stack"
+                )
+            else:
+                errors.append(
+                    f"crash stack {index} has duplicate or out-of-order frame "
+                    f"#{current} after #{previous}; preserve the original sequence"
+                )
+            break
+    return errors
+
+
 def check_report(text, library_id, profile_id, facts=None, expected_revision=None):
     """Return ``(errors, warnings)`` for one report body."""
     errors: list[str] = []
@@ -138,6 +210,7 @@ def check_report(text, library_id, profile_id, facts=None, expected_revision=Non
 
     if not STACK_FRAME.search(text) and not STACK_UNAVAILABLE.search(text):
         errors.append("no stack frame with a source line number found")
+    errors.extend(_check_stack_completeness(text))
     if not LINE_ANCHOR.search(text):
         warnings.append("no line anchor found in a source link")
 
