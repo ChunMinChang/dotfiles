@@ -27,8 +27,8 @@ if platform.system() == "Windows":
 
 # Configuration
 LOG_DIR_ENV = "DOTFILES_CLAUDE_SECURITY_LOG_DIR"
-LOG_DIR = Path(os.getenv(LOG_DIR_ENV, str(Path.home() / '.claude')))
-LOG_FILE = LOG_DIR / 'security-blocks.log'
+LOG_DIR = Path(os.getenv(LOG_DIR_ENV, str(Path.home() / ".claude")))
+LOG_FILE = LOG_DIR / "security-blocks.log"
 DISABLE_ENV = "DOTFILES_CLAUDE_SECURITY_DISABLED"
 WHITELIST_ENV = "DOTFILES_CLAUDE_SECURITY_WHITELIST"
 
@@ -42,31 +42,26 @@ SENSITIVE_PATTERNS = [
     "~/.ssh/*_ecdsa",
     "~/.ssh/*_dsa",
     "~/.gnupg/*",
-    
     # Mozilla credentials
     "~/.arcrc",
     "~/.hgrc",
     "~/.moz-phab-config",
     "*/pernosco-submit",
-    
     # Cloud credentials
     "~/.aws/credentials",
     "~/.aws/config",
     "~/.gcp/*.json",
     "~/.azure/credentials",
     "~/.config/gcloud/*credential*",
-    
     # Git credentials
     "~/.git-credentials",
     "~/.config/gh/hosts.yml",
     "*/.git-credentials",
     "~/AppData/Local/GitCredentialManager/*",
-
     # API tokens
     "~/.netrc",
     "~/.npmrc",
     "~/.pypirc",
-
     # Password managers
     "~/.password-store/*",
     "~/Library/Keychains/*",
@@ -77,16 +72,13 @@ SENSITIVE_PATTERNS = [
     "~/.config/1Password/*",
     "~/AppData/Local/Microsoft/Credentials/*",
     "~/AppData/Roaming/Microsoft/Credentials/*",
-    
     # Containers & clusters
     "~/.docker/config.json",
     "~/.kube/config",
-    
     # Browser data
     "*/Cookies",
     "*/Login Data",
     "*/Web Data",
-    
     # System
     "/etc/shadow",
 ]
@@ -98,15 +90,25 @@ SAFE_PATTERNS = [
 
 # Sensitive keywords for .env files
 SENSITIVE_KEYWORDS = [
-    'API_KEY', 'APIKEY', 'API_SECRET',
-    'SECRET_KEY', 'SECRET', 'PRIVATE_KEY',
-    'PASSWORD', 'PASSWD', 'PWD',
-    'TOKEN', 'AUTH_TOKEN', 'ACCESS_TOKEN',
-    'CREDENTIAL', 'CLIENT_SECRET',
-    'AWS_SECRET', 'GCP_KEY',
-    'PERNOSCO_USER_SECRET_KEY',
-    'TASKCLUSTER_ACCESS_TOKEN',
-    'BUGZILLA_API_KEY',
+    "API_KEY",
+    "APIKEY",
+    "API_SECRET",
+    "SECRET_KEY",
+    "SECRET",
+    "PRIVATE_KEY",
+    "PASSWORD",
+    "PASSWD",
+    "PWD",
+    "TOKEN",
+    "AUTH_TOKEN",
+    "ACCESS_TOKEN",
+    "CREDENTIAL",
+    "CLIENT_SECRET",
+    "AWS_SECRET",
+    "GCP_KEY",
+    "PERNOSCO_USER_SECRET_KEY",
+    "TASKCLUSTER_ACCESS_TOKEN",
+    "BUGZILLA_API_KEY",
 ]
 
 
@@ -135,15 +137,15 @@ def is_sensitive_path(file_path):
 
 def is_sensitive_env_file(file_path):
     """Check if .env file contains sensitive data."""
-    if not (file_path.endswith('.env') or '.env.' in file_path):
+    if not (file_path.endswith(".env") or ".env." in file_path):
         return False
-    
+
     try:
         expanded = os.path.expanduser(file_path)
         if not os.path.exists(expanded):
             return False
-        
-        with open(expanded, 'r') as f:
+
+        with open(expanded, "r") as f:
             content = f.read().upper()
             return any(keyword in content for keyword in SENSITIVE_KEYWORDS)
     except:
@@ -162,29 +164,30 @@ def is_whitelisted(file_path):
         return False
 
     expanded_path = os.path.expanduser(file_path)
-    return expanded_path in [os.path.expanduser(p.strip())
-                              for p in whitelist.split(os.pathsep) if p.strip()]
+    return expanded_path in [
+        os.path.expanduser(p.strip()) for p in whitelist.split(os.pathsep) if p.strip()
+    ]
 
 
 def log_block(hook_input, file_path, reason):
     """Log blocked access."""
     LOG_FILE.parent.mkdir(exist_ok=True)
-    
+
     entry = {
-        'timestamp': datetime.now().isoformat(),
-        'tool_name': hook_input.get('tool_name', 'Unknown'),
-        'file_path': str(file_path),
-        'reason': reason,
-        'session_id': hook_input.get('session_id', 'Unknown'),
-        'cwd': hook_input.get('cwd', 'Unknown'),
+        "timestamp": datetime.now().isoformat(),
+        "tool_name": hook_input.get("tool_name", "Unknown"),
+        "file_path": str(file_path),
+        "reason": reason,
+        "session_id": hook_input.get("session_id", "Unknown"),
+        "cwd": hook_input.get("cwd", "Unknown"),
     }
-    
+
     try:
-        with open(LOG_FILE, 'a') as f:
-            f.write(json.dumps(entry) + '\n')
+        with open(LOG_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
     except:
         pass
-    
+
     sys.stderr.write(f"\n{'='*60}\n")
     sys.stderr.write(f"🔒 SECURITY HOOK: Blocked access to sensitive file\n")
     sys.stderr.write(f"{'='*60}\n")
@@ -204,7 +207,7 @@ def log_block(hook_input, file_path, reason):
 def check_bash_command(hook_input, command):
     """Check if bash command accesses sensitive files."""
     for pattern in SENSITIVE_PATTERNS:
-        pattern_simple = pattern.replace('*', '').replace('~/', '')
+        pattern_simple = pattern.replace("*", "").replace("~/", "")
         if pattern_simple in command:
             return True
     return False
@@ -214,17 +217,17 @@ def main():
     # Emergency override
     if os.getenv(DISABLE_ENV) == "true":
         sys.exit(0)
-    
+
     # Parse input
     try:
         hook_input = json.loads(sys.stdin.read())
     except:
         sys.exit(0)
-    
+
     tool_name = hook_input.get("tool_name", "")
     tool_input = hook_input.get("tool_input", {})
     file_path = None
-    
+
     # Extract file path
     if tool_name == "Read":
         file_path = tool_input.get("file_path")
@@ -235,30 +238,32 @@ def main():
             sys.exit(2)
     elif tool_name in ["Grep", "Glob"]:
         file_path = tool_input.get("path", "")
-    
+
     # Check file path
     if file_path:
         # Check safe patterns first
         if is_safe_path(file_path):
             sys.exit(0)
-        
+
         # Check whitelist
         if is_whitelisted(file_path):
             sys.exit(0)
-        
+
         # Check .env files
-        if file_path.endswith('.env') or '.env.' in file_path:
+        if file_path.endswith(".env") or ".env." in file_path:
             if is_sensitive_env_file(file_path):
-                log_block(hook_input, file_path, "Contains sensitive environment variables")
+                log_block(
+                    hook_input, file_path, "Contains sensitive environment variables"
+                )
                 sys.exit(2)
             else:
                 sys.exit(0)
-        
+
         # Check sensitive patterns
         if is_sensitive_path(file_path):
             log_block(hook_input, file_path, "Contains sensitive credentials or keys")
             sys.exit(2)
-    
+
     sys.exit(0)
 
 
