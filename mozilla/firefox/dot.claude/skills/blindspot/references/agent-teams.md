@@ -22,6 +22,7 @@ session resumes from the on-disk files.
 | Team D | `team-d-design-archaeology.md` |
 | Team X | `team-x-cross-browser.md` |
 | Team T | `team-t-frameworks.md` |
+| Team I | `team-i-invariants.md` |
 
 Each prompt template below ends with an instruction to write to that file.
 
@@ -84,8 +85,13 @@ You are Team H in blindspot. The user submitted this claim:
 
 Suspect symbol: <symbol>
 Searchfox rev:  <$BLINDSPOT_REV>
+Candidate invariant from the validity gate: <paste the one-sentence proposition>
 
 Generate AT LEAST 5 concrete failure scenarios. For each:
+- Violated property (the invariant this scenario would break, phrased as a
+  proposition — usually the candidate above, but propose your own where the
+  scenario breaks something different. A scenario that breaks no stateable
+  property is not a hypothesis; drop it and say why.)
 - Precondition (what input/state triggers it)
 - Mechanism (how the bug manifests internally)
 - Predicted user-visible signal (decode error? wrong size returned? crash?
@@ -99,7 +105,7 @@ Output:
 
 1. **Write to disk:** `<run_dir>/team-h-hypotheses.md`. The file contains
    a Markdown table with columns
-     | # | Hypothesis | Mechanism | Predicted signal | Probe cost | Rank |
+     | # | Hypothesis | Violated property | Mechanism | Predicted signal | Probe cost | Rank |
    followed by one paragraph per hypothesis expanding on the precondition.
 
 2. **Return** a short summary (≤10 lines): hypothesis count, top-3 by rank
@@ -195,6 +201,78 @@ Do NOT pick the verdict.
 
 ---
 
+## Team I — Invariant discovery
+
+**Goal:** establish what the suspect code *owes its callers*, and whether it
+delivers. Phase 1 stated a candidate invariant from the claim alone; Team I derives
+the real ones from the code, the contract, the design intention and the spec, then
+reports which are broken and whether the break is reachable.
+
+This is the team that turns "this looks wrong" into "this property is violated at
+`file:line`, and here is who can reach it" — which is the difference between a
+suspicion and a bug report.
+
+**Prompt template:**
+```
+You are Team I in blindspot. Determine the invariants the suspect code should hold
+and whether it holds them. Do NOT declare the verdict and do NOT propose a fix.
+
+Inputs:
+- Claim: <run_dir>/claim.md
+- Candidate invariant from the validity gate: <paste the one-sentence proposition>
+- Suspect symbols: <list>
+- Suspect files: <list>
+- Repo root: <repo-root>
+- Searchfox revision: <$BLINDSPOT_REV>
+
+Tasks:
+1. DERIVE. For each suspect symbol, state the invariants it should hold. Source them
+   from, in order of authority: an explicit assertion or type constraint in the code;
+   a documented contract in the header or a comment; the spec (if web-exposed); the
+   introducing commit's stated intent; what every existing caller demonstrably
+   assumes. Say which source each invariant came from — a contract inferred purely
+   from caller behaviour is weaker evidence than one the author wrote down.
+2. For each invariant record:
+     - Subject            — the symbol it binds
+     - Statement          — the proposition, phrased so it is either true or false
+     - Source             — asserted | documented | spec | commit-intent | inferred-from-callers
+     - Enforcement        — what makes it true today (type, ctor, single entry point,
+                            assertion, a caller-side check), or "nothing"
+     - Holds?             — holds | broken | holds-only-by-convention
+     - Violation site     — file:line permalink, when broken
+3. REACHABILITY. For every broken invariant, determine whether the violating path is
+   reachable, and by whom: from web content, from a compromised content process, from
+   an internal caller only, or from nothing at all (dead code). Enumerate the call
+   sites with searchfox and cite them. An unreachable violation is a very different
+   finding from a reachable one — do not blur them.
+4. SIBLING SAVES. For every broken invariant, look for a downstream check, clamp, or
+   early return that restores the property before any consequence. Cite it with a
+   permalink. This is what separates a real consequence from a near miss, so look
+   deliberately rather than assuming there is none.
+5. CONVENTION-ONLY. Note any invariant that currently holds but is enforced by
+   nothing — every caller happens to do the right thing. Record what would break it.
+
+Output:
+
+1. **Write to disk:** `<run_dir>/team-i-invariants.md`:
+   - Invariant table with IDs I1, I2, … and every field above
+   - Per broken invariant: a reachability paragraph (who can reach it, cited) and a
+     sibling-save paragraph (what saves it, or "nothing found — searched X, Y, Z")
+   - A "convention-only" list
+   - A verdict on the Phase 1 candidate invariant specifically: is it real, and is
+     it broken?
+
+2. **Return** a short summary (≤10 lines): invariant count, how many are broken, how
+   many broken ones are reachable, whether any sibling save was found, and a one-line
+   answer on the candidate invariant.
+
+Hard rules: cite file:line permalinks for every claim, revision-pinned, never trunk.
+Label anything unconfirmed `[Assumption]`. Do NOT declare the overall verdict — the
+main agent classifies. Do NOT propose a fix.
+```
+
+---
+
 ## Team T — Test framework scout
 
 **Goal:** for each hypothesis from Team H, pick the right framework and find a
@@ -244,7 +322,8 @@ Do NOT write the tests. Do NOT pick the verdict.
 | H | Never — always run. | n/a |
 | D | Suspect symbol is brand new (no history beyond the introducing commit). | Note "introducing commit only; no further history" in Design Intention. |
 | X | Suspect code has no web surface (internal helper, codec parser with no JS bridge, IPC plumbing). | Note "no web surface; cross-browser comparison N/A" in report. |
-| T | Phase 1 outcome was Nonsense or Ambiguous-without-resolution. | n/a (skipped phases). |
+| T | Never reached — a Nonsense gate outcome STOPS at Phase 1, so Phase 2 never launches. Kept here only to say so explicitly. | n/a |
+| I | Never — always run. It supplies the frame the verdict is expressed in. | n/a |
 
 ---
 
@@ -254,5 +333,11 @@ Do NOT write the tests. Do NOT pick the verdict.
   results. Pick the right team and trust the contract.
 - **Do not** let any team propose a fix. Teams that step outside their
   contract should be re-prompted, not promoted.
-- **Do not** sequentialise teams. They run in parallel. If one team needs the
-  output of another, that's a sign of bad partitioning — restructure.
+- **Do not** sequentialise teams *within a wave*. If one team needs the output of
+  another, either restructure it or move it to the next wave — do not launch them
+  together and hope.
+
+  **Team T is the one exception, and it is a real dependency, not a mistake:** its
+  prompt takes Team H's hypothesis list, so it launches in a second, smaller wave
+  after H returns, alongside Team I if you prefer. Everything else (C, H, D, X) goes
+  in the first wave.

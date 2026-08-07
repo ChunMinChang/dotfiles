@@ -4,7 +4,11 @@
 - **Claim:** [`claim.md`](./claim.md)
 - **Output directory:** `{abs_output_dir}`
 - **Searchfox revision:** `{rev_short}` (full: `{rev_full}`)
+- **Candidate invariant:** {filled by the validity gate (row 2), not at intake —
+  the one-sentence proposition this whole run is trying to confirm or refute}
 - **Working branch:** `blindspot/{slug}` (created on demand in Phase 3)
+- **Branch base (`BLINDSPOT_BASE`):** `{base_sha}` — HEAD when the branch was cut.
+  Reviewer T re-verifies against this rather than on the working branch.
 
 ## How to resume
 
@@ -34,12 +38,13 @@ Statuses: `pending` / `in-progress` / `completed` / `skipped` / `blocked-on-user
 | 6   | 2     | Team D — Design archaeology       | pending  | `team-d-design-archaeology.md`                        |
 | 7   | 2     | Team X — Cross-browser & spec     | pending  | `team-x-cross-browser.md`                             |
 | 8   | 2     | Team T — Test framework scout     | pending  | `team-t-frameworks.md`                                |
+| 8.5 | 2     | Team I — Invariant discovery      | pending  | `team-i-invariants.md`                                |
 | 9   | 2     | Synthesis (main agent)            | pending  | `synthesis.md`                                        |
-| 10  | 3     | Experimental validation           | pending  | rows 10.1, 10.2, … appended per `to-test` hypothesis  |
+| 10  | 3     | Experimental validation           | pending  | rows 10.1, 10.2, … per `to-test` hypothesis; `skipped` if none |
 | 11  | 4     | Draft report                      | pending  | `report.md`                                           |
 | 12  | 5     | Reviewer L — Links                | pending  | `review/L.md`                                         |
 | 13  | 5     | Reviewer T — Tests                | pending  | `review/T.md`                                         |
-| 14  | 5     | Reviewer R — Red-pen              | pending  | `review/R.md`                                         |
+| 14  | 5     | Reviewer R — Red-pen              | pending  | `review/R.md`, `review/blindspot-claim-review.md`     |
 | 15  | 6     | Hand off                          | pending  | terminal output                                       |
 
 For Phase 3, Synthesis appends one row per `to-test` hypothesis once the

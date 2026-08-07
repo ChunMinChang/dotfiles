@@ -114,4 +114,4 @@ the "Proof method: fault injection" section.
 - The injection is gated; running the unmodified tree builds cleanly without
   the flag.
 - The patch carries the blindspot author via
-  `blindspot-config --get-patch-author`.
+  `.claude/skills/blindspot/blindspot-config --get-patch-author`.

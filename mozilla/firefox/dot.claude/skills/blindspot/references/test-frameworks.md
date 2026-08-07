@@ -81,4 +81,4 @@ observable consequence runs in real code** with no production-source patches.
 
 If you cannot reach end-to-end without violating that rule, the proof is a
 fault-injection proof (see [`injection-patterns.md`](./injection-patterns.md))
-or the hypothesis is `lucky-prevented`.
+or the hypothesis is `lucky-prevented` / `unreachable`.
