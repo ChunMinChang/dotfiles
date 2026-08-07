@@ -64,11 +64,15 @@ token, in order; first rule that matches wins:
    the text to a scratch file before invoking intake.
 10. None of the above → AskUserQuestion. **Never silently fall back.**
 
-**Role assignment for markdown files:** at most one analysis md and one
-solutions md per invocation. First `*.md` token (in argument order) →
-analysis; second `*.md` → solutions. A third `*.md` is rejected unless its
-basename ends with `-review.md`, in which case it is the explicit output
-path.
+**Role assignment for markdown files:** a token whose basename ends with
+`-review.md` is **always** the explicit output path, whatever its position —
+check this first, before assigning any other role. Of the remaining `*.md`
+tokens: first (in argument order) → analysis; second → solutions; at most one
+of each. A third non-`-review.md` markdown token is rejected.
+
+This is why a caller that wants a review written somewhere other than the
+default (e.g. two different reviews of the same analysis doc within one run)
+passes an explicit `…-review.md` path rather than relying on the `-N` suffix.
 
 **Conflict rule:** at most one analysis source and one solutions source per
 invocation. Two analysis-side or two solutions-side tokens →
@@ -98,8 +102,8 @@ AskUserQuestion. Do not guess.
 ## Adapter step (only when non-md sources present)
 
 If every supplied source is already an existing `*.md` file, **skip this
-section entirely** and go to Pre-flight. (Sherlock Phase 2 always passes
-two `*.md` paths, so it never triggers an adapter spawn.)
+section entirely** and go to Pre-flight. (Sherlock's `Decide.5` always
+passes two `*.md` paths, so it never triggers an adapter spawn.)
 
 Otherwise, normalize non-md inputs into markdown docs in a scratch
 directory at `~/.claude/red-pen-scratch/<run-id>/`, where `<run-id>` is
@@ -181,7 +185,8 @@ context — read every input fresh.
 Inputs (read these directly with the Read tool):
 - Analysis doc: <absolute path to analysis doc>
 - Solutions doc: <absolute path to solutions doc, OR the same as analysis
-  doc with a note: "read the ## Proposed Solutions section">
+  doc with a note: "this document is the analysis; review whatever solution
+  or proposal sections it contains, and say so if it contains none">
 - Repo root: <absolute path>
 - Output path for your review: <absolute path>
 
@@ -238,8 +243,8 @@ The calling skill should:
 - Pass the analysis doc *as it stands* — do not pre-edit it to "look better"
   for the reviewer.
 - Wait for the review result before continuing its own workflow.
-- Handle each verdict per its own rules. Common pattern (see sherlock Phase
-  2 for the canonical version):
+- Handle each verdict per its own rules. Common pattern (see sherlock
+  `Decide.6` for the canonical version):
   - `approve` → proceed.
   - `approve-with-concerns` / `revise` → apply changes, re-invoke if changes
     are non-trivial.
@@ -300,6 +305,6 @@ before posting.
   (1) the `revise` verdict needs an "applier" subagent that mutates a
   *copy* of the solutions doc without violating the no-mutation rule
   above; (2) sherlock already encodes the verdict-ladder loop in its
-  Phase 2, so a generic loop skill is only worth building once a
+  `Decide.6`, so a generic loop skill is only worth building once a
   non-sherlock caller appears. Build separately; do not embed iteration
   logic in this skill.

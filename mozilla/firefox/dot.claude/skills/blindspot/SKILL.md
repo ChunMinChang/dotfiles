@@ -367,8 +367,9 @@ The report's **Verdict** is one of:
 - **Nonsense** — Phase 1 short-circuit only.
 
 Do NOT propose fixes. Blindspot produces a *report*. Fixes are a separate workflow
-(typically `/sherlock` Phase 2 after the user files the bug, or
-`/firefox-implementation` if they jump straight to a patch).
+(typically sherlock's solution track — its Reframe → Design → Decide → Implement
+phases — after the user files the bug, or `/firefox-implementation` if they jump
+straight to a patch).
 
 ---
 
@@ -400,7 +401,8 @@ back to `in-progress` and the artifact is rewritten):
 - Reviewer R `revise` → Phase 4. `redesign` → escalate to user. `reject` or
   `needs-more-info` → Phase 2 (gather more evidence).
 
-Do not argue with the reviewer; mirror sherlock rule #11.
+Do not argue with the reviewer; mirror sherlock's "the reviewers are independent"
+gotcha.
 
 ---
 

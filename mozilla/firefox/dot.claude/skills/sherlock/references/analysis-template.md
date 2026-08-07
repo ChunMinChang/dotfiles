@@ -15,7 +15,7 @@
 ## Build Requirements
 {Standard debug build sufficient, OR:}
 - **Build type**: ASan / TSan / Debug
-- **Mozconfig**: See [`bug-{id}-mozconfig`](./firefox/debug/bug-{id}-mozconfig)
+- **Mozconfig**: See [`bug-{bug_id}-mozconfig`](./firefox/debug/bug-{bug_id}-mozconfig)
 - **Rationale**: {Why this build type is needed}
 
 ## Security Rating
@@ -36,8 +36,23 @@ Suggested rating: **sec-{level}** because:
 - **Trees**: {autoland, mozilla-central, try}
 - **Date range**: {last 7 days from YYYY-MM-DD to YYYY-MM-DD}
 
+## Hypothesis Tree
+> Built at `Diagnose.5` (at least three candidates — single-hypothesis RCAs anchor
+> too early) and re-ranked at `Diagnose.12` against the gathered evidence. Keep the
+> refuted and pruned rows: showing what was considered and ruled out is most of the
+> value, and it stops a later reader re-treading them.
+
+| Hypothesis | Failure mechanism | Confirming evidence | Refuting evidence | Probe cost | Status |
+|------------|-------------------|---------------------|-------------------|------------|--------|
+| H1 ({short name}) | {how the bug would manifest if this were the cause} | {what we'd see in code/logs/test if true} | {what we'd see if false} | {minutes / hours / build required} | {primary \| to-test \| refuted \| assumption-only} |
+| H2 ({short name}) | ... | ... | ... | ... | ... |
+| H3 ({short name}) | ... | ... | ... | ... | ... |
+
+**Primary**: `{H<n>}` — chosen for the highest confirm/refute ratio per unit of probe cost.
+**Re-ranking notes**: {any hypothesis revived or demoted during Synthesis, and the evidence that moved it.}
+
 ## Third-Party Library Classification
-> Include this section ONLY when the root cause involves vendored third-party code (Step 1.5b active). Delete for Firefox-only bugs.
+> Include this section ONLY when the root cause involves vendored third-party code (`Diagnose.9` active). Delete for Firefox-only bugs.
 
 - **Library**: {name} (vendored at `media/{lib}/` or `third_party/{lib}/`)
 - **Upstream repo**: {upstream URL}
@@ -45,7 +60,7 @@ Suggested rating: **sec-{level}** because:
 - **T3 diagnostic result**: {Reproduces upstream / Does NOT reproduce upstream / Reproduces differently}
 - **Confirmed scope**: {(a) Library bug / (b) Firefox integration / (a+b) Split scope / (c) Firefox local patches}
 - **Branch followed**: {A / B / C}
-- **Upstream report**: [`bug-{id}-upstream-{library}.md`](./{library}/bug-{id}-upstream-{library}.md) *(Branch A and C only)*
+- **Upstream report**: [`bug-{bug_id}-upstream-{library}.md`](./{library}/bug-{bug_id}-upstream-{library}.md) *(Branch A and C only)*
 
 ## Code Path Trace
 
@@ -78,10 +93,15 @@ Library: {name} (upstream revision: `{hash}`)
 
 ## Design Intention
 
+**Broken invariant**: {One sentence. The property that the function contract below
+implies should always hold, and that the root cause shows does not. Written by the
+main agent during synthesis — this is the hand-off into the Reframe phase, which
+builds its invariant table on top of it. Do not leave it blank.}
+
 ### Firefox Side
 > For Branch B, Branch C, or Firefox-only bugs.
 
-- **Introducing commit**: {hash} ([Bug {id}](bugzilla-link))
+- **Introducing commit**: {hash} ([Bug {other_bug_id}](bugzilla-link))
 - **Original purpose**: {What problem this code was originally solving}
 - **Design rationale**: {Why the author chose this approach}
 - **Constraints/tradeoffs**: {What limitations shaped the design}
@@ -125,13 +145,13 @@ Library: {name} (upstream revision: `{hash}`)
 ### Debug Logs and Instrumentation
 
 **Firefox** (`firefox/debug/`):
-- [`firefox/debug/bug-{id}-test-run.log`](./firefox/debug/bug-{id}-test-run.log) — Test execution output
-- [`firefox/debug/bug-{id}-debug-{desc}.log`](./firefox/debug/bug-{id}-debug-{desc}.log) — Debug output
+- [`firefox/debug/bug-{bug_id}-test-run.log`](./firefox/debug/bug-{bug_id}-test-run.log) — Test execution output
+- [`firefox/debug/bug-{bug_id}-debug-{desc}.log`](./firefox/debug/bug-{bug_id}-debug-{desc}.log) — Debug output
 - [`firefox/debug/01-test-{desc}.patch`](./firefox/debug/01-test-{desc}.patch) — Test patch
 - [`firefox/debug/02-debug-firefox-instrumentation.patch`](./firefox/debug/02-debug-firefox-instrumentation.patch) — Instrumentation
 
 **Library** (`{library}/debug/`) *(Branch A/C only)*:
-- [`{library}/debug/bug-{id}-debug-lib-{desc}.log`](./{library}/debug/bug-{id}-debug-lib-{desc}.log) — Debug output
+- [`{library}/debug/bug-{bug_id}-debug-lib-{desc}.log`](./{library}/debug/bug-{bug_id}-debug-lib-{desc}.log) — Debug output
 - [`{library}/debug/01-test-{desc}.patch`](./{library}/debug/01-test-{desc}.patch) — Test patch (may include injection)
 - [`{library}/debug/02-debug-lib-instrumentation.patch`](./{library}/debug/02-debug-lib-instrumentation.patch) — Instrumentation
 
@@ -231,41 +251,44 @@ git am -3 {library}/fix/02-fix-<desc>.patch
 Expected result: **PASS**
 
 ## Related Context
-- **Duplicates**: [Bug {id}](bugzilla-link), [Bug {id}](bugzilla-link)
-- **Related bugs**: [Bug {id}](bugzilla-link)
+- **Duplicates**: [Bug {other_bug_id}](bugzilla-link), [Bug {other_bug_id}](bugzilla-link)
+- **Related bugs**: [Bug {other_bug_id}](bugzilla-link)
 - **Recent changes**: {relevant commit hashes with summaries}
 - **Existing tests**: [`path/to/test`]({searchfox-link})
 
-## Proposed Solutions
-> This section is empty in Phase 1. Filled during Phase 2 after user agrees with the root cause analysis.
+## Review #1 Response
+> Filled at the end of the **Diagnosis Review** phase, before the root-cause gate.
+> Reviewer R's own words live in `review/bug-{bug_id}-rootcause-review.md`; this is
+> *our* response to all three reviewers. A "pass with fix-ups" from Reviewer L still
+> needs an entry — that is the case most easily dropped.
 
-### Option A: {name}
-{Description of the approach.}
+| Reviewer | Verdict | Concern | Accepted? | What changed |
+|---|---|---|---|---|
+| L (links) | pass / fail | {…} | yes/no | {…} |
+| T (tests) | pass / fail | {…} | yes/no | {…} |
+| R (red-pen) | {approve \| approve-with-concerns \| revise \| reject \| redesign \| needs-more-info} | {…} | yes/no | {…} |
 
-**Pros:**
-- {pro 1}
-- {pro 2}
+**Full red-pen review**: [`review/bug-{bug_id}-rootcause-review.md`](./review/bug-{bug_id}-rootcause-review.md)
 
-**Cons:**
-- {con 1}
-- {con 2}
+## Solution Track
 
-### Option B: {name}
-{Description.}
+> This document is the **diagnosis**. Solutions live in their own documents so
+> this one stays stable ground — the agreed statement of why the bug happens. It
+> stays untouched through Design and Decide; Consolidate does correct it if
+> implementation proved something in it wrong, but any such correction is called out
+> rather than made silently. Fill the links below as each phase produces its
+> artifact; leave a phase's line out entirely if the run has not reached it.
 
-**Pros:**
-- {pro 1}
-
-**Cons:**
-- {con 1}
-
-### Comparison
-| Criterion | Option A | Option B |
-|-----------|----------|----------|
-| Pros | {summary} | {summary} |
-| Cons | {summary} | {summary} |
-| Effort | Low/Medium/High | Low/Medium/High |
-| Risk | Low/Medium/High | Low/Medium/High |
+| Phase | Document | What it holds |
+|-------|----------|---------------|
+| Reframe | [`bug-{bug_id}-principles.md`](./bug-{bug_id}-principles.md) | Why this is a problem, invariants, elimination candidates, named design principles |
+| Design | [`bug-{bug_id}-solutions.md`](./bug-{bug_id}-solutions.md) | The option set, comparison matrix, roadmaps, change log |
+| Decide | [`bug-{bug_id}-evaluation.md`](./bug-{bug_id}-evaluation.md) | Criteria, scoring, recommendation, review response |
+| Decide | [`bug-{bug_id}-review.md`](./bug-{bug_id}-review.md) | Independent red-pen review of the solutions |
+| Implement | [`bug-{bug_id}-followups.md`](./bug-{bug_id}-followups.md) | Follow-up and blocking issues |
 
 ### Agreed Approach
-{Which option was selected and why, after Phase 2 discussion.}
+{Filled at the end of the run: which option was implemented, one sentence on why,
+and a link to the evaluation doc's recommendation. If the first choice was
+implemented and then reverted, say so and name what shipped instead — the full
+history is in the solutions-doc Change log.}
