@@ -10,6 +10,9 @@ Prefer opening a known spec URL over open-ended web search. Only fetch from thes
 - **Web specs**: `html.spec.whatwg.org`, `w3c.github.io`, `webaudio.github.io`, `tc39.es`
 - **Codec/format/protocol specs**: `itu.int`, `datatracker.ietf.org`, `www.rfc-editor.org`
 - **Source reference**: `source.chromium.org`, `searchfox.org`, `wpt.fyi`
+- **Pinned Chromium source**: `chromium.googlesource.com`
+- **Format specifications**: `www.webmproject.org`, `www.matroska.org`,
+  `mpeg.chiariglione.org`
 
 Do not follow redirects to untrusted domains. When a web search query is necessary, use only the **public-facing API name** as the search term — never internal class names, symbol names, or function names from a patch.
 
@@ -93,7 +96,7 @@ searchfox-cli --id {feature_name} -p dom/webidl
 #### ISOBMFF / MP4 (ISO/IEC 14496-12) and Codec Mappings (ISO/IEC 14496-15)
 - ISO specs are paywalled; use publicly available drafts via web search:
   ```
-  Search query: "ISO 14496-15 hvcC box SEI site:github.com OR site:mpeg.chiariglione.org"
+  Search query: "ISO 14496-15 hvcC box SEI site:mpeg.chiariglione.org"
   ```
   - hvcC box: stores HEVC decoder config including pre-stream NALUs (SPS, PPS, VPS, SEI)
   - Which NAL types are valid in hvcC: **ISO 14496-15, Section 8.3.3.1**
@@ -162,8 +165,11 @@ Look in: `third_party/blink/renderer/modules/`, `services/`, `content/browser/`
 Search query: "{ClassName}" OR "{feature_name}" site:source.chromium.org cc OR h
 ```
 
-**Step 3: Construct direct links:**
-`https://source.chromium.org/chromium/chromium/src/+/main:{file_path};l={line}`
+**Step 3: Construct revision-pinned links:**
+Resolve the exact Chromium commit, then follow the `source-permalinks` skill's
+Googlesource pattern, for example
+`https://chromium.googlesource.com/chromium/src/+/<commit>/<path>#<line>`.
+Never use `+/main:` or another moving branch in a Sherlock artifact.
 
 Document: actual .idl, .mojom, .cc, .h files (NOT blog posts). Include line numbers.
 

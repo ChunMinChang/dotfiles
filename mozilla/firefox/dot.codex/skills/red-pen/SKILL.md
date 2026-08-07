@@ -11,9 +11,10 @@ metadata:
 Get an **independent second opinion** on a proposed RCA solution before it
 goes in front of a human reviewer or the user.
 
-The reviewer runs in an isolated subagent context — it does not see the
-calling agent's conversation, memory, or prior conclusions. Inputs are passed
-**by file path only**. This is the dotfiles equivalent of bringing in an
+The reviewer runs in an isolated subagent context created with
+`fork_turns: "none"` — it does not see the calling agent's conversation, memory,
+or prior conclusions. Inputs are passed **by absolute file path only**. This is
+the dotfiles equivalent of bringing in an
 outside engineer: no anchoring on what's already been decided, no rubber
 stamping.
 
@@ -57,11 +58,15 @@ token, in order; first rule that matches wins:
    the text to a scratch file before invoking intake.
 10. None of the above → ask the user directly. **Never silently fall back.**
 
-**Role assignment for markdown files:** at most one analysis md and one
-solutions md per invocation. First `*.md` token (in argument order) →
-analysis; second `*.md` → solutions. A third `*.md` is rejected unless its
-basename ends with `-review.md`, in which case it is the explicit output
-path.
+**Role assignment for markdown files:** a token whose basename ends with
+`-review.md` is **always** the explicit output path, whatever its position —
+check this first, before assigning any other role. Of the remaining `*.md`
+tokens: first (in argument order) → analysis; second → solutions; at most one
+of each. A third non-`-review.md` markdown token is rejected.
+
+This is why a caller that wants a review written somewhere other than the
+default (for example, two different reviews of the same analysis within one
+run) passes an explicit `…-review.md` path rather than relying on a `-N` suffix.
 
 **Conflict rule:** at most one analysis source and one solutions source per
 invocation. Two analysis-side or two solutions-side tokens →
@@ -91,7 +96,7 @@ guess.
 ## Adapter step (only when non-md sources present)
 
 If every supplied source is already an existing `*.md` file, **skip this
-section entirely** and go to Pre-flight. (Sherlock Phase 2 always passes
+section entirely** and go to Pre-flight. (Sherlock's `Decide.5` always passes
 two `*.md` paths, so it never triggers an adapter spawn.)
 
 Otherwise, normalize non-md inputs into markdown docs in a scratch
@@ -102,12 +107,13 @@ persists after the run for debugging; it is never auto-deleted.
 Order is fixed and sequential. Each step waits for the previous to write
 its output file before the next is invoked:
 
-1. **Intake** — invoked only if no analysis md was supplied. Spawn one
-   `red_pen_intake` subagent:
+1. **Intake** — invoked only if no analysis md was supplied. Spawn one isolated
+   intake subagent:
 
    ```text
    spawn_agent(
-     agent_type: "red_pen_intake",
+     task_name: "red_pen_intake",
+     fork_turns: "none",
      message: <descriptor + output-path + template-path; no conclusions>
    )
    ```
@@ -118,8 +124,8 @@ its output file before the next is invoked:
 
 2. **Distiller** — invoked only if no solutions md was supplied **or** the
    solutions source is non-md (Phab revision, patch file, commit, working
-   tree, GitHub PR, raw URL). Spawn one `red_pen_distiller` subagent, same
-   discipline as intake.
+   tree, GitHub PR, raw URL). Spawn one `red_pen_distiller` task with
+   `fork_turns: "none"`, using the same discipline as intake.
 
 3. **Critic** — same invocation as in *Spawn the reviewer* below. The
    resolved analysis-doc path and solutions-doc path (whether
@@ -134,7 +140,7 @@ path; the skill is just a path-handler.
 
 ## Pre-flight
 
-1. Confirm the analysis doc exists and is readable (Read tool). For
+1. Confirm the analysis doc exists, is readable, and is non-empty. For
    adapter-produced scratch docs, this also confirms the adapter wrote
    non-empty output.
 2. If a solutions doc was passed (or produced by the distiller), confirm
@@ -150,12 +156,15 @@ path; the skill is just a path-handler.
 
 ## Spawn the reviewer
 
-Spawn one `red_pen_critic` subagent. Do **not** chain multiple reviewer calls —
-one isolated review per skill run.
+Spawn one critic directly from the agent executing this skill. Project-local
+Codex configuration may cap delegation at depth one, so a calling workflow must
+not first create a wrapper agent that then tries to run Red Pen. Do **not** chain
+multiple reviewer calls — one isolated review per skill run.
 
 ```text
 spawn_agent(
-  agent_type: "red_pen_critic",
+  task_name: "red_pen_critic",
+  fork_turns: "none",
   message: <see template below>
 )
 ```
@@ -169,10 +178,11 @@ content of those files, never a summary of prior findings.
 You are reviewing a proposed root-cause-analysis solution. You have NO prior
 context — read every input fresh.
 
-Inputs (read these directly with the Read tool):
+Inputs (read these directly from the filesystem):
 - Analysis doc: <absolute path to analysis doc>
 - Solutions doc: <absolute path to solutions doc, OR the same as analysis
-  doc with a note: "read the ## Proposed Solutions section">
+  doc with a note: "this document is the analysis; review whatever solution
+  or proposal sections it contains, and say so if it contains none">
 - Repo root: <absolute path>
 - Output path for your review: <absolute path>
 
@@ -202,7 +212,7 @@ reviewer can locate the template.
 
 When the reviewer returns:
 
-1. Read the review doc at the output path (Read tool, single call).
+1. Read the review doc at the exact returned output path.
 2. Extract the verdict, headline finding, and iteration recommendation from
    the review-doc front matter or first section.
 3. Surface to the caller (whether human or another skill) with this exact
@@ -226,11 +236,13 @@ When the reviewer returns:
 The calling skill should:
 
 - Pass absolute paths only.
+- Execute Red Pen pre-flight in the calling/main agent and spawn the critic
+  directly with `fork_turns: "none"`; never spawn a "run Red Pen" wrapper.
 - Pass the analysis doc *as it stands* — do not pre-edit it to "look better"
   for the reviewer.
 - Wait for the review result before continuing its own workflow.
-- Handle each verdict per its own rules. Common pattern (see sherlock Phase
-  2 for the canonical version):
+- Handle each verdict per its own rules. Common pattern (see sherlock
+  `Decide.6` for the canonical version):
   - `approve` → proceed.
   - `approve-with-concerns` / `revise` → apply changes, re-invoke if changes
     are non-trivial.
@@ -291,6 +303,6 @@ before posting.
   (1) the `revise` verdict needs an "applier" subagent that mutates a
   *copy* of the solutions doc without violating the no-mutation rule
   above; (2) sherlock already encodes the verdict-ladder loop in its
-  Phase 2, so a generic loop skill is only worth building once a
+  `Decide.6`, so a generic loop skill is only worth building once a
   non-sherlock caller appears. Build separately; do not embed iteration
   logic in this skill.

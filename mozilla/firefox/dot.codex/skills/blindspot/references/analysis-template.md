@@ -1,11 +1,16 @@
 # Blindspot report: {slug}
 
+- **Searchfox revision:** [`{rev_short}`](https://searchfox.org/firefox-main/rev/{rev})
+  — every code link below is pinned to this revision.
+
 ## Verdict
 
-Value: `Confirmed` | `Lucky-prevented` | `Design-smell-only` | `Refuted` | `Nonsense`.
+Value: `Confirmed` | `Lucky-prevented` | `Unreachable` | `Design-smell-only` |
+`Refuted` | `Nonsense`.
 
-{One-sentence reason, naming the strongest hypothesis or the strongest counter-
-evidence.}
+{One sentence, phrased as the invariant's state: which property is at stake, whether
+the code holds it, and — if not — whether the break is reachable and what follows.
+Name the strongest hypothesis or the strongest counter-evidence.}
 
 ## Claim (verbatim)
 
@@ -18,7 +23,54 @@ evidence.}
 - **Signature confirms mechanism:** {Yes / No, with quoted line}
 - **Mechanism type-possible:** {Yes / No, with reason}
 - **Coherence:** {Concrete failure mode named: ...}
-- **Gate outcome:** {Plausible / Ambiguous-then-clarified / Nonsense}
+- **Candidate invariant stateable:** {Yes, see Invariant below / No — why}
+- **Enforced by construction:** {No / Yes — cite the enforcement, which makes this Nonsense}
+- **Gate outcome:** {Plausible / Ambiguous / Nonsense} {if Ambiguous, add: — clarified to: …}
+
+## Invariant
+
+> The property this code owes its callers, and whether it holds. The candidate is
+> written at the validity gate from the claim alone; the rest is filled from Team I
+> after Phase 2. The verdict above is this section's summary — if the two disagree,
+> one of them is wrong.
+>
+> **On the Nonsense short-circuit** the run stops at the gate, so only the candidate
+> line below is filled — state it, or state why no invariant could be phrased at all.
+> Delete the table and the two subsections; there is no Team I output to fill them.
+
+**Candidate invariant** (from the gate): {one proposition about a named subject}
+
+| ID | Subject | Statement | Source | Enforced by | Holds? | Violation site |
+|----|---------|-----------|--------|-------------|--------|----------------|
+| I1 | `{symbol}` | {proposition} | {asserted \| documented \| spec \| commit-intent \| inferred-from-callers} | {type / ctor / assertion / caller check / **nothing**} | {holds \| broken \| holds-only-by-convention} | [`file:line`]({permalink}) |
+
+**Source** matters: an invariant the author wrote down is a stronger basis for calling
+something a bug than one inferred from what callers happen to do. Say which you have.
+
+### Reachability
+> Only for broken invariants. A violation nothing can reach is a real finding, but a
+> different one from a violation web content can drive.
+
+- **Reachable by**: {web content / compromised content process / internal callers only / nothing}
+- **Call sites**: [`file:line`]({permalink}), …
+- **Evidence**: {the search that established the above}
+
+### Sibling saves
+> What restores the property before anything observable happens, if anything.
+
+- **Saved by**: [`check`]({permalink}) — {what it does}, or "nothing found — searched {X}, {Y}, {Z}"
+- **Would become real if**: {the change that removes the save}
+
+## What would make it real
+
+> Required on the **Nonsense** path, optional elsewhere. The claim was rejected; say
+> what would have to be different for it to hold — a caller that reaches the path, a
+> type that stopped being checked, a platform where the guard is compiled out. This is
+> the part a reader comes back to when the code changes, so be specific rather than
+> writing "if the check were removed".
+
+- **What was missing:** {the symbol that did not exist / the enforcement that makes it unbreakable / the interpretation that could not be pinned down}
+- **Would become investigable if:** {the concrete change}
 
 ## Suspect code
 
@@ -49,10 +101,13 @@ under suspicion. Pin to revision.}
 
 > Every Team H hypothesis with its final status.
 
-| # | Hypothesis | Predicted signal | Status | Rationale |
-|---|---|---|---|---|
-| 1 | {one line} | {observable} | Confirmed/Lucky-prevented/Refuted/Smell-only | {one line, cite evidence} |
-| 2 | ... | ... | ... | ... |
+| # | Hypothesis | Invariant | Predicted signal | Status | Rationale |
+|---|---|---|---|---|---|
+| 1 | {one line} | I1 | {observable} | Confirmed / Lucky-prevented / Unreachable / Design-smell-only / Refuted | {one line, cite evidence} |
+| 2 | ... | ... | ... | ... | ... |
+
+Every hypothesis names the invariant it would violate. One that maps to no invariant
+is not a hypothesis — either find the property it implies, or refute it.
 
 ## Confirmed consequences
 
@@ -74,7 +129,9 @@ under suspicion. Pin to revision.}
 #### Proof method: fault injection
 
 > Include this subsection ONLY for injected proofs. See
-> [`injection-patterns.md`](../../skills/blindspot/references/injection-patterns.md).
+> the blindspot skill's `references/injection-patterns.md` (this report lives in the
+> run dir, so it is deliberately named rather than linked — every other link here is
+> run-dir-relative).
 > Reviewer T rejects committed injection patches lacking this section.
 
 - **Reason a benign reproducer is impossible:** {one paragraph}
@@ -95,6 +152,22 @@ under suspicion. Pin to revision.}
 - **Would-become-real-if:** {trigger that would defeat the saving check}
 - **Test that demonstrates the save:** {patch path or "n/a — read-only
   observation"}
+
+## Unreachable violations
+
+> One subsection per Unreachable hypothesis: the invariant really is broken, but
+> nothing can currently reach the violating path. Worth reporting — the code is wrong
+> and the next caller may not be so lucky — but it is not a consequence, and writing
+> it up as one wastes a reviewer's time.
+
+### Unreachable — {Hypothesis N}: {one line}
+
+- **Invariant broken:** {ID + statement}
+- **Violation site:** [`{symbol}`]({permalink}#L{n})
+- **Why nothing reaches it:** {dead branch / no live callers / gated by a pref that
+  no longer ships / platform never built}
+- **Evidence:** {the call-site census that establishes this}
+- **Would become real if:** {the caller that would make it reachable}
 
 ## Design-smell / footgun
 
@@ -142,7 +215,11 @@ Behaviour table:
 
 ## Review
 
+> Reviewer R challenges the Invariant section first — if the stated property is not
+> really owed, the rest of the report is decoration. Full red-pen review:
+> [`review/blindspot-claim-review.md`](./review/blindspot-claim-review.md)
+
 - **Reviewer L (links):** {pass / fail — link to `review/L.md`}
 - **Reviewer T (test re-run):** {pass / fail — link to `review/T.md`}
-- **Reviewer R (red-pen):** {accept / revise / redesign / reject / needs-more-info
-  — link to `review/R.md`}
+- **Reviewer R (red-pen):** {approve / approve-with-concerns / revise / reject /
+  redesign / needs-more-info — link to `review/R.md`}

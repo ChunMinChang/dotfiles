@@ -1,7 +1,10 @@
 ---
 name: blindspot
 description: >
-  Hypothesis-driven Firefox investigation for Codex. Use when a user has a suspicious code pattern, potential security issue, suspected spec violation, or vague claim and wants to prove whether it is a real bug, find consequences, and write proof tests.
+  Invariant-driven Firefox investigation for Codex. Use for suspicious code,
+  possible security issues, suspected specification violations, or vague claims
+  that need static validation, reachability analysis, proof tests, and a
+  revision-pinned bug-style report.
 metadata:
   short-description: Validate suspected Firefox bugs
 ---
@@ -31,35 +34,44 @@ Parsing:
 
 ## Gotchas
 
-1. **Every claim needs evidence or `[Assumption]` label** — never state hypotheses as
+1. **A bug is a broken invariant** — state, for every claim, the property the code
+   owes its callers, whether it holds, and whether the break is reachable. Verdicts
+   are expressed in those terms. A claim you cannot phrase that way is not
+   investigable yet; send it back to the gate rather than guessing what it meant.
+2. **Every claim needs evidence or `[Assumption]` label** — never state hypotheses as
    facts. Read the actual code before asserting anything about its behaviour.
-2. **ALWAYS use revision-pinned links** — follow the `source-permalinks` skill.
+3. **ALWAYS use revision-pinned links** — follow the `source-permalinks` skill.
    Never use trunk/tip URLs (`firefox-main/source/...`) in the report.
-3. **Tests are PROOFS** — they must reproduce the user-facing consequence end-to-end,
+4. **Tests are PROOFS** — they must reproduce the user-facing consequence end-to-end,
    without monkey-patching the suspect function. Simulated tests (mocked returns, forced
    branches) are investigation-only and MUST NOT appear in committed `firefox/fix/`
    patches.
-4. **Fault-injection is a last resort** — see `references/injection-patterns.md`. Any
+5. **Fault-injection is a last resort** — see `references/injection-patterns.md`. Any
    `#ifdef BLINDSPOT_INJECT_*` or allocator-hook patch must be accompanied by a
    "Proof method: fault injection" subsection in the report justifying why a benign
    reproducer is impossible. Phase 5 reviewer rejects un-justified injections.
-5. **A valid claim can have no exploitable consequence** — when a sibling check or
-   clamp accidentally saves the day, report it as **Lucky-prevented** with the saving
-   check linked, plus a "would-become-real-if-…" trigger.
-6. **A nonsense claim short-circuits** — Phase 1 writes a rebuttal and STOPS.
-7. **Delegate research, not synthesis** — Phase 2 teams gather evidence; the main agent
+6. **A broken invariant is not automatically a consequence** — when a sibling check or
+   clamp restores the property before anything observable happens, report it as
+   **Lucky-prevented** with the saving check linked, plus a "would-become-real-if-…"
+   trigger. Look for the save deliberately; assuming there is none is how a near miss
+   gets written up as a vulnerability.
+7. **Unreachable is a different finding from harmless** — a violated invariant on a
+   path nothing can reach is worth saying plainly, with the call-site evidence. Do not
+   file it as a consequence, and do not quietly drop it either.
+8. **A nonsense claim short-circuits** — Phase 1 writes a rebuttal and STOPS.
+9. **Delegate research, not synthesis** — Phase 2 teams gather evidence; the main agent
    classifies hypotheses. A team never declares the verdict.
-8. **Five hypotheses minimum in Team H** — blindspot runs on speculative input, so the
-   anti-anchoring threshold is higher than sherlock's three.
-9. **The reviewer is independent** — when red-pen returns `revise`/`redesign`, loop
-   back; do not argue.
-10. **Private and security-sensitive material** — if the claim mentions a sec-* class
+10. **Five hypotheses minimum in Team H** — blindspot runs on speculative input, so the
+    anti-anchoring threshold is higher than sherlock's three.
+11. **The reviewers are independent** — all three of them. When red-pen returns
+    `revise`/`redesign`, or Reviewer L/T reports a failure, loop back; do not argue.
+12. **Private and security-sensitive material** — if the claim mentions a sec-* class
     (UAF, OOB, RCE, sandbox escape, info-leak), treat the per-run subdir as private.
     Do not echo the report contents in conversation summaries beyond the verdict.
-11. **Persist every team output to disk** — Phase 2 teams and Phase 5 reviewers each
+13. **Persist every team output to disk** — Phase 2 teams and Phase 5 reviewers each
     own a named output file in the run dir. Their findings live there, not just in
     the main-agent transcript. A halted session resumes by reading those files.
-12. **Update `plan.md` at every transition** — set a row to `in-progress` *before*
+14. **Update `plan.md` at every transition** — set a row to `in-progress` *before*
     starting work, `completed` after the artifact is on disk. Never leave a row
     silently behind; the progress table is the hand-over document.
 
@@ -69,9 +81,7 @@ Parsing:
 
 Main-agent context is reserved for synthesis: validity gate, hypothesis pruning,
 verdict classification, report wording, review-loop decisions. Bounded research goes
-to Codex subagents per `references/agent-teams.md`. Use `worker` subagents for
-artifact production and `explorer` subagents for broader search or hypothesis
-generation.
+to subagents per `references/agent-teams.md`.
 
 **Delegate** when the task is bounded (clear input + output shape), voluminous
 (searchfox dumps, git log archaeology, multi-file traces), or parallelisable.
@@ -101,10 +111,11 @@ trusted; their artifacts on disk are the source of truth.
 | Team D — Design archaeology | `team-d-design-archaeology.md` |
 | Team X — Cross-browser & spec | `team-x-cross-browser.md` |
 | Team T — Test framework scout | `team-t-frameworks.md` |
+| Team I — Invariant discovery | `team-i-invariants.md` |
 | Main-agent synthesis | `synthesis.md` |
 | Reviewer L — Links | `review/L.md` |
 | Reviewer T — Tests | `review/T.md` |
-| Reviewer R — Red-pen | `review/R.md` |
+| Reviewer R — Red-pen | `review/R.md` + `review/blindspot-claim-review.md` |
 
 Per-hypothesis Phase 3 artifacts go under `firefox/fix/`, `firefox/debug/`, and
 `logs/`, named with the hypothesis index (e.g. `01-test-h1-getimagesize-overflow.patch`).
@@ -117,9 +128,11 @@ Per-hypothesis Phase 3 artifacts go under `firefox/fix/`, `firefox/debug/`, and
 
 If the invocation contains `--resume <run-dir>`:
 
-1. `Read` `<run-dir>/claim.md` to recover the claim.
-2. `Read` `<run-dir>/plan.md` to recover the progress table and the
-   `Searchfox revision` line; restore `$BLINDSPOT_REV` for the session.
+1. Read `<run-dir>/claim.md` to recover the claim.
+2. Read `<run-dir>/plan.md` to recover the progress table and the
+   `Searchfox revision` line; restore `$BLINDSPOT_REV` for the session. If the
+   Branch base field is filled, also restore `$BLINDSPOT_BASE`; never recompute
+   it from whichever branch happens to be checked out during resume.
 3. Announce in ≤2 lines: "Resuming blindspot run `<slug>` at `<run-dir>`; next
    pending task: `<task name>`."
 4. Jump to the phase containing the first `pending`/`in-progress` row. Treat
@@ -128,17 +141,17 @@ If the invocation contains `--resume <run-dir>`:
 
 ### Fresh-run branch
 
-1. Run `./.codex/skills/blindspot/blindspot-config --check-setup`. Required:
+1. Run `.codex/skills/blindspot/blindspot-config --check-setup`. Required:
    `searchfox-cli` on PATH, output directory configured (or supplied via
    `--output-dir`), git user name+email set.
 2. Strip `--output-dir <path>` from the arguments. Resolve the output directory:
    a. `--output-dir` from the flag.
-   b. `blindspot-config --get-output-dir` (reads
+   b. `.codex/skills/blindspot/blindspot-config --get-output-dir` (reads
       `~/.config/firefox-blindspot/config.toml`).
    c. If both empty, ask the user directly for a directory, then run
-      `blindspot-config --set-output-dir <path>` to persist it.
+      `.codex/skills/blindspot/blindspot-config --set-output-dir <path>` to persist it.
 3. Treat the remaining argument as the claim:
-   - If it resolves to a readable file via `Read`, use the file contents.
+   - If it resolves to a readable file, use the file contents.
    - Otherwise treat the entire argument verbatim as inline claim text.
 4. **Choose a semantic slug** (do not delegate). Read the claim and pick a 3–6
    token kebab-case phrase that captures the gist — the suspect symbol, the
@@ -146,18 +159,22 @@ If the invocation contains `--resume <run-dir>`:
    `h265sps-getimagesize-overflow`, `ipdl-deserializer-oom`, `media-track-uaf`.
    Bad examples: anything that just echoes the first sentence verbatim
    (`h265sps-returns-int32-from-pair`) or stops mid-word.
-   Then sanitize: `blindspot-config --slug "<your-choice>"`. The helper
+   Then sanitize: `.codex/skills/blindspot/blindspot-config --slug "<your-choice>"`. The helper
    lowercases, drops non-alphanumeric chars, and caps the length at 60 chars
    on a hyphen boundary.
 5. Create the per-run subdirectory `<output_dir>/<slug>-<YYYYMMDD-HHMMSS>/`.
    Inside it create `firefox/fix/`, `firefox/debug/`, `logs/`, `review/`.
-6. Resolve the searchfox revision pin: `blindspot-config --resolve-rev`. Store
+6. Resolve the searchfox revision pin: `.codex/skills/blindspot/blindspot-config --resolve-rev`. Store
    as `$BLINDSPOT_REV`.
 7. Write the verbatim claim into `<run_dir>/claim.md`.
 8. Write `<run_dir>/plan.md` from `references/plan-template.md`. Substitute
    `{slug}`, `{start_timestamp}`, `{abs_output_dir}`, `{rev_short}`,
-   `{rev_full}`. Initial progress: row 1 (Input intake) is `in-progress`; all
-   others `pending`.
+   `{rev_full}`. Two header fields are **filled later, not here** — leave their
+   placeholders in place and fill them when the value exists:
+   - `Candidate invariant` — written by the validity gate (row 2).
+   - `Branch base (BLINDSPOT_BASE)` — written when Phase 3 cuts the branch.
+
+   Initial progress: row 1 (Input intake) is `in-progress`; all others `pending`.
 9. Mark row 1 `completed` in `plan.md`. Append a one-line note in the Notes
    section: "Created run dir, claim ingested ({char_count} chars)."
 10. Confirm to the user in ≤3 lines: slug, run-dir path, `$BLINDSPOT_REV` short
@@ -167,7 +184,8 @@ If the invocation contains `--resume <run-dir>`:
 
 ## Phase 1 — Validity gate (NOT DELEGATABLE)
 
-Apply `references/validity-gate.md`. Run these cheap checks in the main agent:
+Mark the Validity-gate row `in-progress` in `plan.md`, then apply
+`references/validity-gate.md`. Run these cheap checks in the main agent:
 
 1. **Symbol existence.** Every concrete symbol/file named in the claim must resolve
    via `searchfox-cli --define '<sym>'` or `searchfox-cli --path '<glob>'`. Record
@@ -176,35 +194,56 @@ Apply `references/validity-gate.md`. Run these cheap checks in the main agent:
    (overflow on `uint32_t→int32_t`, UAF after `Release`, race between threads X and Y,
    missing nullcheck on Z), confirm the relevant types/threading model match. Quote
    the line.
-3. **Coherence.** Does the claim describe a *specific* failure mode? Vague claims
-   ("this looks fishy") need clarification from the user.
+3. **Coherence.** Does the claim describe a *specific* failure mode? Ask the user
+   directly to clarify vague claims such as "this looks fishy".
+4. **State the candidate invariant.** Convert the suspicion into one proposition
+   about a named subject: *if this claim were true, what would have to be false?*
+   "The returned `IntSize` always equals the true decoded dimensions." "Every pointer
+   dereferenced after `Realloc` is non-null." This costs nothing — it comes from the
+   claim, not the code — and it is the sharpest coherence test there is: a claim you
+   cannot phrase this way gives Phase 2 nothing to aim at.
+5. **Is it enforced by construction?** If the type system already guarantees the
+   property — the operands are `CheckedInt`, the field is `const`, the class is
+   asserted single-threaded — it cannot be broken at runtime. Say so and stop.
 
 **Outcome classification:**
 
 - **Nonsense** — at least one of: cited symbols do not exist; mechanism is type-
   impossible (e.g., "buffer overflow in a value-type `nsString`"); claim is
-  self-contradictory.
+  self-contradictory; no invariant can be stated; or the candidate invariant is
+  enforced by construction and cannot be broken at runtime.
   Action: write a `report.md` with only the **Verdict** (Nonsense), **Claim**,
-  **Validity assessment** (citing what failed), and **What would make it real**
-  sections. STOP. Surface the report path to the user.
-- **Ambiguous** — claim is coherent but admits multiple interpretations. Ask
-  the user directly to pin down which interpretation to pursue. Re-run gate.
-- **Plausible** — symbols exist, mechanism is type-possible, claim is concrete.
-  Proceed to Phase 2.
+  candidate **Invariant** (or why none can be stated), **Validity assessment**
+  (citing what failed), and **What would make it real** sections. STOP. Surface
+  the report path to the user.
+- **Ambiguous** — claim is coherent but admits multiple interpretations, or several
+  different invariants would fit it. Ask the user directly which one to pursue —
+  quote the candidate invariants and let the user choose. Re-run gate.
+- **Plausible** — symbols exist, mechanism is type-possible, claim is concrete, and
+  the candidate invariant is stateable and not enforced by construction. Proceed to
+  Phase 2, carrying the candidate invariant forward as the thing Team I must confirm
+  or refute.
+
+**Create `<run_dir>/report.md` here**, from `references/analysis-template.md`, with
+every other section left as a placeholder. The gate owns two of its sections and
+Phase 4 completes the rest by **editing** this file — never by re-filling the
+template over it, which would silently discard both.
 
 In `report.md`, the **Validity assessment** section is written *now*, even on the
 plausible path, so it records what the gate found (e.g., "function signature confirmed
-at L123, return type does narrow from uint32_t to int32_t").
+at L123, return type does narrow from uint32_t to int32_t"), **and the candidate
+invariant is written into the report's Invariant section** so the rest of the run has
+a fixed proposition to argue about rather than a restated suspicion.
 
 Mark the Validity gate row `completed` in `plan.md` (or `completed` with a
 `Nonsense` note if the gate short-circuits).
 
 ---
 
-## Phase 1.5 — Investigation plan
+## Phase 1.5 — Investigation plan (update_plan)
 
-Before launching the Phase 2 teams, call `update_plan` with a short
-investigation plan covering:
+Mark the Investigation-plan row `in-progress` in `plan.md`. Before launching the
+Phase 2 teams, **call `update_plan`**. Draft a short investigation plan covering:
 
 - The seed hypothesis classes you'll ask Team H to enumerate (e.g. "narrowing
   overflow", "missing nullcheck after Realloc", "race on `mLastUpdated`").
@@ -213,25 +252,33 @@ investigation plan covering:
 - Open questions for the user.
 
 Present the plan; let the user redirect (refine hypotheses, drop a team, add a
-constraint). Reflect the approved plan in the next `update_plan` call.
+constraint). Once approved, call `update_plan` again to reflect the decision.
 
 Reflect any plan decisions in `plan.md`:
 - Append a note in the Notes section ("Team X skipped: internal codec parser, no
   web surface").
 - For any team marked skipped here, set its row to `skipped` directly.
+- Mark the Investigation-plan row itself `completed` once the plan is approved and
+  the Notes are written. It is easy to forget, because this row's real artifact is a
+  decision rather than a file — and Phase 6 refuses to finish while any row is still
+  `pending`.
 
 > Codex `update_plan` is conversational state. It is **separate** from
-> `<run_dir>/plan.md` (blindspot's persistent progress tracker). Don't conflate
+> `<run_dir>/plan.md` (blindspot's persistent progress tracker). Do not conflate
 > them — `plan.md` is the hand-over document for resume.
 
 ---
 
-## Phase 2 — Parallel investigation (Codex subagent teams)
+## Phase 2 — Parallel investigation (agent teams)
 
-Set each non-skipped Phase 2 row in `plan.md` to `in-progress`. Launch all
-applicable teams with `spawn_agent` subagents, in parallel when the runtime
-supports it. Prefer `worker` for Team C/D/T artifact production and `explorer`
-for Team H/X broader search.
+Set each non-skipped row for the current wave in `plan.md` to `in-progress`.
+Launch that wave **in a single message containing multiple `spawn_agent` calls**
+with `fork_turns: "none"` so its teams run concurrently. This is the agent-teams
+primitive — no harness toggle.
+
+Two waves, because one dependency is real: **Team T consumes Team H's hypothesis
+list**, so it cannot run beside it. Launch **C, H, D, X, I** together; when H returns,
+launch **T**. Everything else is genuinely independent.
 
 Read `references/agent-teams.md` for the full I/O contract per team. Every team
 **writes its findings to its dedicated output file** in the run dir and returns
@@ -249,6 +296,10 @@ only a short summary (≤10 lines) for synthesis:
   Spec citation + behaviour table.
 - **Team T — Test framework scout.** Writes `team-t-frameworks.md`. Framework
   choice + neighbour-test path per hypothesis from Team H.
+- **Team I — Invariant discovery.** Writes `team-i-invariants.md`. The invariants
+  the suspect code should hold, where each comes from, whether it holds, whether a
+  broken one is reachable and by whom, and whether a sibling check already saves it.
+  Also rules on the candidate invariant the gate stated. No verdict.
 
 Skip a team only when the claim is **provably** orthogonal (e.g. skip Team X
 for a purely internal helper with no web surface) — and do that at Phase 1.5,
@@ -264,11 +315,30 @@ Set the Synthesis row to `in-progress`. Read **all** Phase 2 output files (not
 the subagent transcripts) and write `<run_dir>/synthesis.md` containing:
 
 1. Merged code trace + design-intention narrative. Note any drift.
-2. Team H ranked list, with each hypothesis classified as `to-test` /
-   `lucky-prevented` / `design-smell-only` / `refuted`, citing the Team C/D/X
-   evidence that drove the classification.
-3. For every `to-test` hypothesis, append a row to `plan.md`'s progress table
-   under Phase 3 (e.g. `9.1 | 3 | Validate H1: <one-line> | pending | firefox/fix/01-test-h1-*.patch`).
+2. **The invariant table**, from `team-i-invariants.md`: which properties the suspect
+   code owes its callers, where each came from, which hold, and for the broken ones
+   whether the violation is reachable and whether a sibling check saves it. Rule
+   explicitly on the candidate invariant the gate stated — real or not, broken or not.
+3. Team H ranked list, with each hypothesis mapped to **the invariant it would
+   violate** and classified per the table below, citing the Team C/D/I/X evidence
+   that drove it. A hypothesis that maps to no invariant is not a hypothesis —
+   either find the property it implies, or refute it.
+4. For every `to-test` hypothesis, append a row to `plan.md`'s progress table
+   as a **sub-row of the Experimental-validation row**, e.g.
+   `10.1 | 3 | Validate H1: <one-line> | pending | firefox/fix/01-test-h1-*.patch`,
+   `logs/test-h1-*.log`. Number them under row 10, not row 9 — row 9 is Synthesis.
+   Only `to-test` goes to Phase 3 — the other four classifications are already
+   resolved by evidence and need no build.
+
+Classify from the invariant's state, not from impression:
+
+| Invariant state | Classification |
+|---|---|
+| Broken, reachable, consequence not yet demonstrated | `to-test` |
+| Broken, but a sibling check restores it before anything observable | `lucky-prevented` |
+| Broken, but no caller can reach the violating path | `unreachable` |
+| Holds, but only because every caller happens to cooperate | `design-smell-only` |
+| Holds — enforced by type, assertion, or construction | `refuted` |
 
 Mark Synthesis `completed`.
 
@@ -276,13 +346,34 @@ Mark Synthesis `completed`.
 
 ## Phase 3 — Experimental validation
 
-Only `to-test` hypotheses come here — one `plan.md` row per hypothesis, added by
+Mark the Experimental-validation parent row `in-progress` in `plan.md`.
+
+**If Synthesis produced no `to-test` hypotheses** — every hypothesis came out
+`lucky-prevented`, `unreachable`, `design-smell-only` or `refuted` — there is nothing
+to build. Mark the parent row `skipped` with the reason in Notes and go straight to
+Phase 4. This is a normal outcome, not a failure, and it is the case most likely to
+strand the run: Phase 6 will not finish while the row sits `pending`.
+
+Only `to-test` hypotheses come here — one `plan.md` sub-row per hypothesis, added by
 Synthesis. For each:
 
 1. Mark this hypothesis's row `in-progress` in `plan.md`.
 2. Pick the framework per Team T's recommendation.
-3. Create branch (once per run): `git checkout -b blindspot/<slug>` from
-   current HEAD if not already.
+3. Create the working branch, **idempotently** — the run dir is timestamped but the
+   branch name is not, so a second run on the same claim, or any `--resume` that
+   reaches Phase 3 twice, would hit "branch already exists":
+   - If `blindspot/<slug>` already exists, restore `BLINDSPOT_BASE` from
+     `plan.md` and check out the branch.
+   - Otherwise set `BLINDSPOT_BASE=$(git rev-parse HEAD)`, write it into
+     `plan.md`, and create the branch from that exact commit.
+
+   ```bash
+   git rev-parse --verify -q "blindspot/<slug>" >/dev/null \
+     && git checkout "blindspot/<slug>" \
+     || git checkout -b "blindspot/<slug>" "$BLINDSPOT_BASE"
+   ```
+
+   Reviewer T needs the recorded base to re-verify without touching this branch.
 4. Write the **end-to-end** test in the chosen framework. The test must
    reproduce the user-facing consequence without modifying the suspect function.
    No mocking, no forcing private state, no `#ifdef`-injected return values. If
@@ -294,18 +385,27 @@ Synthesis. For each:
    - Redirect to `<run_dir>/logs/build-h<N>-<desc>.log` per AGENTS.md (never
      pipe through `tail`/`head`).
 6. Run the test, capturing to `<run_dir>/logs/test-h<N>-<desc>.log`. Expectation:
-   - Test **fails** → hypothesis confirmed → keep status `to-test → confirmed`.
-   - Test **passes** → reclassify as `lucky-prevented`. In `synthesis.md` and
-     later in `report.md`, identify *which* check saved the day with a
-     revision-pinned link and write the "would-become-real-if-…" trigger.
+   - Test **fails** → hypothesis confirmed → `to-test → confirmed`.
+   - Test **passes** → the invariant was not observably broken along this path.
+     Do not default to `lucky-prevented`; a passing test is equally consistent with
+     three different states, and picking the wrong one misreports the finding.
+     Re-read `team-i-invariants.md` and reclassify:
+     - a downstream check restored the property → `lucky-prevented`; name the check
+       with a revision-pinned link and write the "would-become-real-if-…" trigger.
+     - the test could not reach the violating path at all → `unreachable`; cite the
+       call-site census.
+     - the property was never violated → `refuted`; cite the enforcement.
 7. Commit on `blindspot/<slug>`:
-   `git commit --author="$(./.codex/skills/blindspot/blindspot-config --get-patch-author)"
+   `git commit --author="$(.codex/skills/blindspot/blindspot-config --get-patch-author)"
    -m "Blindspot proof H<N>: <one-line>"`.
 8. Emit the patch:
    `git format-patch -1 --stdout > <run_dir>/firefox/fix/<NN>-test-h<N>-<desc>.patch`
    (NN = the global ordinal across hypotheses).
-9. Mark this hypothesis's row `completed` in `plan.md` with the final
+9. Mark this hypothesis's sub-row `completed` in `plan.md` with the final
    classification noted in the Notes section.
+
+Once every sub-row is `completed`, mark the Experimental-validation parent row
+`completed` too.
 
 ### Fault-injection escape hatch (LAST RESORT)
 
@@ -320,51 +420,92 @@ See `references/injection-patterns.md`. Allowed only when:
 
 ### Run `verify` after each proof commit
 
-Invoke `the repository verification commands` so formatting/lint regressions don't pollute the review.
+Run the repository's applicable verification commands so formatting or lint
+regressions do not pollute the review.
 
 ---
 
 ## Phase 4 — Draft the report
 
-Mark the Draft-report row `in-progress` in `plan.md`. Fill
-`references/analysis-template.md` into `<run_dir>/report.md`, sourcing content
-from `claim.md`, `synthesis.md`, and each team's output file. Every claim is
+Mark the Draft-report row `in-progress` in `plan.md`. `report.md` already exists —
+Phase 1 created it from `references/analysis-template.md` and filled the **Validity
+assessment** and the candidate **Invariant**. **Edit the remaining sections in
+place**; do not recreate the file from the template, or the gate's findings are lost.
+Source content from `claim.md`, `synthesis.md`, and each team's output file. Every claim is
 labelled Verified or `[Assumption]`. Every link uses `$BLINDSPOT_REV` pinning.
 Reuse the `source-permalinks` skill for any external resource. Mark `completed`
 when the report file is written.
 
-The report's **Verdict** is one of:
-- **Confirmed** — at least one hypothesis has a passing-on-fix, failing-now proof test.
-- **Lucky-prevented** — all `to-test` hypotheses passed (test didn't fail); claim is
-  valid but a sibling check prevents user-visible impact.
-- **Design-smell-only** — no testable consequence at all, but Team C found a
-  maintainability or future-correctness hazard.
-- **Refuted** — Team C/D evidence shows the alleged mechanism cannot occur.
-- **Nonsense** — Phase 1 short-circuit only.
+The report's **Verdict** is the invariant's state, which is what makes the ladder a
+ladder rather than a list of moods:
+
+| Verdict | Invariant state | Evidence required |
+|---|---|---|
+| **Confirmed** | Broken, reachable, consequence demonstrated | A proof test that fails now and would pass once fixed |
+| **Lucky-prevented** | Broken, but restored by a sibling check before anything observable | The saving check, revision-pinned, plus a "would-become-real-if-…" trigger |
+| **Unreachable** | Broken, but no caller can reach the violating path | The call-site census showing nothing reaches it |
+| **Design-smell-only** | Holds today, but enforced by nothing — every caller merely cooperates | What would break it, and why nothing prevents that |
+| **Refuted** | Holds, enforced by type, assertion, or construction | The enforcement, cited |
+| **Nonsense** | No invariant could be stated, or it is unbreakable by construction | Phase 1 short-circuit only |
+
+Two of these are easy to conflate and should not be. **Lucky-prevented** means the
+property really is violated and something downstream cleans up after it — fragile,
+and worth reporting. **Refuted** means the property was never violated. The first is
+a latent bug with a guard in front of it; the second is a non-bug.
+
+**Unreachable** is likewise not the same as harmless: the code is wrong, nothing can
+currently trigger it, and the next caller might. Say so plainly with the census
+evidence rather than rounding it up to Confirmed or down to Refuted.
 
 Do NOT propose fixes. Blindspot produces a *report*. Fixes are a separate workflow
-(typically `/sherlock` Phase 2 after the user files the bug, or
-`/firefox-implementation` if they jump straight to a patch).
+(typically sherlock's solution track — its Reframe → Design → Decide → Implement
+phases — after the user files the bug, or `/firefox-implementation` if they jump
+straight to a patch).
 
 ---
 
 ## Phase 5 — Review by a second team
 
-Mark each Reviewer row `in-progress` in `plan.md`. Launch independent `worker`
-reviewers in parallel when possible. Every reviewer writes its verdict to a
-dedicated file:
+Mark each Reviewer row `in-progress` in `plan.md`. Project configuration caps
+delegation at depth one: load/read the `red-pen` skill and perform its pre-flight
+in the main agent, then launch
+Reviewer L, Reviewer T, and the critic directly in one message with multiple
+`spawn_agent` calls using `fork_turns: "none"`. No reviewer is a wrapper that
+spawns another child.
 
-- **Reviewer L (Link & citation audit).** Open every code link in `report.md`
-  via `Read`. Confirm the cited file/line still says what the report claims.
+- **Reviewer L (Link & citation audit).** Open every local source target or remote
+  permalink in `report.md` with the appropriate current tool. Confirm the cited
+  file/line still says what the report claims.
   Replace any unpinned URL. Writes pass/fail + fix-up diffs to
   `<run_dir>/review/L.md`.
-- **Reviewer T (Test re-runner).** Reset to a clean tree, re-apply each
-  `firefox/fix/*.patch`, rebuild (or `./mach build faster` if applicable),
-  rerun the test. Confirm pass/fail matches the report. Reject any committed
-  `#ifdef BLINDSPOT_INJECT_*` patch lacking the "Proof method: fault injection"
-  section. Writes to `<run_dir>/review/T.md`.
-- **Reviewer R (Independent adversarial).** Spawn an independent `worker` reviewer with
-  the draft report path. Verdict goes into `<run_dir>/review/R.md`.
+- **Reviewer T (Test re-runner).** Re-verify the proof patches **without touching
+  `blindspot/<slug>`** — that branch already contains them as commits, so "reset to a
+  clean tree and re-apply" would either fail as already-applied or destroy the very
+  artifacts the report cites. Apply the exported patches onto a disposable
+  worktree at `$BLINDSPOT_BASE`, then rebuild
+  (`./mach build`, or `./mach build faster` if applicable) and rerun. Confirm pass/fail
+  matches the report. Reject any committed `#ifdef BLINDSPOT_INJECT_*` patch lacking
+  the "Proof method: fault injection" section. Writes to `<run_dir>/review/T.md`.
+- **Reviewer R (Independent adversarial).** Spawn Red Pen's critic directly with
+  an explicit output path so the full review does not land somewhere the report
+  does not link:
+  ```
+  spawn_agent(
+    task_name: "blindspot_claim_review",
+    fork_turns: "none",
+    message: "Read <absolute run_dir>/report.md and the Red Pen review template; independently verify cited source under <absolute repo root>; write to <absolute run_dir>/review/blindspot-claim-review.md; return the required four-line verdict summary."
+  )
+  ```
+  Direct it at the **Invariant** section first: is the stated property really what
+  this code owes its callers, is the cited source strong enough to call it a
+  contract, and does the reachability evidence support the verdict? The invariant is
+  the report's spine — if it is wrong, everything downstream is decoration.
+  After it returns, the main agent writes its verdict, headline, iteration, and a
+  pointer to the exact full review path into `<run_dir>/review/R.md`.
+
+  Note red-pen expects an analysis doc and optionally a *solutions* doc. Blindspot
+  produces no solutions by design, so the critic is told the document contains none;
+  that is the expected shape, not a malformed input.
 
 As each reviewer returns, verify its file exists; mark its row `completed`.
 
@@ -373,10 +514,17 @@ back to `in-progress` and the artifact is rewritten):
 
 - Reviewer L failures → Phase 4 (rewrite + relink).
 - Reviewer T failures → Phase 3 (fix tests) or Phase 4 (correct verdict).
-- Reviewer R `revise` → Phase 4. `redesign` → escalate to user. `reject` or
-  `needs-more-info` → Phase 2 (gather more evidence).
+- Reviewer R `approve` → proceed. `approve-with-concerns` → apply the concerns, then
+  proceed (re-invoke red-pen only if the changes are non-trivial). `revise` → Phase 4.
+  `redesign` → escalate to user. `reject` or `needs-more-info` → Phase 2 (gather more
+  evidence).
 
-Do not argue with the reviewer; mirror sherlock rule #11.
+  red-pen's verdicts are exactly `approve | approve-with-concerns | revise | reject |
+  redesign | needs-more-info`. `accept` is **not** one of them — it belongs to
+  red-pen's separate *Iteration* line.
+
+Do not argue with the reviewer; mirror sherlock's "the reviewers are independent"
+gotcha.
 
 ---
 
@@ -388,7 +536,8 @@ loop back to that phase.
 
 Summarise to the user in ≤6 lines:
 - Verdict.
-- One-sentence reason.
+- The invariant and its state — which property was at stake, whether the code holds
+  it, and whether a break is reachable. This is the finding; the verdict is its label.
 - Path to `<run_dir>/report.md`.
 - Red-pen verdict verbatim.
 - Path to `<run_dir>/firefox/fix/` if any proof tests landed.

@@ -33,9 +33,14 @@ Every claim must be backed by a code reference.}
 ## Test Case
 **File**: {path to the standalone test in the library's test framework}
 **Framework**: {googletest / meson test / custom / etc.}
-**Result**: FAIL on revision `{hash}` — {brief description of failure}
+**Result**: {FAIL on revision `{hash}` — brief failure | PASS diagnostic exposing
+an undocumented contract/need for hardening}
 
-{If the test is short enough, include inline. Otherwise reference the file.}
+{For Branch A, describe the failing proof. For a Branch-C PASS/hardening report,
+state what the passing diagnostic establishes, what contract remains undocumented,
+and what hardening behavior is requested. Do not claim a FAIL→PASS transition. If
+the test is short enough, include inline; otherwise reference it. For security
+issues, omit the reproducer and coordinate privately as required by Sherlock.}
 
 ## How to Reproduce
 
@@ -49,7 +54,7 @@ git checkout {upstream_revision_hash}
 {Library-specific build prerequisites, e.g., "Requires CMake 3.16+, nasm, and
 a C11 compiler." Adapt based on the library's own build documentation.}
 
-### 2. Apply the test patch and build
+### 2. Apply the test patch and build in a disposable worktree
 ```bash
 git am -3 debug/01-test-<desc>.patch
 {build commands — e.g.:}
@@ -57,12 +62,12 @@ git am -3 debug/01-test-<desc>.patch
 {  cmake --build build}
 ```
 
-### 3. Run the test to confirm the failure
+### 3. Run the diagnostic
 ```bash
 {test command — e.g.:}
 {  ctest --test-dir build -R <test_name>}
 ```
-Expected result: **FAIL** — {brief description of expected failure output}
+Expected result: **{FAIL | PASS diagnostic}** — {brief expected output and what it proves}
 
 ### 4. Capture debug logs (optional)
 To see detailed trace output confirming the code path:
@@ -72,18 +77,20 @@ git am -3 debug/02-debug-lib-instrumentation.patch
 {test command} 2>&1 | tee debug-output.log
 ```
 The instrumentation adds `SHERLOCK:` prefixed log lines at key points in the
-code path.
+code path. Discard the disposable worktree afterwards; do not reset the original
+checkout.
 
 ### 5. Apply the fix and verify
 ```bash
-# Reset to clean state, then apply test + fix
-git checkout .
-git am -3 fix/01-test-<desc>.patch
-git am -3 fix/02-fix-<desc>.patch
+# In a fresh disposable worktree, apply fix/*.patch in documented order.
+# Non-security benign series: test -> fix.
+# Security benign series: fix -> test. Injection-only series: fix only.
+git am -3 fix/*.patch
 {rebuild command}
 {test command}
 ```
-Expected result: **PASS**
+Expected result: **PASS**, or the requested hardening behavior for an initially
+passing Branch-C diagnostic.
 
 ## Suggested Fix
 > Optional — include only if a fix has been verified against the test case.
