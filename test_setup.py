@@ -1750,17 +1750,17 @@ class TestMozillaInitSymlinkGate(unittest.TestCase):
     tools, rust and pernosco too — none of which create symlinks.
     """
 
+    @patch("setup.pernosco_init", return_value=None)
+    @patch("setup.mozilla_cli_tools_init", return_value=True)
+    @patch("setup.rust_init", return_value=True)
+    @patch("setup.tools_init", return_value=True)
+    @patch("setup.firefox_init")
     @patch("setup.ensure_symlink_capability", return_value=False)
-    def test_non_symlink_steps_run_without_symlink_capability(self, _mock_gate):
+    def test_non_symlink_steps_run_without_symlink_capability(
+        self, _mock_gate, mock_ff, mock_tools, mock_rust, mock_cli, mock_pern
+    ):
         """firefox is skipped, but every other step still runs."""
-        with (
-            patch("setup.firefox_init") as mock_ff,
-            patch("setup.tools_init", return_value=True) as mock_tools,
-            patch("setup.rust_init", return_value=True) as mock_rust,
-            patch("setup.mozilla_cli_tools_init", return_value=True) as mock_cli,
-            patch("setup.pernosco_init", return_value=None) as mock_pern,
-        ):
-            result = setup.mozilla_init([], tracker=None)
+        result = setup.mozilla_init([], tracker=None)
 
         mock_ff.assert_not_called()
         mock_tools.assert_called_once()
@@ -1780,17 +1780,17 @@ class TestMozillaInitSymlinkGate(unittest.TestCase):
         mock_cli.assert_called_once()
         self.assertTrue(result)
 
+    @patch("setup.pernosco_init", return_value=True)
+    @patch("setup.mozilla_cli_tools_init", return_value=True)
+    @patch("setup.rust_init", return_value=True)
+    @patch("setup.tools_init", return_value=True)
+    @patch("setup.firefox_init", return_value=True)
     @patch("setup.ensure_symlink_capability", return_value=True)
-    def test_all_steps_run_when_symlinks_available(self, _mock_gate):
+    def test_all_steps_run_when_symlinks_available(
+        self, _mock_gate, mock_ff, _mock_tools, _mock_rust, _mock_cli, _mock_pern
+    ):
         """With symlinks working, nothing is skipped."""
-        with (
-            patch("setup.firefox_init", return_value=True) as mock_ff,
-            patch("setup.tools_init", return_value=True),
-            patch("setup.rust_init", return_value=True),
-            patch("setup.mozilla_cli_tools_init", return_value=True),
-            patch("setup.pernosco_init", return_value=True),
-        ):
-            result = setup.mozilla_init([], tracker=None)
+        result = setup.mozilla_init([], tracker=None)
 
         mock_ff.assert_called_once()
         self.assertTrue(result)
@@ -1822,25 +1822,31 @@ class TestMozillaCliTools(unittest.TestCase):
         for m in (mock_bmo, mock_profiler, mock_bootstrap):
             m.assert_called_once()
 
+    @patch("setup.install_webspec_index")
+    @patch("setup.install_treeherder_cli")
+    @patch("setup.install_stmo_cli")
+    @patch("setup.install_socorro_cli")
+    @patch("setup.install_searchfox_cli")
     @patch("setup.mach_bootstrap_cli_tools_init")
     @patch("setup.install_profiler_cli")
     @patch("setup.install_bmo_to_md")
     def test_cli_tools_init_does_not_install_bootstrap_tools(
-        self, mock_bmo, mock_profiler, mock_bootstrap
+        self,
+        mock_bmo,
+        mock_profiler,
+        mock_bootstrap,
+        mock_sf,
+        mock_socorro,
+        mock_stmo,
+        mock_th,
+        mock_ws,
     ):
         """The bundle never calls the bootstrap-provided installers directly —
         that duplication is what mach bootstrap now covers."""
         for m in (mock_bmo, mock_profiler, mock_bootstrap):
             m.return_value = True
 
-        with (
-            patch("setup.install_searchfox_cli") as mock_sf,
-            patch("setup.install_socorro_cli") as mock_socorro,
-            patch("setup.install_stmo_cli") as mock_stmo,
-            patch("setup.install_treeherder_cli") as mock_th,
-            patch("setup.install_webspec_index") as mock_ws,
-        ):
-            setup.mozilla_cli_tools_init()
+        setup.mozilla_cli_tools_init()
 
         for m in (mock_sf, mock_socorro, mock_stmo, mock_th, mock_ws):
             m.assert_not_called()
@@ -1890,53 +1896,51 @@ class TestMozillaCliTools(unittest.TestCase):
 
     # ---- mach_bootstrap_cli_tools_init ----
 
+    @patch("setup.install_webspec_index")
+    @patch("setup.install_treeherder_cli")
+    @patch("setup.install_stmo_cli")
+    @patch("setup.install_socorro_cli")
+    @patch("setup.install_searchfox_cli")
     @patch("setup._cli_tool_present")
-    def test_bootstrap_tools_all_present_installs_nothing(self, mock_present):
+    def test_bootstrap_tools_all_present_installs_nothing(
+        self, mock_present, mock_sf, mock_socorro, mock_stmo, mock_th, mock_ws
+    ):
         """When bootstrap already installed everything, no cargo build runs."""
         mock_present.return_value = True
 
-        with (
-            patch("setup.install_searchfox_cli") as mock_sf,
-            patch("setup.install_socorro_cli") as mock_socorro,
-            patch("setup.install_stmo_cli") as mock_stmo,
-            patch("setup.install_treeherder_cli") as mock_th,
-            patch("setup.install_webspec_index") as mock_ws,
-        ):
-            result = setup.mach_bootstrap_cli_tools_init()
+        result = setup.mach_bootstrap_cli_tools_init()
 
         self.assertTrue(result)
         for m in (mock_sf, mock_socorro, mock_stmo, mock_th, mock_ws):
             m.assert_not_called()
 
+    @patch("setup.install_stmo_cli")
+    @patch("setup.install_searchfox_cli")
     @patch("setup._cli_tool_present")
-    def test_bootstrap_tools_missing_offers_fallback(self, mock_present):
+    def test_bootstrap_tools_missing_offers_fallback(
+        self, mock_present, mock_sf, mock_stmo
+    ):
         """Only the missing tools get a fallback cargo installer call."""
         mock_present.side_effect = lambda name: name != "stmo-cli"
+        mock_stmo.return_value = None
 
-        with (
-            patch("setup.install_searchfox_cli") as mock_sf,
-            patch("setup.install_stmo_cli") as mock_stmo,
-        ):
-            mock_stmo.return_value = None
-            result = setup.mach_bootstrap_cli_tools_init()
+        result = setup.mach_bootstrap_cli_tools_init()
 
         self.assertTrue(result)
         mock_stmo.assert_called_once()
         mock_sf.assert_not_called()
 
-    @patch("setup._cli_tool_present")
-    def test_bootstrap_tools_fallback_failure_returns_false(self, mock_present):
+    @patch("setup.install_webspec_index", return_value=True)
+    @patch("setup.install_treeherder_cli", return_value=True)
+    @patch("setup.install_stmo_cli", return_value=None)
+    @patch("setup.install_socorro_cli", return_value=True)
+    @patch("setup.install_searchfox_cli", return_value=False)
+    @patch("setup._cli_tool_present", return_value=False)
+    def test_bootstrap_tools_fallback_failure_returns_false(
+        self, _mock_present, _mock_sf, _mock_socorro, _mock_stmo, _mock_th, mock_ws
+    ):
         """A False from a fallback installer propagates as a hard failure."""
-        mock_present.return_value = False
-
-        with (
-            patch("setup.install_searchfox_cli", return_value=False),
-            patch("setup.install_socorro_cli", return_value=True),
-            patch("setup.install_stmo_cli", return_value=None),
-            patch("setup.install_treeherder_cli", return_value=True),
-            patch("setup.install_webspec_index", return_value=True) as mock_ws,
-        ):
-            result = setup.mach_bootstrap_cli_tools_init()
+        result = setup.mach_bootstrap_cli_tools_init()
 
         self.assertFalse(result)
         # No short-circuit: the last tool is still attempted.
