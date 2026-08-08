@@ -121,6 +121,42 @@
 - If upstream's `CARGO_TOOLS` gains a tool,
   `test_bootstrap_cargo_tools_matches_upstream_list` is the tripwire.
 
+**Node/npm — borrow Mozilla's, never write to it:**
+
+- `./mach bootstrap` unpacks a Node toolchain into `<state dir>/node`
+  but never puts it on PATH. Two things need npm and only one is
+  Mozilla's: `profiler-cli` (`--mozilla cli-tools`, wants Node >= 24)
+  and `markdownlint-cli` (`--dev-tools`, needs >= 20). So Node is *not*
+  a Mozilla-only concern, which is why the PATH entry lives in
+  `dot.bashrc` gated on `[ -d ... ]` rather than in the Mozilla module.
+- **The invariant: we read that toolchain and never write into it.**
+  npm's default global prefix is the Node install dir, so an unset
+  `--prefix` would scatter our shims and `node_modules` through
+  Mozilla's managed tree. `_npm_global_prefix()` forces every
+  `npm install -g` under `$HOME/.local` (`~/.local/npm` on Windows,
+  since Windows npm puts shims directly in `<prefix>`, not
+  `<prefix>/bin`). Bonus: a bootstrap Node update can no longer take
+  our packages with it.
+- Never `npm config set prefix` — that writes `~/.npmrc`, which mach's
+  own npm invocations may read. Per-invocation `--prefix` only.
+- PATH entry is **appended**, not prepended, so a real Node install
+  always outranks the version bootstrap happens to pin.
+  `_augment_path_with_mozbuild_node()` mirrors it for setup.py's own
+  process; Test Suite 8 in `test_shell_utils.sh` guards both.
+- `MOZBUILD_STATE_PATH` is honored, same lesson as `$CARGO_HOME`.
+- **Never spawn a bare `"npm"`.** On Windows npm ships as `npm.cmd`
+  plus an extensionless shell script; `CreateProcess` can only run the
+  former, so `subprocess.run(["npm", ...])` raises `FileNotFoundError`
+  while `where npm` still finds it — detection succeeds, the call
+  fails. All call sites use `_npm_executable()` (`shutil.which`, which
+  honors PATHEXT). This was latent until npm first appeared on PATH.
+- A package declaring a Node floor above what's installed is a
+  *prompt*, not a refusal: npm itself treats `engines` as advisory
+  (EBADENGINE warns, exit 0), and profiler-cli 0.7.0 was verified to
+  load real profiles and answer queries on bootstrap's Node 22 despite
+  declaring >= 24. `_confirm_older_node()` warns, explains, and asks;
+  it defaults to No and must never proceed unattended.
+
 **Line endings (LF everywhere):**
 
 - `.gitattributes` declares `* text=auto eol=lf` so checkouts always
@@ -200,13 +236,14 @@ See [README.md](README.md#testing) for how to run tests.
 
 **Test suites:**
 
-- `test_setup.py` - 143 tests (symlinks, file ops, main flow,
+- `test_setup.py` - 157 tests (symlinks, file ops, main flow,
   Windows elevation/Dev Mode probes, Windows Dev Mode commit
   gate, claude-overlay branch-exists handling, stuck-state
   auto-switch, Windows post-checkout hook for re-materializing
   symlink-blob entries that git checkout failed to create)
-- `test_shell_utils.sh` - 26 tests (functions, git utils, and
-  Test Suite 6's guards against bash-isms that break zsh)
+- `test_shell_utils.sh` - 27 tests (functions, git utils,
+  Test Suite 6's guards against bash-isms that break zsh, and
+  Test Suite 8's guards on the bootstrap-Node PATH entry)
 - `test_claude_security.py` - 23 tests (security hooks)
 - `test_prompt_colors.sh` - 22 tests (prompt colors)
 - `claude/test_session_sync.py` - 56 tests (parsing, rendering, manifest, discovery, env var)

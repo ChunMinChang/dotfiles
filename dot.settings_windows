@@ -60,4 +60,7 @@ for _scripts_dir in "$HOME"/AppData/Roaming/Python/Python*/Scripts; do
 done
 unset _scripts_dir
 [ -d "$HOME/AppData/Roaming/npm" ] && PATH="$HOME/AppData/Roaming/npm:$PATH"
+# npm -g with the explicit --prefix setup.py passes (_npm_global_prefix):
+# on Windows npm drops shims directly in <prefix>, not <prefix>/bin.
+[ -d "$HOME/.local/npm" ] && PATH="$HOME/.local/npm:$PATH"
 export PATH

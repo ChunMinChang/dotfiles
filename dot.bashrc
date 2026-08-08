@@ -33,6 +33,23 @@ if [ -d "$DOTFILES_LOCAL_BIN_DIR" ]; then
   export PATH="$DOTFILES_LOCAL_BIN_DIR:$PATH"
 fi
 
+# Node/npm from `./mach bootstrap`, if present.
+#
+# Bootstrap unpacks a Node toolchain into its state dir, but never puts it
+# on PATH. Borrow it so npm-installed tools (markdownlint, profiler-cli)
+# are reachable. We only ever *read* from this directory -- our own npm
+# installs go to $HOME/.local via an explicit --prefix, so a bootstrap
+# Node update cannot take them with it.
+#
+# APPENDED, not prepended: a real Node install must always outrank the
+# version mach bootstrap happens to pin. Keep in sync with
+# _augment_path_with_mozbuild_node() in setup.py.
+_mozbuild_node_dir="${MOZBUILD_STATE_PATH:-$HOME/.mozbuild}/node"
+if [ -d "$_mozbuild_node_dir" ]; then
+  export PATH="$PATH:$_mozbuild_node_dir"
+fi
+unset _mozbuild_node_dir
+
 # Optional settings
 # ====================================================================
 # This is a template file. Machine-specific settings (e.g., Mozilla tools)

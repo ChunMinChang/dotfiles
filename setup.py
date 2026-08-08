@@ -574,10 +574,15 @@ def _augment_path_for_windows_tools():
     ):
         if os.path.isdir(scripts_dir):
             dirs_to_add.append(scripts_dir)
-    # npm -g: ~/AppData/Roaming/npm
+    # npm -g: ~/AppData/Roaming/npm (prefix of a *system* Node install)
     npm_dir = os.path.join(home, "AppData", "Roaming", "npm")
     if os.path.isdir(npm_dir):
         dirs_to_add.append(npm_dir)
+    # npm -g with our explicit --prefix (see _npm_global_prefix): on Windows
+    # npm drops the shims directly in the prefix dir, not prefix/bin.
+    own_npm_dir = _npm_global_bin_dir()
+    if os.path.isdir(own_npm_dir):
+        dirs_to_add.append(own_npm_dir)
 
     existing = os.environ.get("PATH", "")
     existing_parts = existing.split(os.pathsep) if existing else []
@@ -586,7 +591,88 @@ def _augment_path_for_windows_tools():
         os.environ["PATH"] = os.pathsep.join(new_parts + existing_parts)
 
 
+def _mozbuild_state_dir():
+    """Return mach's state dir: $MOZBUILD_STATE_PATH if set, else ~/.mozbuild.
+
+    Mirrors how mach/mozboot resolve it. Honoring the env var matters for
+    the same reason it did for $CARGO_HOME: a machine that relocates the
+    state dir would otherwise look empty to us.
+    """
+    return os.environ.get("MOZBUILD_STATE_PATH") or os.path.join(
+        get_home_dir(), ".mozbuild"
+    )
+
+
+def _mozbuild_node_dir():
+    """Return the Node install ``./mach bootstrap`` provides, or None.
+
+    Bootstrap unpacks a Node toolchain into <state dir>/node on every
+    platform. We *read* node/npm from there and never write into it --
+    see _npm_global_prefix() for where our own installs go instead.
+    """
+    node_dir = os.path.join(_mozbuild_state_dir(), "node")
+    return node_dir if os.path.isdir(node_dir) else None
+
+
+def _augment_path_with_mozbuild_node():
+    """Append bootstrap's Node dir to this process's PATH if it exists.
+
+    Appended, never prepended: a real Node install on PATH must always
+    outrank the one mach bootstrap happens to pin. Cross-platform, unlike
+    _augment_path_for_windows_tools(). Mirrors the PATH block in
+    dot.bashrc; keep the two in sync.
+
+    Idempotent.
+    """
+    node_dir = _mozbuild_node_dir()
+    if node_dir is None:
+        return
+    existing = os.environ.get("PATH", "")
+    parts = existing.split(os.pathsep) if existing else []
+    if node_dir in parts:
+        return
+    os.environ["PATH"] = os.pathsep.join(parts + [node_dir])
+
+
+def _npm_executable():
+    """Resolve npm's launcher for subprocess use.
+
+    Passing a bare "npm" to subprocess.run() raises FileNotFoundError on
+    Windows: npm ships as npm.cmd plus an extensionless shell script, and
+    CreateProcess can only run the former. `where npm` finds the script, so
+    is_tool("npm") succeeds while the actual call fails -- which stayed
+    hidden only while npm was never on PATH here. shutil.which honors
+    PATHEXT and returns the .cmd.
+
+    Falls back to "npm" so callers still get a sensible argv (and the
+    existing FileNotFoundError handling) when npm is absent.
+    """
+    return shutil.which("npm") or "npm"
+
+
+def _npm_global_prefix():
+    """Return the --prefix to hand every ``npm install -g`` we run.
+
+    Never the default prefix: when npm comes from ``./mach bootstrap``
+    that resolves to <state dir>/node, so a global install would scatter
+    our shims and node_modules through Mozilla's managed toolchain. An
+    explicit prefix keeps our writes entirely inside $HOME/.local, and
+    means a bootstrap Node update can't take our packages with it.
+    """
+    local = os.path.join(get_home_dir(), ".local")
+    # Windows npm puts shims directly in <prefix>; POSIX uses <prefix>/bin,
+    # and ~/.local/bin is already on PATH via dot.bashrc.
+    return os.path.join(local, "npm") if is_windows() else local
+
+
+def _npm_global_bin_dir():
+    """Return the directory _npm_global_prefix() actually drops binaries in."""
+    prefix = _npm_global_prefix()
+    return prefix if is_windows() else os.path.join(prefix, "bin")
+
+
 _augment_path_for_windows_tools()
+_augment_path_with_mozbuild_node()
 
 
 def append_to_next_line_after(name, pattern, value=""):
@@ -1755,7 +1841,7 @@ def _probe_npm_node_requirement(npm_pkg):
         return None
     try:
         result = subprocess.run(
-            ["npm", "view", npm_pkg, "engines.node"],
+            [_npm_executable(), "view", npm_pkg, "engines.node"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -1881,12 +1967,59 @@ def _ensure_system_packages(display_name, apt_pkgs, brew_pkgs):
     return False
 
 
+def _confirm_older_node(display_name, min_major, current):
+    """Warn that Node is below the package's declared floor, then ask.
+
+    npm treats `engines` as advisory -- it prints EBADENGINE and installs
+    anyway -- and packages are often fine on the previous major. So offer
+    the choice rather than deciding for the user: refusing outright skips
+    tools that would have worked (profiler-cli 0.7.0, for one, runs on the
+    Node 22 that `./mach bootstrap` ships despite declaring >= 24).
+
+    Defaults to No: proceeding is the unverified path, so it should be a
+    deliberate opt-in and must never happen unattended.
+
+    Returns True to install anyway, None to skip.
+    """
+    print_warning(
+        f"{display_name} declares Node >= {min_major}, but the Node on PATH "
+        f"is v{current}.x.\n"
+        "  npm treats this as a warning (EBADENGINE) and would install "
+        "anyway, and\n"
+        "  the tool may well work -- but that combination is untested here."
+    )
+    print_tool_prompt(
+        f"{display_name} on Node v{current}.x (below the declared minimum)",
+        [
+            "Installs now, with no Node upgrade and no new dependencies",
+            "Often works: the declared floor is usually conservative",
+        ],
+        [
+            f"{display_name} is skipped until Node {min_major}+ is installed",
+            f"Safer route: install Node {min_major}+ from https://nodejs.org/ "
+            "and re-run setup",
+        ],
+    )
+    if not get_user_confirmation(
+        f"Install {display_name} anyway on Node v{current}.x? [y/N]: "
+    ):
+        print(f"Skipping {display_name} (Node {min_major}+ not present)")
+        return None
+    print_hint(
+        f"  Proceeding on Node v{current}.x at your request. If "
+        f"{display_name} misbehaves,\n"
+        f"  install Node {min_major}+ and re-run setup."
+    )
+    return True
+
+
 def _ensure_node_major(display_name, min_major):
     """Prompt to upgrade Node.js to at least min_major if current is older.
 
-    Returns True if Node already meets requirement (or upgrade succeeded),
-    False if the install ran but Node is still too old, None if skipped
-    (unsupported platform, no sudo/brew, or user declined).
+    Returns True if Node already meets requirement (or upgrade succeeded,
+    or the user opted to proceed on an older Node), False if the install
+    ran but Node is still too old, None if skipped (unsupported platform,
+    no sudo/brew, or user declined).
     """
     current = _node_major_version()
     if current is not None and current >= min_major:
@@ -1904,16 +2037,18 @@ def _ensure_node_major(display_name, min_major):
             f"Install from https://brew.sh, then run "
             f"`brew install node@{min_major}`."
         )
-        return None
+        return _confirm_older_node(display_name, min_major, current)
     if is_windows():
+        # No supported auto-upgrade path here, so the only choice left is
+        # whether to use the Node that is present.
         print_warning(
             f"Auto-upgrade of Node not supported on Windows. "
             f"Install Node {min_major}+ from https://nodejs.org/ "
-            "and re-run setup."
+            "and re-run setup for the supported configuration."
         )
-        return None
+        return _confirm_older_node(display_name, min_major, current)
     if not (is_linux() or is_macos()):
-        return None
+        return _confirm_older_node(display_name, min_major, current)
     if not is_interactive():
         print_warning(
             f"Cannot upgrade Node for {display_name} in non-interactive mode. "
@@ -1928,13 +2063,14 @@ def _ensure_node_major(display_name, min_major):
             f"current node is v{current}.x",
         ],
         [
-            f"{display_name} install will be skipped",
+            f"You are offered the option to install on Node v{current}.x anyway",
             "Manual install: see https://nodejs.org/ "
             "or https://github.com/nodesource/distributions",
         ],
     )
     if not get_user_confirmation(f"Upgrade Node to {min_major}.x now? [y/N]: "):
-        return None
+        # Declining the upgrade is not the same as declining the tool.
+        return _confirm_older_node(display_name, min_major, current)
 
     try:
         if is_linux():
@@ -2341,7 +2477,15 @@ def install_profiler_cli(tracker=None):
             return False
         if node_ok is None:
             return None
-        if current_before is not None and current_before < min_major:
+        # Compare the version before and after rather than inferring from
+        # min_major: node_ok is also True when the user opted to proceed on
+        # an older Node, and that is not an upgrade.
+        current_after = _node_major_version()
+        if (
+            current_before is not None
+            and current_after is not None
+            and current_after > current_before
+        ):
             node_was_upgraded = True
 
     if is_tool(binary_name) and not node_was_upgraded:
@@ -2370,14 +2514,19 @@ def install_profiler_cli(tracker=None):
         print(f"Skipping {display_name} installation")
         return None
 
-    # On Linux/macOS, npm's default global prefix is /usr/local which
-    # requires root. Use --prefix=$HOME/.local so the binary lands in
-    # ~/.local/bin (auto-added to PATH by dot.bashrc when it exists).
-    # On Windows, npm -g defaults to a user-writable AppData path.
-    npm_cmd = ["npm", "install", "-g"]
-    if not is_windows():
-        npm_cmd.extend(["--prefix", os.path.join(get_home_dir(), ".local")])
-    npm_cmd.append(npm_pkg)
+    # Always pass --prefix, on every platform. On Linux/macOS npm's default
+    # prefix is /usr/local (needs root); on Windows, when npm came from
+    # `./mach bootstrap`, the default prefix is Mozilla's own Node install
+    # dir, so a global install would litter its tree. _npm_global_prefix()
+    # keeps every write under $HOME/.local.
+    npm_cmd = [
+        _npm_executable(),
+        "install",
+        "-g",
+        "--prefix",
+        _npm_global_prefix(),
+        npm_pkg,
+    ]
 
     print(f"Installing {display_name} via npm (may take a while)...")
     try:
@@ -2822,10 +2971,16 @@ def install_markdownlint(tracker=None):
     pkg = "markdownlint-cli"
     if _node_major_version() and _node_major_version() < 20:
         pkg = "markdownlint-cli@0.44.0"
-    npm_cmd = ["npm", "install", "-g"]
-    if not is_windows():
-        npm_cmd.extend(["--prefix", os.path.join(get_home_dir(), ".local")])
-    npm_cmd.append(pkg)
+    # Always pass --prefix, on every platform: npm's default prefix is the
+    # Node install dir, which is Mozilla's when npm came from bootstrap.
+    npm_cmd = [
+        _npm_executable(),
+        "install",
+        "-g",
+        "--prefix",
+        _npm_global_prefix(),
+        pkg,
+    ]
     try:
         print("Installing {} via npm (may take a while)...".format(pkg))
         result = subprocess.run(

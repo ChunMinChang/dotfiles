@@ -56,6 +56,15 @@ Rust/Cargo environment, plus the CLI tools Firefox skills rely on
 > (`./mach bootstrap --no-interactive` skips them, so use the
 > fallback in that case.)
 
+**Node/npm:** if `./mach bootstrap` has run, its Node install is added
+to your PATH (appended, so any real Node install still wins). That's
+what makes `markdownlint` and `profiler-cli` reachable. Our own
+`npm install -g` always uses an explicit `--prefix` under
+`~/.local`, so nothing is ever written into Mozilla's `~/.mozbuild`
+tree — and a bootstrap Node update can't take those packages with it.
+Tools declaring a newer Node than you have will warn and ask before
+installing, rather than being silently skipped.
+
 ## Key Commands
 
 ### Git

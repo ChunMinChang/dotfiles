@@ -166,6 +166,46 @@ case "$detected_platform" in
   *) test_fail "PLATFORM='$detected_platform' (expected windows/darwin/linux)" ;;
 esac
 
+echo -e "\n${YELLOW}Test Suite 8: Bootstrap Node PATH${NC}"
+# We borrow ./mach bootstrap's Node read-only. It must be APPENDED so a real
+# Node install always outranks the version bootstrap happens to pin, and it
+# must be existence-gated so non-bootstrap machines are unaffected.
+TESTS_RUN=$((TESTS_RUN + 1))
+echo -n "  dot.bashrc appends (not prepends) bootstrap's node dir: "
+if grep -qE 'export PATH="\$PATH:\$_mozbuild_node_dir"' "$SCRIPT_DIR/dot.bashrc"; then
+    test_pass
+else
+    test_fail "bootstrap node dir must be appended: PATH=\$PATH:<dir>"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+echo -n "  bootstrap node dir is existence-gated: "
+if grep -qE '\[ -d "\$_mozbuild_node_dir" \]' "$SCRIPT_DIR/dot.bashrc"; then
+    test_pass
+else
+    test_fail "guard the PATH entry with [ -d ... ]"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+echo -n "  MOZBUILD_STATE_PATH is honored: "
+if grep -q 'MOZBUILD_STATE_PATH:-\$HOME/.mozbuild' "$SCRIPT_DIR/dot.bashrc"; then
+    test_pass
+else
+    test_fail "resolve the state dir via \${MOZBUILD_STATE_PATH:-\$HOME/.mozbuild}"
+fi
+
+# npm must never be spawned as a bare "npm": on Windows it ships as npm.cmd
+# and CreateProcess cannot run the extensionless shell script, so
+# subprocess.run(["npm", ...]) raises FileNotFoundError even though
+# `where npm` finds it. All call sites go through _npm_executable().
+TESTS_RUN=$((TESTS_RUN + 1))
+echo -n "  setup.py spawns npm via _npm_executable(), never bare \"npm\": "
+if grep -nE '\[\s*"npm"' "$SCRIPT_DIR/setup.py" >/dev/null 2>&1; then
+    test_fail "use _npm_executable() as argv[0] (bare \"npm\" fails on Windows)"
+else
+    test_pass
+fi
+
 # Summary
 echo -e "\n${BLUE}====================================\nTest Summary\n====================================${NC}\n"
 echo "Tests run:    $TESTS_RUN"

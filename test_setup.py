@@ -1946,6 +1946,157 @@ class TestMozillaCliTools(unittest.TestCase):
         # No short-circuit: the last tool is still attempted.
         mock_ws.assert_called_once()
 
+    # ---- Never write into Mozilla's toolchain ----
+
+    def test_mozbuild_state_dir_honors_env(self):
+        """MOZBUILD_STATE_PATH wins over ~/.mozbuild, as mach resolves it."""
+        with patch.dict(os.environ, {"MOZBUILD_STATE_PATH": os.path.join("X:", "mb")}):
+            self.assertEqual(setup._mozbuild_state_dir(), os.path.join("X:", "mb"))
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("MOZBUILD_STATE_PATH", None)
+            with patch("setup.get_home_dir", return_value=os.path.join("X:", "h")):
+                self.assertEqual(
+                    setup._mozbuild_state_dir(), os.path.join("X:", "h", ".mozbuild")
+                )
+
+    def test_npm_global_prefix_never_inside_mozbuild(self):
+        """The invariant: our npm prefix must never live under the state dir.
+
+        npm's default prefix is the Node install dir, so when npm comes from
+        `./mach bootstrap` an unset prefix would write into Mozilla's tree.
+        """
+        for windows in (True, False):
+            with patch("setup.is_windows", return_value=windows):
+                prefix = setup._npm_global_prefix()
+                self.assertNotIn(".mozbuild", prefix)
+                self.assertTrue(prefix.startswith(setup.get_home_dir()))
+
+    @patch("setup.shutil.which", return_value=r"C:\n\npm.CMD")
+    def test_npm_executable_resolves_windows_cmd(self, _mock_which):
+        """argv[0] must be the resolved launcher, not a bare "npm".
+
+        Regression guard: subprocess.run(["npm", ...]) raises
+        FileNotFoundError on Windows because npm ships as npm.cmd, while
+        `where npm` still finds the extensionless script -- so detection
+        succeeded and the call failed.
+        """
+        self.assertEqual(setup._npm_executable(), r"C:\n\npm.CMD")
+
+    @patch("setup.shutil.which", return_value=None)
+    def test_npm_executable_falls_back_when_absent(self, _mock_which):
+        """With no npm, fall back to "npm" so existing error handling runs."""
+        self.assertEqual(setup._npm_executable(), "npm")
+
+    @patch("setup.is_windows", return_value=True)
+    def test_npm_global_bin_dir_windows_is_prefix_itself(self, _mock_win):
+        """Windows npm drops shims directly in <prefix>, not <prefix>/bin."""
+        self.assertEqual(setup._npm_global_bin_dir(), setup._npm_global_prefix())
+
+    @patch("setup.is_windows", return_value=False)
+    def test_npm_global_bin_dir_posix_is_prefix_bin(self, _mock_win):
+        """POSIX npm uses <prefix>/bin, which dot.bashrc already adds."""
+        self.assertEqual(
+            setup._npm_global_bin_dir(),
+            os.path.join(setup._npm_global_prefix(), "bin"),
+        )
+
+    @patch("setup.subprocess.run")
+    @patch("setup._node_major_version", return_value=22)
+    @patch("setup.get_user_confirmation", return_value=True)
+    @patch("setup.is_tool", side_effect=lambda n: n == "npm")
+    def test_markdownlint_install_passes_prefix(
+        self, _mock_tool, _mock_confirm, _mock_ver, mock_run
+    ):
+        """markdownlint is the non-Mozilla npm consumer; it must be contained too."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("setup.get_home_dir", return_value=tmp):
+                setup.install_markdownlint()
+
+        npm_cmd = mock_run.call_args[0][0]
+        self.assertIn("--prefix", npm_cmd)
+        self.assertNotIn(".mozbuild", npm_cmd[npm_cmd.index("--prefix") + 1])
+
+    # ---- PATH augmentation for bootstrap's Node ----
+
+    def test_augment_path_appends_mozbuild_node(self):
+        """Bootstrap's Node is appended, never prepended.
+
+        A real Node install already on PATH must keep winning over the
+        version mach bootstrap happens to pin.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            node_dir = os.path.join(tmp, "node")
+            os.makedirs(node_dir)
+            with patch.dict(os.environ, {"MOZBUILD_STATE_PATH": tmp}):
+                with patch.dict(os.environ, {"PATH": "/usr/bin"}):
+                    setup._augment_path_with_mozbuild_node()
+                    parts = os.environ["PATH"].split(os.pathsep)
+                    self.assertEqual(parts[-1], node_dir)
+                    self.assertEqual(parts[0], "/usr/bin")
+
+    def test_augment_path_is_idempotent(self):
+        """Re-running must not append the directory twice."""
+        with tempfile.TemporaryDirectory() as tmp:
+            node_dir = os.path.join(tmp, "node")
+            os.makedirs(node_dir)
+            with patch.dict(os.environ, {"MOZBUILD_STATE_PATH": tmp}):
+                with patch.dict(os.environ, {"PATH": "/usr/bin"}):
+                    setup._augment_path_with_mozbuild_node()
+                    setup._augment_path_with_mozbuild_node()
+                    self.assertEqual(
+                        os.environ["PATH"].split(os.pathsep).count(node_dir), 1
+                    )
+
+    def test_augment_path_noop_without_bootstrap(self):
+        """No state dir means nothing to borrow; PATH is untouched."""
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict(os.environ, {"MOZBUILD_STATE_PATH": tmp}):
+                with patch.dict(os.environ, {"PATH": "/usr/bin"}):
+                    setup._augment_path_with_mozbuild_node()
+                    self.assertEqual(os.environ["PATH"], "/usr/bin")
+
+    # ---- Older-Node opt-in (must never proceed unattended) ----
+
+    @patch("setup.get_user_confirmation", return_value=False)
+    def test_confirm_older_node_declined_skips(self, _mock_confirm):
+        """Declining the warning skips the tool."""
+        self.assertIsNone(setup._confirm_older_node("tool", 24, 22))
+
+    @patch("setup.get_user_confirmation", return_value=True)
+    def test_confirm_older_node_accepted_proceeds(self, _mock_confirm):
+        """Accepting it installs on the older Node."""
+        self.assertTrue(setup._confirm_older_node("tool", 24, 22))
+
+    @patch("setup.is_windows", return_value=True)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=False)
+    @patch("setup._node_major_version", return_value=22)
+    @patch("setup.get_user_confirmation", return_value=True)
+    def test_ensure_node_major_windows_offers_opt_in(
+        self, mock_confirm, _mock_ver, _lin, _mac, _win
+    ):
+        """Windows has no auto-upgrade, so it must ask rather than refuse.
+
+        Regression guard: this used to return None unconditionally, silently
+        skipping tools that work fine on the Node bootstrap ships.
+        """
+        self.assertTrue(setup._ensure_node_major("tool", 24))
+        mock_confirm.assert_called_once()
+
+    @patch("setup.is_windows", return_value=True)
+    @patch("setup.is_macos", return_value=False)
+    @patch("setup.is_linux", return_value=False)
+    @patch("setup._node_major_version", return_value=22)
+    @patch("setup.is_interactive", return_value=False)
+    def test_ensure_node_major_never_proceeds_unattended(
+        self, _mock_tty, _mock_ver, _lin, _mac, _win
+    ):
+        """With no TTY the opt-in must default to skipping, not installing."""
+        self.assertIsNone(setup._ensure_node_major("tool", 24))
+
     def test_bootstrap_cargo_tools_matches_upstream_list(self):
         """Guard the list against drift from mozboot's CARGO_TOOLS."""
         self.assertEqual(
@@ -2103,7 +2254,9 @@ class TestMozillaCliTools(unittest.TestCase):
 
         self.assertTrue(result)
         npm_cmd = mock_run.call_args[0][0]
-        self.assertEqual(npm_cmd[:3], ["npm", "install", "-g"])
+        # argv[0] is the resolved npm launcher (npm.cmd on Windows),
+        # so assert on the subcommand rather than the executable name.
+        self.assertEqual(npm_cmd[1:3], ["install", "-g"])
         self.assertIn("--prefix", npm_cmd)
         prefix_idx = npm_cmd.index("--prefix")
         self.assertEqual(
@@ -2116,10 +2269,15 @@ class TestMozillaCliTools(unittest.TestCase):
     @patch("setup.is_windows")
     @patch("setup.get_user_confirmation")
     @patch("setup.is_tool")
-    def test_install_profiler_cli_windows_no_prefix(
+    def test_install_profiler_cli_windows_uses_explicit_prefix(
         self, mock_is_tool, mock_confirm, mock_is_win, mock_run, _mock_probe
     ):
-        """On Windows, npm -g defaults to AppData (no --prefix needed)."""
+        """Windows must pass --prefix too.
+
+        npm's default prefix is the Node install dir, which is Mozilla's
+        when npm came from `./mach bootstrap` -- so relying on the default
+        would scatter our shims through its managed toolchain.
+        """
         mock_is_tool.side_effect = lambda name: name == "npm"
         mock_confirm.return_value = True
         mock_is_win.return_value = True
@@ -2129,7 +2287,10 @@ class TestMozillaCliTools(unittest.TestCase):
 
         self.assertTrue(setup.install_profiler_cli())
         npm_cmd = mock_run.call_args[0][0]
-        self.assertNotIn("--prefix", npm_cmd)
+        self.assertIn("--prefix", npm_cmd)
+        self.assertEqual(
+            npm_cmd[npm_cmd.index("--prefix") + 1], setup._npm_global_prefix()
+        )
         self.assertEqual(npm_cmd[-1], "@firefox-devtools/profiler-cli@latest")
 
     @patch("setup._probe_npm_node_requirement", return_value=None)
@@ -2609,7 +2770,7 @@ class TestMozillaCliTools(unittest.TestCase):
         # npm install not invoked
         for c in mock_run.call_args_list:
             argv = c[0][0]
-            self.assertFalse(argv[:2] == ["npm", "install"])
+            self.assertFalse(argv[1:2] == ["install"])
 
     @patch("setup._node_major_version", return_value=24)
     @patch("setup._ensure_node_major", return_value=True)
@@ -2624,11 +2785,12 @@ class TestMozillaCliTools(unittest.TestCase):
         with patch("setup.subprocess.run") as mock_run:
             self.assertTrue(setup.install_profiler_cli())
             for c in mock_run.call_args_list:
-                self.assertNotEqual(c[0][0][:2], ["npm", "install"])
+                self.assertNotEqual(c[0][0][1:2], ["install"])
 
     @patch("setup.is_windows", return_value=False)
     @patch("setup.get_user_confirmation", return_value=True)
-    @patch("setup._node_major_version", return_value=18)
+    # Before the gate node is 18, after it 24: an actual upgrade happened.
+    @patch("setup._node_major_version", side_effect=[18, 24, 24, 24])
     @patch("setup._ensure_node_major", return_value=True)
     @patch("setup._probe_npm_node_requirement", return_value=24)
     @patch("setup.subprocess.run")
@@ -2643,8 +2805,8 @@ class TestMozillaCliTools(unittest.TestCase):
         _mock_confirm,
         _mock_is_win,
     ):
-        """If Node was just upgraded (current_before < min_major),
-        run npm install even when binary appears installed."""
+        """If Node's major actually rose across the gate, reinstall even when
+        the binary appears installed (native deps need refreshing)."""
         mock_is_tool.side_effect = lambda name: name in ("npm", "profiler-cli")
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""
@@ -2653,7 +2815,7 @@ class TestMozillaCliTools(unittest.TestCase):
         npm_install_calls = [
             c[0][0]
             for c in mock_run.call_args_list
-            if c[0][0][:3] == ["npm", "install", "-g"]
+            if c[0][0][1:3] == ["install", "-g"]
         ]
         self.assertEqual(len(npm_install_calls), 1)
         self.assertEqual(
