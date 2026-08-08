@@ -634,12 +634,20 @@ class TestExportCurrentAutodetect(unittest.TestCase):
         proj_dir = os.path.join(self.tmpdir, "-home-user-project")
         os.makedirs(proj_dir)
 
+        # cmd_export_current normalizes args.project_dir through
+        # os.path.abspath() before matching it against each session's
+        # recorded cwd. On Windows that turns a POSIX-style path into
+        # C:\home\user\project, which matched nothing, so the test failed
+        # there while passing on Linux/macOS. Record the same normalized
+        # form the code under test will compute.
+        project_cwd = os.path.abspath("/home/user/project")
+
         # Create two sessions for same cwd, different mtimes
         old_path = make_synthetic_jsonl(
             [
                 make_user_message(
                     "old",
-                    cwd="/home/user/project",
+                    cwd=project_cwd,
                     session_id="old00000-0000-0000-0000-000000000000",
                     timestamp="2026-02-20T10:00:00Z",
                 )
@@ -653,7 +661,7 @@ class TestExportCurrentAutodetect(unittest.TestCase):
             [
                 make_user_message(
                     "new",
-                    cwd="/home/user/project",
+                    cwd=project_cwd,
                     session_id="new00000-0000-0000-0000-000000000000",
                     timestamp="2026-02-24T10:00:00Z",
                 )
@@ -664,7 +672,7 @@ class TestExportCurrentAutodetect(unittest.TestCase):
         # Simulate argparse namespace
         class Args:
             dest = self.destdir
-            project_dir = "/home/user/project"
+            project_dir = project_cwd
             format = "markdown"
             include_subagents = False
 
