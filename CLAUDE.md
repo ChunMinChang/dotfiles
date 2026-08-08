@@ -245,7 +245,8 @@ See [README.md](README.md#testing) for how to run tests.
   Test Suite 6's guards against bash-isms that break zsh, and
   Test Suite 8's guards on the bootstrap-Node PATH entry)
 - `test_claude_security.py` - 23 tests (security hooks)
-- `test_prompt_colors.sh` - 22 tests (prompt colors)
+- `test_prompt_colors.sh` - 22 tests (prompt colors; the 12 zsh
+  assertions report as skipped, not failed, when zsh is absent)
 - `claude/test_session_sync.py` - 56 tests (parsing, rendering, manifest, discovery, env var)
 
 Skill test suites (run manually, not part of `test_all.sh`):

@@ -16,6 +16,14 @@ NC='\033[0m' # No Color
 TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
+TESTS_SKIPPED=0
+
+# zsh is an optional dependency: it ships with macOS, is usually a package
+# away on Linux, and is absent from Windows/Git Bash. A missing optional
+# interpreter is not a test failure -- reporting 11 red X's there hid real
+# regressions in the noise. Detect it once and skip those assertions.
+HAVE_ZSH=0
+command -v zsh >/dev/null 2>&1 && HAVE_ZSH=1
 
 # Print functions
 print_test_header() {
@@ -37,6 +45,11 @@ print_pass() {
 print_fail() {
     echo -e "  ${RED}✗${NC} $1"
     ((TESTS_FAILED++))
+}
+
+print_skip() {
+    echo -e "  ${YELLOW}⊘${NC} $1 (skipped: zsh not installed)"
+    ((TESTS_SKIPPED++))
 }
 
 # BranchInPrompt's bash path deliberately defers the work to PROMPT_COMMAND
@@ -93,6 +106,14 @@ test_bash_escape_sequences() {
 test_zsh_escape_sequences() {
     print_section "Zsh Escape Sequences"
 
+    if [ "$HAVE_ZSH" -eq 0 ]; then
+        TESTS_RUN=$((TESTS_RUN + 3))
+        print_skip "Zsh uses %{ for opening escape"
+        print_skip "Zsh uses %} for closing escape"
+        print_skip "Zsh prompt is set (uses tput for colors)"
+        return
+    fi
+
     # Test 1: BranchInPrompt uses zsh sequences when ZSH_VERSION is set
     TESTS_RUN=$((TESTS_RUN + 1))
     result=$(zsh -c '
@@ -146,6 +167,10 @@ test_parse_git_branch() {
 
     # Test in zsh
     TESTS_RUN=$((TESTS_RUN + 1))
+    if [ "$HAVE_ZSH" -eq 0 ]; then
+        print_skip "ParseGitBranch outputs correct format in zsh"
+        return
+    fi
     result=$(zsh -c '
         source git/utils.sh
         cd . # Make sure we are in git repo
@@ -174,6 +199,10 @@ test_shell_detection() {
 
     # Test 2: Detects zsh
     TESTS_RUN=$((TESTS_RUN + 1))
+    if [ "$HAVE_ZSH" -eq 0 ]; then
+        print_skip "Shell detection correctly identifies zsh"
+        return
+    fi
     result=$(zsh -c '
         export ZSH_VERSION="5.8"
         unset BASH_VERSION
@@ -210,6 +239,10 @@ test_no_literal_escapes() {
 
     # Test zsh
     TESTS_RUN=$((TESTS_RUN + 1))
+    if [ "$HAVE_ZSH" -eq 0 ]; then
+        print_skip "Zsh prompt has properly formatted escape sequences"
+        return
+    fi
     result=$(zsh -c '
         export ZSH_VERSION="5.8"
         unset BASH_VERSION
@@ -233,6 +266,10 @@ test_prompt_subst_enabled() {
 
     # Test that PROMPT_SUBST is enabled for dynamic prompt substitution
     TESTS_RUN=$((TESTS_RUN + 1))
+    if [ "$HAVE_ZSH" -eq 0 ]; then
+        print_skip "PROMPT_SUBST is enabled (required for \$(ParseGitBranch))"
+        return
+    fi
     result=$(zsh -c '
         source dot.zshrc 2>/dev/null
         if [[ -o prompt_subst ]]; then
@@ -254,6 +291,10 @@ test_rprompt_disabled() {
 
     # Test that RPROMPT is not set in zsh
     TESTS_RUN=$((TESTS_RUN + 1))
+    if [ "$HAVE_ZSH" -eq 0 ]; then
+        print_skip "RPROMPT is empty/unset in zsh"
+        return
+    fi
     result=$(zsh -c '
         source dot.zshrc 2>/dev/null
         echo "RPROMPT_VALUE:|$RPROMPT|"
@@ -299,6 +340,13 @@ test_prompt_functions_exist() {
     fi
 
     # Test in zsh
+    if [ "$HAVE_ZSH" -eq 0 ]; then
+        TESTS_RUN=$((TESTS_RUN + 2))
+        print_skip "BranchInPrompt exists in zsh"
+        print_skip "ParseGitBranch exists in zsh"
+        return
+    fi
+
     TESTS_RUN=$((TESTS_RUN + 1))
     result=$(zsh -c '
         source git/utils.sh 2>/dev/null
@@ -350,19 +398,22 @@ test_cross_platform_compatibility() {
 
     # Test 2: Functions work in zsh (regardless of platform)
     TESTS_RUN=$((TESTS_RUN + 1))
-    if command -v zsh >/dev/null 2>&1; then
-        result=$(zsh -c '
-            source git/utils.sh 2>/dev/null
-            type BranchInPrompt
-        ' 2>&1)
+    if [ "$HAVE_ZSH" -eq 0 ]; then
+        # Was counted as a pass, which inflated the pass count and hid the
+        # fact that nothing was verified. Report it as the skip it is.
+        print_skip "Prompt functions load correctly in zsh on $platform"
+        return
+    fi
 
-        if echo "$result" | grep -q "function"; then
-            print_pass "Prompt functions load correctly in zsh on $platform"
-        else
-            print_fail "Prompt functions should load in zsh on $platform"
-        fi
+    result=$(zsh -c '
+        source git/utils.sh 2>/dev/null
+        type BranchInPrompt
+    ' 2>&1)
+
+    if echo "$result" | grep -q "function"; then
+        print_pass "Prompt functions load correctly in zsh on $platform"
     else
-        print_pass "Zsh not available on $platform (skipped)"
+        print_fail "Prompt functions should load in zsh on $platform"
     fi
 }
 
@@ -381,6 +432,10 @@ test_no_errors_on_load() {
 
     # Test zsh loading
     TESTS_RUN=$((TESTS_RUN + 1))
+    if [ "$HAVE_ZSH" -eq 0 ]; then
+        print_skip "git/utils.sh loads without errors in zsh"
+        return
+    fi
     result=$(zsh -c 'source git/utils.sh 2>&1')
 
     if [[ -z "$result" ]]; then
@@ -400,10 +455,18 @@ print_summary() {
     echo "Tests run:    $TESTS_RUN"
     echo -e "Tests passed: ${GREEN}$TESTS_PASSED${NC}"
     echo -e "Tests failed: ${RED}$TESTS_FAILED${NC}"
+    if [ "$TESTS_SKIPPED" -gt 0 ]; then
+        echo -e "Tests skipped: ${YELLOW}$TESTS_SKIPPED${NC} (zsh not installed)"
+    fi
     echo ""
 
     if [ $TESTS_FAILED -eq 0 ]; then
-        echo -e "${GREEN}✓ All tests passed!${NC}"
+        if [ "$TESTS_SKIPPED" -gt 0 ]; then
+            echo -e "${GREEN}✓ All tests passed${NC} (${YELLOW}$TESTS_SKIPPED skipped${NC})"
+            echo -e "${YELLOW}  Install zsh to cover the zsh prompt paths.${NC}"
+        else
+            echo -e "${GREEN}✓ All tests passed!${NC}"
+        fi
         return 0
     else
         echo -e "${RED}✗ Some tests failed${NC}"

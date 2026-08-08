@@ -66,7 +66,7 @@ if bash test_prompt_colors.sh; then
     echo "✓ Prompt colors tests passed"
     PASSED_SUITES=$((PASSED_SUITES + 1))
 else
-    echo "✗ Prompt colors tests failed (may be expected if zsh not installed)"
+    echo "✗ Prompt colors tests failed"
     FAILED_SUITES=$((FAILED_SUITES + 1))
 fi
 echo ""
@@ -85,7 +85,8 @@ if [ $PASSED_SUITES -ge 2 ]; then
     echo ""
     echo "Note: Some failures may be expected:"
     echo "  - Claude security: 1 manual verification test"
-    echo "  - Prompt colors: 10 zsh tests (if zsh not installed)"
+    echo "  - Prompt colors: zsh assertions are skipped (not failed)"
+    echo "    when zsh is not installed; install zsh to cover them."
     exit 0
 elif [ $FAILED_SUITES -eq 0 ]; then
     echo "✓ All test suites passed!"
