@@ -43,7 +43,18 @@ machine.
 **Git config:** `git/config` included via `~/.gitconfig`
 
 **Mozilla (optional):** Mach aliases, machrc, pernosco-submit,
-Rust/Cargo environment
+Rust/Cargo environment, plus the CLI tools Firefox skills rely on
+(`bmo-to-md`, `profiler-cli`).
+
+> **Run `./mach bootstrap` in your Firefox checkout too.** It installs
+> `searchfox-cli`, `socorro-cli`, `stmo-cli`, `treeherder-cli` and
+> `webspec-index` into `~/.cargo/bin` as prebuilt binaries when you
+> answer yes to *"Will you be using agentic coding tools to work on
+> Firefox?"*. `--mozilla cli-tools` deliberately does not duplicate
+> that — it detects those tools and only offers a slower local
+> `cargo install` build as a fallback if you have no checkout.
+> (`./mach bootstrap --no-interactive` skips them, so use the
+> fallback in that case.)
 
 ## Key Commands
 

@@ -77,6 +77,43 @@
   Result is cached in `_SYMLINK_CHECK_DONE` so the prompt fires
   only once per `setup.py` invocation.
 
+**Mozilla CLI tools (`--mozilla cli-tools`):**
+
+- Split by who owns the install. `mozilla_cli_tools_init()` installs
+  only what `./mach bootstrap` does *not* provide: `bmo-to-md` (cargo)
+  and `profiler-cli` (npm).
+- `MACH_BOOTSTRAP_CARGO_TOOLS` mirrors `BaseBootstrapper.CARGO_TOOLS`
+  in firefox's `python/mozboot/mozboot/base.py`:
+  `searchfox-cli`, `socorro-cli`, `stmo-cli`, `treeherder-cli`,
+  `webspec-index`. Bootstrap's `ensure_cargo_tools()` unpacks a
+  per-tool *prebuilt* toolchain artifact (win32/win64, macOS
+  x86_64/aarch64, linux64/aarch64 all exist) and copies the binary
+  into `~/.cargo/bin`. Gated behind
+  `check_agentic_tools()`'s "Will you be using agentic coding tools to
+  work on Firefox?" prompt, and skipped entirely under
+  `--no-interactive`.
+- `mach_bootstrap_cli_tools_init()` therefore *recommends* bootstrap
+  rather than duplicating it, and only offers `cargo install` as a
+  per-tool opt-in fallback (default No) for people with no checkout.
+  Upstream builds all five from crates.io, so the fallback matches.
+- Beware two false equivalences: bootstrap's `profiler-node-tools`
+  artifact is the Firefox Profiler's bundled node-tools `.js` files,
+  **not** a `profiler-cli` executable; and `bmo-to-md` has no
+  toolchain definition upstream at all. Both stay ours.
+- We never look for the Firefox checkout to decide whether bootstrap
+  ran — we look at where it *writes*. `_cli_tool_present()` checks PATH
+  and then `_cargo_bin_dir()`, which mirrors mozboot's `cargo_home()`
+  (`$CARGO_HOME` if set, else `~/.cargo`) — a location that depends
+  only on the environment, never the repo path. Keep the two in sync:
+  hardcoding `~/.cargo` misses tools on a `$CARGO_HOME` machine and
+  offers a pointless rebuild.
+- `is_tool()` alone is not enough: it only consults PATH via
+  `where`/`which`, and cargo's bin dir is only on PATH once
+  `~/.cargo/env` is sourced, which the shell running `setup.py` may
+  not have done.
+- If upstream's `CARGO_TOOLS` gains a tool,
+  `test_bootstrap_cargo_tools_matches_upstream_list` is the tripwire.
+
 **Line endings (LF everywhere):**
 
 - `.gitattributes` declares `* text=auto eol=lf` so checkouts always
@@ -156,7 +193,7 @@ See [README.md](README.md#testing) for how to run tests.
 
 **Test suites:**
 
-- `test_setup.py` - 127 tests (symlinks, file ops, main flow,
+- `test_setup.py` - 139 tests (symlinks, file ops, main flow,
   Windows elevation/Dev Mode probes, Windows Dev Mode commit
   gate, claude-overlay branch-exists handling, stuck-state
   auto-switch, Windows post-checkout hook for re-materializing

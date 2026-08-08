@@ -1743,60 +1743,239 @@ class TestInstallFirefoxCodex(unittest.TestCase):
 class TestMozillaCliTools(unittest.TestCase):
     """Tests for mozilla_cli_tools_init and the per-tool installers."""
 
+    @patch("setup.mach_bootstrap_cli_tools_init")
     @patch("setup.install_profiler_cli")
-    @patch("setup.install_socorro_cli")
     @patch("setup.install_bmo_to_md")
-    @patch("setup.install_treeherder_cli")
-    @patch("setup.install_searchfox_cli")
-    def test_cli_tools_init_runs_all_installers(
-        self, mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler
+    def test_cli_tools_init_runs_non_bootstrap_installers(
+        self, mock_bmo, mock_profiler, mock_bootstrap
     ):
-        """All five per-tool installers are invoked in order."""
-        for m in (mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler):
+        """Only the tools bootstrap does not provide are installed directly;
+        the rest are delegated to mach_bootstrap_cli_tools_init."""
+        for m in (mock_bmo, mock_profiler, mock_bootstrap):
             m.return_value = True
 
         result = setup.mozilla_cli_tools_init()
 
         self.assertTrue(result)
-        for m in (mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler):
+        for m in (mock_bmo, mock_profiler, mock_bootstrap):
             m.assert_called_once()
 
+    @patch("setup.mach_bootstrap_cli_tools_init")
     @patch("setup.install_profiler_cli")
-    @patch("setup.install_socorro_cli")
     @patch("setup.install_bmo_to_md")
-    @patch("setup.install_treeherder_cli")
-    @patch("setup.install_searchfox_cli")
+    def test_cli_tools_init_does_not_install_bootstrap_tools(
+        self, mock_bmo, mock_profiler, mock_bootstrap
+    ):
+        """The bundle never calls the bootstrap-provided installers directly —
+        that duplication is what mach bootstrap now covers."""
+        for m in (mock_bmo, mock_profiler, mock_bootstrap):
+            m.return_value = True
+
+        with (
+            patch("setup.install_searchfox_cli") as mock_sf,
+            patch("setup.install_socorro_cli") as mock_socorro,
+            patch("setup.install_stmo_cli") as mock_stmo,
+            patch("setup.install_treeherder_cli") as mock_th,
+            patch("setup.install_webspec_index") as mock_ws,
+        ):
+            setup.mozilla_cli_tools_init()
+
+        for m in (mock_sf, mock_socorro, mock_stmo, mock_th, mock_ws):
+            m.assert_not_called()
+
+    @patch("setup.mach_bootstrap_cli_tools_init")
+    @patch("setup.install_profiler_cli")
+    @patch("setup.install_bmo_to_md")
     def test_cli_tools_init_skipped_counts_as_success(
-        self, mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler
+        self, mock_bmo, mock_profiler, mock_bootstrap
     ):
         """Mix of True / None (skipped) yields overall True."""
-        mock_sf.return_value = True
-        mock_th.return_value = None
-        mock_bmo.return_value = True
-        mock_socorro.return_value = None
+        mock_bmo.return_value = None
         mock_profiler.return_value = True
+        mock_bootstrap.return_value = None
 
         self.assertTrue(setup.mozilla_cli_tools_init())
 
+    @patch("setup.mach_bootstrap_cli_tools_init")
     @patch("setup.install_profiler_cli")
-    @patch("setup.install_socorro_cli")
     @patch("setup.install_bmo_to_md")
-    @patch("setup.install_treeherder_cli")
-    @patch("setup.install_searchfox_cli")
     def test_cli_tools_init_one_failure_fails_overall(
-        self, mock_sf, mock_th, mock_bmo, mock_socorro, mock_profiler
+        self, mock_bmo, mock_profiler, mock_bootstrap
     ):
-        """A single False return makes the bundle fail, but all installers
-        still run (no short-circuit)."""
-        mock_sf.return_value = True
-        mock_th.return_value = True
-        mock_bmo.return_value = True
-        mock_socorro.return_value = False
+        """A single False return makes the bundle fail, but everything still
+        runs (no short-circuit)."""
+        mock_bmo.return_value = False
         mock_profiler.return_value = True
+        mock_bootstrap.return_value = True
 
         self.assertFalse(setup.mozilla_cli_tools_init())
-        # No short-circuit: profiler-cli still attempted after socorro failed.
+        # No short-circuit: later steps still attempted after bmo-to-md failed.
         mock_profiler.assert_called_once()
+        mock_bootstrap.assert_called_once()
+
+    @patch("setup.mach_bootstrap_cli_tools_init")
+    @patch("setup.install_profiler_cli")
+    @patch("setup.install_bmo_to_md")
+    def test_cli_tools_init_bootstrap_failure_fails_overall(
+        self, mock_bmo, mock_profiler, mock_bootstrap
+    ):
+        """A hard failure in the bootstrap-tools fallback fails the bundle."""
+        mock_bmo.return_value = True
+        mock_profiler.return_value = True
+        mock_bootstrap.return_value = False
+
+        self.assertFalse(setup.mozilla_cli_tools_init())
+
+    # ---- mach_bootstrap_cli_tools_init ----
+
+    @patch("setup._cli_tool_present")
+    def test_bootstrap_tools_all_present_installs_nothing(self, mock_present):
+        """When bootstrap already installed everything, no cargo build runs."""
+        mock_present.return_value = True
+
+        with (
+            patch("setup.install_searchfox_cli") as mock_sf,
+            patch("setup.install_socorro_cli") as mock_socorro,
+            patch("setup.install_stmo_cli") as mock_stmo,
+            patch("setup.install_treeherder_cli") as mock_th,
+            patch("setup.install_webspec_index") as mock_ws,
+        ):
+            result = setup.mach_bootstrap_cli_tools_init()
+
+        self.assertTrue(result)
+        for m in (mock_sf, mock_socorro, mock_stmo, mock_th, mock_ws):
+            m.assert_not_called()
+
+    @patch("setup._cli_tool_present")
+    def test_bootstrap_tools_missing_offers_fallback(self, mock_present):
+        """Only the missing tools get a fallback cargo installer call."""
+        mock_present.side_effect = lambda name: name != "stmo-cli"
+
+        with (
+            patch("setup.install_searchfox_cli") as mock_sf,
+            patch("setup.install_stmo_cli") as mock_stmo,
+        ):
+            mock_stmo.return_value = None
+            result = setup.mach_bootstrap_cli_tools_init()
+
+        self.assertTrue(result)
+        mock_stmo.assert_called_once()
+        mock_sf.assert_not_called()
+
+    @patch("setup._cli_tool_present")
+    def test_bootstrap_tools_fallback_failure_returns_false(self, mock_present):
+        """A False from a fallback installer propagates as a hard failure."""
+        mock_present.return_value = False
+
+        with (
+            patch("setup.install_searchfox_cli", return_value=False),
+            patch("setup.install_socorro_cli", return_value=True),
+            patch("setup.install_stmo_cli", return_value=None),
+            patch("setup.install_treeherder_cli", return_value=True),
+            patch("setup.install_webspec_index", return_value=True) as mock_ws,
+        ):
+            result = setup.mach_bootstrap_cli_tools_init()
+
+        self.assertFalse(result)
+        # No short-circuit: the last tool is still attempted.
+        mock_ws.assert_called_once()
+
+    def test_bootstrap_cargo_tools_matches_upstream_list(self):
+        """Guard the list against drift from mozboot's CARGO_TOOLS."""
+        self.assertEqual(
+            setup.MACH_BOOTSTRAP_CARGO_TOOLS,
+            (
+                "searchfox-cli",
+                "socorro-cli",
+                "stmo-cli",
+                "treeherder-cli",
+                "webspec-index",
+            ),
+        )
+
+    # ---- _cli_tool_present ----
+
+    @patch("setup.is_tool")
+    def test_cli_tool_present_on_path(self, mock_is_tool):
+        """A tool on PATH is reported present without touching the filesystem."""
+        mock_is_tool.return_value = True
+        self.assertTrue(setup._cli_tool_present("searchfox-cli"))
+
+    @patch("setup.is_windows")
+    @patch("setup.is_tool")
+    def test_cli_tool_present_in_cargo_bin(self, mock_is_tool, mock_is_windows):
+        """A tool only in ~/.cargo/bin (as mach bootstrap leaves it) counts as
+        present even when ~/.cargo/env has not been sourced."""
+        mock_is_tool.return_value = False
+        mock_is_windows.return_value = False
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cargo_bin = os.path.join(tmp, ".cargo", "bin")
+            os.makedirs(cargo_bin)
+            with open(os.path.join(cargo_bin, "stmo-cli"), "w") as f:
+                f.write("")
+
+            # Clear CARGO_HOME so the home-relative default is exercised
+            # even on a machine that sets it.
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("CARGO_HOME", None)
+                with patch("setup.get_home_dir", return_value=tmp):
+                    self.assertTrue(setup._cli_tool_present("stmo-cli"))
+                    self.assertFalse(setup._cli_tool_present("webspec-index"))
+
+    def test_cargo_bin_dir_defaults_to_home(self):
+        """Without CARGO_HOME, fall back to ~/.cargo/bin."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("CARGO_HOME", None)
+            with patch("setup.get_home_dir", return_value=os.path.join("X:", "home")):
+                self.assertEqual(
+                    setup._cargo_bin_dir(),
+                    os.path.join("X:", "home", ".cargo", "bin"),
+                )
+
+    def test_cargo_bin_dir_honors_cargo_home(self):
+        """CARGO_HOME wins — mach bootstrap writes there, so we must look there.
+
+        Mirrors mozboot's BaseBootstrapper.cargo_home().
+        """
+        custom = os.path.join("X:", "custom-cargo")
+        with patch.dict(os.environ, {"CARGO_HOME": custom}):
+            with patch("setup.get_home_dir", return_value=os.path.join("X:", "home")):
+                self.assertEqual(setup._cargo_bin_dir(), os.path.join(custom, "bin"))
+
+    @patch("setup.is_windows")
+    @patch("setup.is_tool")
+    def test_cli_tool_present_custom_cargo_home(self, mock_is_tool, mock_is_windows):
+        """A bootstrap-installed tool under $CARGO_HOME/bin is detected."""
+        mock_is_tool.return_value = False
+        mock_is_windows.return_value = False
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cargo_bin = os.path.join(tmp, "bin")
+            os.makedirs(cargo_bin)
+            with open(os.path.join(cargo_bin, "webspec-index"), "w") as f:
+                f.write("")
+
+            with patch.dict(os.environ, {"CARGO_HOME": tmp}):
+                self.assertTrue(setup._cli_tool_present("webspec-index"))
+
+    @patch("setup.is_windows")
+    @patch("setup.is_tool")
+    def test_cli_tool_present_windows_exe_suffix(self, mock_is_tool, mock_is_windows):
+        """On Windows the .exe suffix is applied when probing ~/.cargo/bin."""
+        mock_is_tool.return_value = False
+        mock_is_windows.return_value = True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cargo_bin = os.path.join(tmp, ".cargo", "bin")
+            os.makedirs(cargo_bin)
+            with open(os.path.join(cargo_bin, "searchfox-cli.exe"), "w") as f:
+                f.write("")
+
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("CARGO_HOME", None)
+                with patch("setup.get_home_dir", return_value=tmp):
+                    self.assertTrue(setup._cli_tool_present("searchfox-cli"))
 
     @patch("setup._install_cargo_tool")
     def test_install_socorro_cli_delegates_to_cargo_helper(self, mock_cargo):

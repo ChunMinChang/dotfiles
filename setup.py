@@ -1989,6 +1989,65 @@ def _ensure_node_major(display_name, min_major):
     return True
 
 
+# CLI tools that `./mach bootstrap` installs on its own, from prebuilt
+# toolchain artifacts, when you answer yes to "Will you be using agentic
+# coding tools to work on Firefox?".
+#
+# Upstream source of truth: BaseBootstrapper.CARGO_TOOLS in
+# python/mozboot/mozboot/base.py; installed by ensure_cargo_tools(), which
+# unpacks a per-tool toolchain artifact and copies the binary into
+# $CARGO_HOME/bin (see _cargo_bin_dir()). Called from
+# Bootstrapper.check_agentic_tools(), which is skipped entirely under
+# `./mach bootstrap --no-interactive`.
+#
+# Prefer bootstrap over our cargo fallback: the artifacts are prebuilt for
+# linux64/aarch64, macOS x86_64/aarch64 and win32/win64, so there is no
+# 5-15 minute compile and no MSVC link.exe hunt on Windows. We keep a
+# `cargo install` path only for people without a Firefox checkout.
+MACH_BOOTSTRAP_CARGO_TOOLS = (
+    "searchfox-cli",
+    "socorro-cli",
+    "stmo-cli",
+    "treeherder-cli",
+    "webspec-index",
+)
+
+
+def _cargo_bin_dir():
+    """Return the bin/ dir where both cargo and ``./mach bootstrap`` drop binaries.
+
+    Mirrors mozboot's ``BaseBootstrapper.cargo_home()``: ``$CARGO_HOME`` when
+    set, else ~/.cargo. Honoring the env var matters — bootstrap writes
+    there, so hardcoding ~/.cargo would miss tools it already installed and
+    offer a pointless rebuild.
+    """
+    cargo_home = os.environ.get("CARGO_HOME") or os.path.join(get_home_dir(), ".cargo")
+    return os.path.join(cargo_home, "bin")
+
+
+def _cli_tool_present(binary_name):
+    """Check whether a CLI tool is installed, on PATH or in cargo's bin dir.
+
+    This is how we detect that ``./mach bootstrap`` already ran without
+    knowing where the Firefox checkout is: bootstrap's ensure_cargo_tools()
+    copies the binaries into $CARGO_HOME/bin, a location that depends only
+    on the environment, never on the repo path.
+
+    ``is_tool()`` alone is not enough — it only consults PATH, and cargo's
+    bin dir is only on PATH once ~/.cargo/env is sourced, which the shell
+    running setup.py may not have done.
+    """
+    if is_tool(binary_name):
+        return True
+
+    exe = binary_name + (".exe" if is_windows() else "")
+    path = os.path.join(_cargo_bin_dir(), exe)
+    if os.path.isfile(path):
+        print("{} is found in {}".format(binary_name, path))
+        return True
+    return False
+
+
 def _install_cargo_tool(
     display_name,
     binary_name,
@@ -2017,7 +2076,7 @@ def _install_cargo_tool(
     """
     print_installing_title(display_name)
 
-    if is_tool(binary_name):
+    if _cli_tool_present(binary_name):
         print(f"{binary_name} is already installed")
         return True
 
@@ -2090,8 +2149,27 @@ def _install_cargo_tool(
     return False
 
 
+def _bootstrap_fallback_consequences(tool, extra, manual_cmd):
+    """Build the "if you skip" lines for a tool ``./mach bootstrap`` also provides.
+
+    Leads with the bootstrap route so declining the slow cargo build points
+    at the fast prebuilt one rather than at a dead end.
+    """
+    return [
+        extra,
+        f"Preferred alternative: run `./mach bootstrap` in your Firefox "
+        f"checkout and answer yes to the agentic-tools prompt — it installs "
+        f"{tool} prebuilt (no compile)",
+        f"Manual install: {manual_cmd}",
+    ]
+
+
 def install_searchfox_cli(tracker=None):
-    """Install searchfox-cli (Mozilla source code search CLI)."""
+    """Install searchfox-cli (Mozilla source code search CLI).
+
+    Fallback only — ``./mach bootstrap`` installs this prebuilt. See
+    MACH_BOOTSTRAP_CARGO_TOOLS.
+    """
     return _install_cargo_tool(
         "searchfox-cli (Mozilla source code search)",
         "searchfox-cli",
@@ -2100,15 +2178,20 @@ def install_searchfox_cli(tracker=None):
             "Search Firefox source code from the terminal (searchfox.org backend)",
             "Used by skills like /firefox-implementation and /source-links",
         ],
-        [
+        _bootstrap_fallback_consequences(
+            "searchfox-cli",
             "Skills relying on searchfox queries fall back to manual web lookups",
-            "Manual install: cargo install searchfox-cli",
-        ],
+            "cargo install searchfox-cli",
+        ),
     )
 
 
 def install_treeherder_cli(tracker=None):
-    """Install treeherder-cli (Mozilla CI build/test status CLI)."""
+    """Install treeherder-cli (Mozilla CI build/test status CLI).
+
+    Fallback only — ``./mach bootstrap`` installs this prebuilt. See
+    MACH_BOOTSTRAP_CARGO_TOOLS.
+    """
     return _install_cargo_tool(
         "treeherder-cli (Mozilla CI status)",
         "treeherder-cli",
@@ -2117,11 +2200,55 @@ def install_treeherder_cli(tracker=None):
             "Query Mozilla Treeherder for try/autoland push results",
             "Used by skills like /try-push and /ci-failure-analysis",
         ],
-        [
+        _bootstrap_fallback_consequences(
+            "treeherder-cli",
             "CI/try-push skills fall back to manual treeherder.mozilla.org lookups",
-            "Manual install: cargo install --git "
-            "https://github.com/padenot/treeherder-cli",
+            "cargo install --git https://github.com/padenot/treeherder-cli",
+        ),
+    )
+
+
+def install_stmo_cli(tracker=None):
+    """Install stmo-cli (sql.telemetry.mozilla.org / Redash CLI).
+
+    Fallback only — ``./mach bootstrap`` installs this prebuilt. See
+    MACH_BOOTSTRAP_CARGO_TOOLS.
+    """
+    return _install_cargo_tool(
+        "stmo-cli (sql.telemetry.mozilla.org CLI)",
+        "stmo-cli",
+        ["stmo-cli"],
+        [
+            "Run and fetch STMO/Redash telemetry queries from the terminal",
+            "Used by telemetry-backed triage and /mozdata workflows",
         ],
+        _bootstrap_fallback_consequences(
+            "stmo-cli",
+            "Telemetry lookups fall back to the STMO web UI",
+            "cargo install stmo-cli",
+        ),
+    )
+
+
+def install_webspec_index(tracker=None):
+    """Install webspec-index (web specification search index).
+
+    Fallback only — ``./mach bootstrap`` installs this prebuilt. See
+    MACH_BOOTSTRAP_CARGO_TOOLS.
+    """
+    return _install_cargo_tool(
+        "webspec-index (web spec search)",
+        "webspec-index",
+        ["webspec-index"],
+        [
+            "Search W3C/WHATWG specification text locally",
+            "Used by /spec-check and spec-conformance review workflows",
+        ],
+        _bootstrap_fallback_consequences(
+            "webspec-index",
+            "Spec lookups fall back to manual browsing of spec HTML",
+            "cargo install webspec-index",
+        ),
     )
 
 
@@ -2144,7 +2271,11 @@ def install_bmo_to_md(tracker=None):
 
 
 def install_socorro_cli(tracker=None):
-    """Install socorro-cli (Mozilla Socorro crash-reporting CLI)."""
+    """Install socorro-cli (Mozilla Socorro crash-reporting CLI).
+
+    Fallback only — ``./mach bootstrap`` installs this prebuilt. See
+    MACH_BOOTSTRAP_CARGO_TOOLS.
+    """
     return _install_cargo_tool(
         "socorro-cli (Mozilla Socorro crash stats CLI)",
         "socorro-cli",
@@ -2154,10 +2285,11 @@ def install_socorro_cli(tracker=None):
             "(signature search, crash details, facets)",
             "Used by triage / bugzilla-wrangler skills to quantify crash impact",
         ],
-        [
+        _bootstrap_fallback_consequences(
+            "socorro-cli",
             "Crash-volume enrichment falls back to manual crash-stats web lookups",
-            "Manual install: cargo install socorro-cli",
-        ],
+            "cargo install socorro-cli",
+        ),
         probe_crate="socorro-cli",
     )
 
@@ -2253,12 +2385,79 @@ def install_profiler_cli(tracker=None):
     return False
 
 
+def mach_bootstrap_cli_tools_init(tracker=None):
+    """Handle the CLI tools ``./mach bootstrap`` installs for us.
+
+    These are *not* installed here by default. If bootstrap already put them
+    in ~/.cargo/bin we just report that. Otherwise we recommend running
+    ``./mach bootstrap`` — it fetches prebuilt binaries for every supported
+    platform, which is far cheaper than our ``cargo install`` path — and then
+    offer that cargo build as an opt-in fallback (each per-tool prompt
+    defaults to No) for people with no Firefox checkout.
+
+    Returns True if everything is present or was skipped cleanly, False if a
+    fallback install hard-failed.
+    """
+    print_installing_title("Agentic CLI tools provided by ./mach bootstrap")
+
+    missing = [t for t in MACH_BOOTSTRAP_CARGO_TOOLS if not _cli_tool_present(t)]
+    if not missing:
+        print(
+            colors.OK
+            + "✓ All {} bootstrap-provided CLI tools are already installed".format(
+                len(MACH_BOOTSTRAP_CARGO_TOOLS)
+            )
+            + colors.END
+        )
+        return True
+
+    print_warning("Not installed yet: {}".format(", ".join(missing)))
+    print_hint(
+        "Recommended: run `./mach bootstrap` in your Firefox checkout and\n"
+        '  answer yes to "Will you be using agentic coding tools to work on\n'
+        '  Firefox?". It installs all of these as prebuilt binaries into\n'
+        "  ~/.cargo/bin — no 5-15 minute compile, and no MSVC toolchain\n"
+        "  hunting on Windows. Note that `./mach bootstrap --no-interactive`\n"
+        "  skips them entirely."
+    )
+
+    # Fallback for people without a Firefox checkout. Same crates bootstrap
+    # builds from, just compiled locally instead of downloaded prebuilt.
+    fallbacks = {
+        "searchfox-cli": install_searchfox_cli,
+        "socorro-cli": install_socorro_cli,
+        "stmo-cli": install_stmo_cli,
+        "treeherder-cli": install_treeherder_cli,
+        "webspec-index": install_webspec_index,
+    }
+    print(
+        "No Firefox checkout? Each tool below can be built with cargo "
+        "instead (prompts default to No)."
+    )
+
+    all_ok = True
+    for tool in missing:
+        installer = fallbacks.get(tool)
+        if installer is None:
+            continue
+        if installer(tracker) is False:
+            all_ok = False
+    return all_ok
+
+
 def mozilla_cli_tools_init(tracker=None):
     """Install Mozilla-adjacent CLI tools used by Firefox/Claude workflows.
 
-    Bundle of cargo- and npm-installed tools: searchfox-cli, treeherder-cli,
-    bmo-to-md, socorro-cli (cargo), and profiler-cli (npm). Each is
-    independently optional and prompts the user before installing.
+    Only installs what ``./mach bootstrap`` does *not* provide:
+    bmo-to-md (cargo) and profiler-cli (npm). The searchfox-cli /
+    socorro-cli / stmo-cli / treeherder-cli / webspec-index set is delegated
+    to bootstrap via mach_bootstrap_cli_tools_init(), which only offers a
+    cargo build as an opt-in fallback.
+
+    Note bootstrap's ``profiler-node-tools`` toolchain artifact is *not* the
+    same thing as profiler-cli — it ships the Firefox Profiler's bundled
+    node-tools .js files, not a ``profiler-cli`` executable on PATH.
+
     Selectable as ``--mozilla cli-tools``; included by default when
     ``--mozilla`` runs without explicit args.
 
@@ -2267,17 +2466,18 @@ def mozilla_cli_tools_init(tracker=None):
     tools count as success.
     """
     print_installing_title("Mozilla CLI tools (cargo / npm)", True)
+    # Tools with no bootstrap equivalent — ours to install.
     installers = [
-        install_searchfox_cli,
-        install_treeherder_cli,
         install_bmo_to_md,
-        install_socorro_cli,
         install_profiler_cli,
     ]
     all_ok = True
     for fn in installers:
         if fn(tracker) is False:
             all_ok = False
+
+    if mach_bootstrap_cli_tools_init(tracker) is False:
+        all_ok = False
     return all_ok
 
 
