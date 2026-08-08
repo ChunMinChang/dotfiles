@@ -1492,8 +1492,10 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         profile_path = os.path.join(self.codex_home, "rumination.config.toml")
         self.assertTrue(os.path.islink(profile_path))
         self.assertEqual(
-            os.readlink(profile_path),
-            os.path.join(self.overlay_dir, "rumination.config.toml"),
+            normalize_link_target(os.readlink(profile_path)),
+            normalize_link_target(
+                os.path.join(self.overlay_dir, "rumination.config.toml")
+            ),
         )
         with open(profile_path) as f:
             profile = f.read()
