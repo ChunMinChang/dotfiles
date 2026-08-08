@@ -236,7 +236,7 @@ See [README.md](README.md#testing) for how to run tests.
 
 **Test suites:**
 
-- `test_setup.py` - 157 tests (symlinks, file ops, main flow,
+- `test_setup.py` - 159 tests (symlinks, file ops, main flow,
   Windows elevation/Dev Mode probes, Windows Dev Mode commit
   gate, claude-overlay branch-exists handling, stuck-state
   auto-switch, Windows post-checkout hook for re-materializing

@@ -863,6 +863,37 @@ class TestInstallFirefoxClaude(unittest.TestCase):
                 f"{name} should not be symlinked",
             )
 
+    def test_install_excludes_alwu_skill_directory(self):
+        """An excluded alwu entry that is a real skill dir is not symlinked.
+
+        Every other ALWU_CLAUDE_SKILLS_EXCLUDE entry is a loose file or a dot
+        directory, so the exclude check was never exercised against something
+        the install loop would otherwise treat as a skill.
+        """
+        skill_dir = os.path.join(self.claude_dir, "personal-first-setup")
+        os.makedirs(skill_dir)
+        with open(os.path.join(skill_dir, "SKILL.md"), "w") as f:
+            f.write("---\nname: personal-first-setup\n---\n")
+        setup.ALWU_CLAUDE_SKILLS_EXCLUDE = setup.ALWU_CLAUDE_SKILLS_EXCLUDE | {
+            "personal-first-setup"
+        }
+
+        self._install()
+
+        skills_dir = os.path.join(self.firefox_dir, ".claude", "skills")
+        self.assertFalse(
+            os.path.exists(os.path.join(skills_dir, "personal-first-setup")),
+            "excluded alwu skill directory should not be symlinked",
+        )
+
+    def test_shipped_exclude_list_drops_personal_first_setup(self):
+        """The real constant keeps upstream's own machine bootstrap out.
+
+        Checked against the pre-patch value saved in setUp, since setUp
+        replaces the constant with a fixture-local copy.
+        """
+        self.assertIn("personal-first-setup", self._orig_claude_exclude)
+
     def test_install_personal_skill_takes_precedence_over_all(self):
         """When a skill name conflicts, personal wins over alwu-claude-skills and media-skills."""
         # Create conflicting skills in both tiers

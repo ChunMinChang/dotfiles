@@ -3869,7 +3869,18 @@ MEDIA_SKILLS_EXCLUDE = {"Template", "shared", ".git", ".github", "LICENSE", "REA
 ALWU_CLAUDE_SKILLS_DIR = os.path.join(
     BASE_DIR, "mozilla", "firefox", "alwu-claude-skills"
 )
-ALWU_CLAUDE_SKILLS_EXCLUDE = {".git", ".github", ".githooks", "CLAUDE.md", "README.md"}
+ALWU_CLAUDE_SKILLS_EXCLUDE = {
+    ".git",
+    ".github",
+    ".githooks",
+    "CLAUDE.md",
+    "README.md",
+    # Upstream's own machine bootstrap: hardcodes macOS/Apple Silicon and
+    # /opt/homebrew, and installs someone else's account keys. Its triggers
+    # ("set up my machine", "new machine setup") are generic enough to fire
+    # on this repo's own setup.py work, so keep it out of the install set.
+    "personal-first-setup",
+}
 # Rename skills during install: {"original-name": "installed-name"}.
 # The fx-bug-toolkit plugin (installed separately, outside setup.py) now owns
 # /triage, /analyze-profile, /bug-start, /source-links, /spec-check,
