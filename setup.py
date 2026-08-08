@@ -1201,10 +1201,6 @@ def mozilla_init(mozilla_arg, tracker=None):
         print_verbose("mozilla_arg is None, skipping Mozilla tools")
         return None  # None = skipped, not failure
 
-    if not ensure_symlink_capability():
-        print_error("Symlink creation unavailable; skipping mozilla toolkit")
-        return False
-
     print_verbose("mozilla_arg: {}".format(mozilla_arg))
 
     funcs = {
@@ -1214,6 +1210,14 @@ def mozilla_init(mozilla_arg, tracker=None):
         "cli-tools": mozilla_cli_tools_init,
         "pernosco": pernosco_init,
     }
+
+    # Only some steps create symlinks. The others just append a loader line
+    # to .bashrc (tools, rust), shell out to cargo/npm (cli-tools), or write
+    # a plain script (pernosco) — all fine without symlink capability. Gate
+    # per step rather than up front, otherwise a Windows box with Developer
+    # Mode off loses the whole Mozilla toolkit over a dependency four of the
+    # five steps never touch.
+    symlink_steps = {"firefox"}
 
     # Select which Mozilla tools to install
     if mozilla_arg:
@@ -1227,6 +1231,15 @@ def mozilla_init(mozilla_arg, tracker=None):
 
     all_succeeded = True
     for k in options:
+        # ensure_symlink_capability() caches, so this prompts at most once
+        # per run no matter how many symlink steps are selected.
+        if k in symlink_steps and not ensure_symlink_capability():
+            print_error(
+                "Symlink creation unavailable; skipping mozilla {} "
+                "(other mozilla steps still run)".format(k)
+            )
+            all_succeeded = False
+            continue
         result = funcs[k](tracker)
         # None = skipped (user choice), False = failed
         if result is False:

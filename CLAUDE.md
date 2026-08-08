@@ -76,6 +76,13 @@
   steps and prompts the user to enable Developer Mode on Windows.
   Result is cached in `_SYMLINK_CHECK_DONE` so the prompt fires
   only once per `setup.py` invocation.
+- Gate **per step**, not per group. `mozilla_init()` keeps a
+  `symlink_steps` set (currently just `firefox`) and consults the gate
+  only for those; `tools`/`rust` (bashrc appends), `cli-tools`
+  (cargo/npm) and `pernosco` (writes a plain script) need no symlinks.
+  Gating the whole function up front — as it originally did — meant a
+  Windows box with Developer Mode off silently lost four steps that
+  never touch symlinks. `TestMozillaInitSymlinkGate` guards this.
 
 **Mozilla CLI tools (`--mozilla cli-tools`):**
 
@@ -193,7 +200,7 @@ See [README.md](README.md#testing) for how to run tests.
 
 **Test suites:**
 
-- `test_setup.py` - 139 tests (symlinks, file ops, main flow,
+- `test_setup.py` - 143 tests (symlinks, file ops, main flow,
   Windows elevation/Dev Mode probes, Windows Dev Mode commit
   gate, claude-overlay branch-exists handling, stuck-state
   auto-switch, Windows post-checkout hook for re-materializing

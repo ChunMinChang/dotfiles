@@ -1740,6 +1740,66 @@ class TestInstallFirefoxCodex(unittest.TestCase):
         )
 
 
+class TestMozillaInitSymlinkGate(unittest.TestCase):
+    """The symlink gate must only block the steps that create symlinks.
+
+    Regression guard: gating all of mozilla_init on ensure_symlink_capability()
+    meant a Windows box with Developer Mode off silently lost cli-tools,
+    tools, rust and pernosco too — none of which create symlinks.
+    """
+
+    @patch("setup.ensure_symlink_capability", return_value=False)
+    def test_non_symlink_steps_run_without_symlink_capability(self, _mock_gate):
+        """firefox is skipped, but every other step still runs."""
+        with (
+            patch("setup.firefox_init") as mock_ff,
+            patch("setup.tools_init", return_value=True) as mock_tools,
+            patch("setup.rust_init", return_value=True) as mock_rust,
+            patch("setup.mozilla_cli_tools_init", return_value=True) as mock_cli,
+            patch("setup.pernosco_init", return_value=None) as mock_pern,
+        ):
+            result = setup.mozilla_init([], tracker=None)
+
+        mock_ff.assert_not_called()
+        mock_tools.assert_called_once()
+        mock_rust.assert_called_once()
+        mock_cli.assert_called_once()
+        mock_pern.assert_called_once()
+        # The skipped firefox step is still reported as a failure.
+        self.assertFalse(result)
+
+    @patch("setup.ensure_symlink_capability", return_value=False)
+    def test_gate_not_consulted_when_no_symlink_step_selected(self, mock_gate):
+        """Selecting only cli-tools must not even probe symlink capability."""
+        with patch("setup.mozilla_cli_tools_init", return_value=True) as mock_cli:
+            result = setup.mozilla_init(["cli-tools"], tracker=None)
+
+        mock_gate.assert_not_called()
+        mock_cli.assert_called_once()
+        self.assertTrue(result)
+
+    @patch("setup.ensure_symlink_capability", return_value=True)
+    def test_all_steps_run_when_symlinks_available(self, _mock_gate):
+        """With symlinks working, nothing is skipped."""
+        with (
+            patch("setup.firefox_init", return_value=True) as mock_ff,
+            patch("setup.tools_init", return_value=True),
+            patch("setup.rust_init", return_value=True),
+            patch("setup.mozilla_cli_tools_init", return_value=True),
+            patch("setup.pernosco_init", return_value=True),
+        ):
+            result = setup.mozilla_init([], tracker=None)
+
+        mock_ff.assert_called_once()
+        self.assertTrue(result)
+
+    def test_none_arg_still_skips_everything(self):
+        """--mozilla absent (None) remains a clean skip, not a failure."""
+        with patch("setup.mozilla_cli_tools_init") as mock_cli:
+            self.assertIsNone(setup.mozilla_init(None, tracker=None))
+        mock_cli.assert_not_called()
+
+
 class TestMozillaCliTools(unittest.TestCase):
     """Tests for mozilla_cli_tools_init and the per-tool installers."""
 
