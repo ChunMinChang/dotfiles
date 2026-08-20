@@ -375,44 +375,41 @@ function BranchInPrompt {
     DEFAULT="%{$(tput sgr0)%}"
     PS1="$GREEN\$(ParseGitBranch)$DEFAULT$PS1"
   elif [ -n "$BASH_VERSION" ]; then
-    # bash: drive the substitution from PROMPT_COMMAND instead of
-    # embedding $(ParseGitBranch) directly into PS1. Some bash builds
+    # bash: keep the branch in a variable that PROMPT_COMMAND refreshes, and
+    # reference that variable from PS1. PS1 is parameter-expanded at display
+    # time, so the branch stays current while PS1 itself is written only once
+    # -- anything that edits PS1 later (virtualenv, conda) keeps its edit.
+    # Embedding $(ParseGitBranch) directly is not an option: some bash builds
     # (notably MSYS2 5.2.21 under mozilla-build) emit
     #   "command substitution: line 1: syntax error near unexpected token `)'"
-    # at prompt-display time when PS1 contains $(ParseGitBranch),
-    # even though the substitution itself is well-formed and the
-    # function works when called normally. PROMPT_COMMAND runs as
-    # ordinary shell code with no PS1-specific expansion quirks, so
-    # we compute the branch there and splice the literal result into
-    # PS1 before bash renders it.
+    # at prompt-display time, even though the substitution itself is
+    # well-formed and the function works when called normally.
     case "$PROMPT_COMMAND" in
       *_dotfiles_set_branch_prompt*) return ;;  # idempotent
     esac
-    _dotfiles_original_ps1="$PS1"
-    # Split the original PS1 at its first "\n" (the one separating
-    # the terminal-title escape from the user-visible prompt line)
-    # so we can splice the branch immediately after it. That puts
-    # the branch at the start of the visible line, matching the
-    # convention on Linux/macOS: "(branch) user@host /dir".
-    # If there's no "\n", fall back to prepending.
-    if [ "${_dotfiles_original_ps1%%\\n*}" != "$_dotfiles_original_ps1" ]; then
-      _dotfiles_ps1_head="${_dotfiles_original_ps1%%\\n*}"'\n'
-      _dotfiles_ps1_tail="${_dotfiles_original_ps1#*\\n}"
+    # Split PS1 at its first "\n" (the one separating the terminal-title
+    # escape from the user-visible prompt line) so the branch lands at the
+    # start of the visible line, matching the convention on Linux/macOS:
+    # "(branch) user@host /dir". If there is no "\n", prepend instead.
+    local ps1_head ps1_tail
+    if [ "${PS1%%\n*}" != "$PS1" ]; then
+      ps1_head="${PS1%%\n*}"'\n'
+      ps1_tail="${PS1#*\n}"
     else
-      _dotfiles_ps1_head=""
-      _dotfiles_ps1_tail="$_dotfiles_original_ps1"
+      ps1_head=""
+      ps1_tail="$PS1"
     fi
+    _dotfiles_branch=""
     # Invoked indirectly, by name, from PROMPT_COMMAND below (SC2329).
     # shellcheck disable=SC2329
     _dotfiles_set_branch_prompt() {
-      local branch
-      branch=$(ParseGitBranch)
-      if [ -n "$branch" ]; then
-        PS1="$_dotfiles_ps1_head"'\[\033[0;32m\]'"$branch"'\[\033[0m\] '"$_dotfiles_ps1_tail"
-      else
-        PS1="$_dotfiles_original_ps1"
-      fi
+      _dotfiles_branch=$(ParseGitBranch)
     }
     PROMPT_COMMAND="_dotfiles_set_branch_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+    # Single-quoted so ${_dotfiles_branch} reaches PS1 unexpanded and bash
+    # expands it afresh at every prompt. The trailing space rides along in the
+    # same expansion, so it disappears outside a repository.
+    # shellcheck disable=SC2016
+    PS1="$ps1_head"'\[\033[0;32m\]${_dotfiles_branch}\[\033[0m\]${_dotfiles_branch:+ }'"$ps1_tail"
   fi
 }
