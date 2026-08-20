@@ -475,6 +475,72 @@ print_summary() {
 }
 
 # Main execution
+test_bash_ps1_stays_editable() {
+    print_section "Bash PS1 Remains Editable"
+
+    # Regression: BranchInPrompt used to snapshot PS1 at setup time and have
+    # PROMPT_COMMAND rebuild PS1 from that snapshot, so an edit made later --
+    # a virtualenv prefix, say -- was dropped on the next prompt. Only the
+    # bash path is covered here: zsh keeps the literal $(ParseGitBranch) in
+    # PS1 and was never affected.
+    TESTS_RUN=$((TESTS_RUN + 1))
+    result=$(bash -c '
+        export BASH_VERSION="5.0.0"
+        unset ZSH_VERSION
+        source git/utils.sh
+        PS1="\u@\h \w\$ "
+        BranchInPrompt
+        PS1="(myvenv) $PS1"
+        eval "$PROMPT_COMMAND"
+        printf "%s" "$PS1"
+    ')
+
+    if echo "$result" | grep -qF '(myvenv)'; then
+        print_pass "Bash prompt keeps a PS1 edit made after BranchInPrompt"
+    else
+        print_fail "Bash prompt dropped a later PS1 edit, got: $result"
+    fi
+
+    # PS1 holds a reference to the branch rather than the branch itself, so
+    # expand it the way bash does at display time to see the real prompt.
+    TESTS_RUN=$((TESTS_RUN + 1))
+    expected=$(bash -c 'source git/utils.sh; ParseGitBranch')
+    result=$(bash -c '
+        export BASH_VERSION="5.0.0"
+        unset ZSH_VERSION
+        source git/utils.sh
+        PS1="\u@\h \w\$ "
+        BranchInPrompt
+        eval "$PROMPT_COMMAND"
+        eval "printf \"%s\" \"$PS1\""
+    ')
+
+    if [ -n "$expected" ] && echo "$result" | grep -qF "$expected"; then
+        print_pass "Bash prompt expands to the current branch $expected"
+    else
+        print_fail "Bash prompt did not expand to branch $expected, got: $result"
+    fi
+
+    # With no branch the separator has to disappear with it, or every prompt
+    # outside a repository carries a stray leading space.
+    TESTS_RUN=$((TESTS_RUN + 1))
+    result=$(bash -c '
+        export BASH_VERSION="5.0.0"
+        unset ZSH_VERSION
+        source git/utils.sh
+        PS1="END"
+        BranchInPrompt
+        _dotfiles_branch=""
+        eval "printf \"%s\" \"$PS1\""
+    ')
+
+    if echo "$result" | grep -qF 'END' && [ "${result% END}" = "$result" ]; then
+        print_pass "Bash prompt drops the separator when there is no branch"
+    else
+        print_fail "Bash prompt left a separator with no branch, got: $result"
+    fi
+}
+
 main() {
     print_test_header
 
@@ -488,6 +554,8 @@ main() {
     test_shell_detection
     echo ""
     test_no_literal_escapes
+    echo ""
+    test_bash_ps1_stays_editable
     echo ""
     test_prompt_subst_enabled
     echo ""
