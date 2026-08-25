@@ -521,6 +521,28 @@ test_bash_ps1_stays_editable() {
         print_fail "Bash prompt did not expand to branch $expected, got: $result"
     fi
 
+    # Regression: the "\n" splitting the terminal title from the visible
+    # prompt line was matched with an unquoted pattern, so it matched the
+    # letter "n" and cut Debian's default PS1 in half inside
+    # "${debian_chroot:...}", leaving a "bad substitution" prompt.
+    TESTS_RUN=$((TESTS_RUN + 1))
+    result=$(bash -c '
+        export BASH_VERSION="5.0.0"
+        unset ZSH_VERSION
+        source git/utils.sh
+        PS1='"'"'\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '"'"'
+        BranchInPrompt
+        eval "$PROMPT_COMMAND"
+        eval "printf \"%s\" \"$PS1\"" 2>&1
+    ')
+
+    if echo "$result" | grep -qF 'bad substitution' ||
+       echo "$result" | grep -qF '_chroot'; then
+        print_fail "Bash prompt mangled a PS1 holding \${debian_chroot}, got: $result"
+    else
+        print_pass "Bash prompt leaves \${debian_chroot} in PS1 intact"
+    fi
+
     # With no branch the separator has to disappear with it, or every prompt
     # outside a repository carries a stray leading space.
     TESTS_RUN=$((TESTS_RUN + 1))
