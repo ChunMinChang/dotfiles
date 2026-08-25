@@ -404,8 +404,10 @@ function BranchInPrompt {
       ps1_tail="$PS1"
     fi
     _dotfiles_branch=""
-    # Invoked indirectly, by name, from PROMPT_COMMAND below (SC2329).
-    # shellcheck disable=SC2329
+    # Invoked indirectly, by name, from PROMPT_COMMAND below. That call is
+    # invisible to static analysis, so the function reads as uncalled
+    # (SC2329) and its body as unreachable (SC2317).
+    # shellcheck disable=SC2329,SC2317
     _dotfiles_set_branch_prompt() {
       _dotfiles_branch=$(ParseGitBranch)
     }
