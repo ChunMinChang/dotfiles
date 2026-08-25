@@ -391,10 +391,14 @@ function BranchInPrompt {
     # escape from the user-visible prompt line) so the branch lands at the
     # start of the visible line, matching the convention on Linux/macOS:
     # "(branch) user@host /dir". If there is no "\n", prepend instead.
-    local ps1_head ps1_tail
-    if [ "${PS1%%\n*}" != "$PS1" ]; then
-      ps1_head="${PS1%%\n*}"'\n'
-      ps1_tail="${PS1#*\n}"
+    # Quoted in the patterns below so it matches the two characters
+    # backslash and n. Unquoted, the backslash only quotes the "n" and the
+    # pattern becomes the bare letter, which splits PS1 inside words such as
+    # "debian_chroot".
+    local ps1_head ps1_tail newline_escape='\n'
+    if [ "${PS1%%"$newline_escape"*}" != "$PS1" ]; then
+      ps1_head="${PS1%%"$newline_escape"*}$newline_escape"
+      ps1_tail="${PS1#*"$newline_escape"}"
     else
       ps1_head=""
       ps1_tail="$PS1"
