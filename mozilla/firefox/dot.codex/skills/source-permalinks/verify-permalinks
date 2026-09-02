@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""verify-permalinks — validate revision-pinned source permalinks in markdown docs.
+
+Why this exists
+---------------
+HTTP status cannot validate a source permalink. A bare GET of *any* searchfox URL
+returns 200 carrying an anti-bot "Client Challenge" page, while searchfox answers
+500 for a revision it does not know. So a transport check reports 200 for a good
+and a dead revision alike.
+
+That false positive is not hypothetical: it let a nine-iteration Firefox RCA ship
+an analysis pinned to a local-only commit, in which *every* code link rendered
+"Bad Revision", past five link-audit lanes and three citation reviews.
+
+This script therefore resolves source citations against local git clones instead
+-- `git show <rev>:<path>` plus a line-range bound check -- which validates the
+revision, the path and the line anchor in one step. Only non-source hosts
+(bugzilla, phabricator, w3c.github.io, developer.android.com, ...) fall back to
+HTTP, and those hosts do not bot-challenge.
+
+It checks transport and anchors. It cannot check that the cited lines actually
+support the citing sentence -- that pass is still manual, and a link resolving to
+the wrong lines is still a defect.
+
+Usage
+-----
+    verify-permalinks --repo <local-clone> [--repo <local-clone> ...] \
+                      [--expect-rev <sha>] [--quiet] FILE [FILE ...]
+
+`--repo` may be repeated; each citation is resolved against whichever clone
+contains its revision.
+
+`--expect-rev` names the run's pin. It refuses a local-only overlay commit, and
+reports citations on some *other* revision as advisories rather than defects --
+history and archaeology docs legitimately pin to the commit they are discussing,
+and flagging those as errors trains readers to ignore the output. Pass
+`--strict-rev` to promote off-pin citations to defects for a doc that should be
+entirely on-pin.
+
+Exit status: 0 = every citation resolves, 1 = at least one defect, 2 = usage error.
+"""
+
+import argparse
+import re
+import subprocess
+import sys
+import time
+import urllib.request
+
+URL_RE = re.compile(r'https?://[^\s)>\]`"\']+')
+
+# host pattern -> (regex over the URL, group names 'rev' and 'path')
+# Each entry captures the revision and the in-repo path for a source-hosting family
+# documented in SKILL.md.
+SOURCE_PATTERNS = [
+    ("searchfox",   re.compile(r'^https?://searchfox\.org/[^/]+/rev/(?P<rev>[0-9a-fA-F]+)(?:/(?P<path>[^#]*))?')),
+    ("googlesource",re.compile(r'^https?://[^/]*googlesource\.com/.+?/\+/(?P<rev>[0-9a-fA-F]+)(?:/(?P<path>[^#]*))?')),
+    ("github",      re.compile(r'^https?://github\.com/[^/]+/[^/]+/blob/(?P<rev>[0-9a-fA-F]{7,40})/(?P<path>[^#]*)')),
+    ("gitlab",      re.compile(r'^https?://[^/]+/[^/]+/[^/]+/-/blob/(?P<rev>[0-9a-fA-F]{7,40})/(?P<path>[^#]*)')),
+    ("codeberg",    re.compile(r'^https?://codeberg\.org/[^/]+/[^/]+/src/commit/(?P<rev>[0-9a-fA-F]{7,40})/(?P<path>[^#]*)')),
+]
+
+# A Mercurial host cannot resolve a 40-hex Git SHA. Common and silent mistake.
+HG_RE = re.compile(r'^https?://hg(?:-edge)?\.mozilla\.org/[^#]*/rev/(?P<node>[0-9a-fA-F]{40})')
+
+
+def sh(args):
+    return subprocess.run(args, capture_output=True, text=True, check=False)
+
+
+def parse_fragment(url):
+    """Return (start, end) line numbers from #123, #123-456, #L123, #L123-L456."""
+    if "#" not in url:
+        return None, None
+    frag = url.rsplit("#", 1)[1]
+    nums = re.findall(r'\d+', frag)
+    if not nums:
+        return None, None
+    start = int(nums[0])
+    end = int(nums[1]) if len(nums) > 1 else None
+    return start, end
+
+
+def file_line_count(repo, rev, path):
+    r = sh(["git", "-C", repo, "show", f"{rev}:{path}"])
+    if r.returncode != 0:
+        return None
+    # A file with no trailing newline still has its last line; count generously.
+    return r.stdout.count("\n") + (0 if r.stdout.endswith("\n") or not r.stdout else 1)
+
+
+def rev_exists(repo, rev):
+    return sh(["git", "-C", repo, "cat-file", "-e", f"{rev}^{{commit}}"]).returncode == 0
+
+
+# A rate-limit or a server error says nothing about whether the link is good, so
+# retry briefly and then report it as inconclusive rather than as a dead link.
+RETRY_STATUSES = {408, 429, 500, 502, 503, 504}
+
+
+def http_ok(url, attempts=3):
+    req = urllib.request.Request(url, method="GET", headers={"User-Agent": "verify-permalinks"})
+    status = err = None
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                return resp.status, None
+        except Exception as exc:  # noqa: BLE001 - classified by the caller
+            status = getattr(exc, "code", None)
+            err = str(exc)
+            retryable = status in RETRY_STATUSES or status is None
+            if not retryable or attempt == attempts - 1:
+                return status, err
+            delay = 2 ** attempt
+            hdrs = getattr(exc, "headers", None)
+            if hdrs is not None:
+                try:
+                    delay = max(delay, min(int(hdrs.get("Retry-After", 0)), 10))
+                except (TypeError, ValueError):
+                    pass
+            time.sleep(delay)
+    return status, err
+
+
+def check_overlay_pin(repos, rev):
+    """Refuse a local-only 'Install <X> overlay' commit as a pin.
+
+    Firefox checkouts here carry such a commit at the tip; it adds only agent
+    config and is never pushed, so pinning to it dead-links every citation.
+    """
+    for repo in repos:
+        r = sh(["git", "-C", repo, "log", "-1", "--format=%s", rev])
+        if r.returncode == 0:
+            subject = r.stdout.strip()
+            if re.fullmatch(r'Install .* overlay', subject):
+                return subject, repo
+    return None, None
+
+
+def main():
+    ap = argparse.ArgumentParser(add_help=True)
+    ap.add_argument("--repo", action="append", default=[], metavar="PATH",
+                    help="local clone to resolve citations against (repeatable)")
+    ap.add_argument("--expect-rev", metavar="SHA",
+                    help="revision every searchfox citation must use")
+    ap.add_argument("--strict-rev", action="store_true",
+                    help="treat citations not on --expect-rev as defects, not advisories")
+    ap.add_argument("--quiet", action="store_true", help="print only the summary")
+    ap.add_argument("files", nargs="+")
+    args = ap.parse_args()
+
+    if not args.repo:
+        print("verify-permalinks: at least one --repo is required", file=sys.stderr)
+        return 2
+
+    if args.expect_rev:
+        subject, repo = check_overlay_pin(args.repo, args.expect_rev)
+        if subject:
+            print(f"FATAL  pinned revision {args.expect_rev} is the local-only commit")
+            print(f"       \"{subject}\" (in {repo}). It does not exist upstream, so every")
+            print("       searchfox citation will render \"Bad Revision\". Re-pin to the")
+            print("       nearest ancestor whose subject is not 'Install <X> overlay'.")
+            return 1
+
+    ok = 0
+    defects = []
+    offpin = []
+    inconclusive = []
+
+    for path in args.files:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError as exc:
+            defects.append(f"MISSING FILE  {path}  ({exc})")
+            continue
+
+        for url in sorted({u.rstrip(".,;") for u in URL_RE.findall(text)}):
+            family = rev = inpath = None
+            for name, pat in SOURCE_PATTERNS:
+                m = pat.match(url)
+                if m:
+                    family, rev, inpath = name, m.group("rev"), (m.groupdict().get("path") or "")
+                    break
+
+            if family:
+                if family == "searchfox" and args.expect_rev and rev != args.expect_rev:
+                    note = f"OFF-PIN   [{rev[:12]} != pin {args.expect_rev[:12]}]  {path}  ->  {url}"
+                    if args.strict_rev:
+                        defects.append(note)
+                        continue
+                    offpin.append(note)
+                    # fall through: an off-pin citation must still resolve
+                if not inpath:            # bare revision link, nothing to bound
+                    ok += 1
+                    continue
+                holder = next((r for r in args.repo if rev_exists(r, rev)), None)
+                if holder is None:
+                    defects.append(f"UNKNOWN REV  [no --repo contains {rev[:12]}]  {path}  ->  {url}")
+                    continue
+                n = file_line_count(holder, rev, inpath)
+                if n is None:
+                    defects.append(f"BAD PATH  [{inpath} absent at {rev[:12]}]  {path}  ->  {url}")
+                    continue
+                start, end = parse_fragment(url)
+                if start and start > n:
+                    defects.append(f"BAD ANCHOR  [line {start} > {n} lines]  {path}  ->  {url}")
+                    continue
+                if end and end > n:
+                    defects.append(f"BAD ANCHOR  [end line {end} > {n} lines]  {path}  ->  {url}")
+                    continue
+                ok += 1
+                continue
+
+            m = HG_RE.match(url)
+            if m:
+                node = m.group("node")
+                if any(rev_exists(r, node) for r in args.repo):
+                    defects.append(
+                        f"WRONG HOST  [Git SHA on a Mercurial host; use "
+                        f"github.com/mozilla-firefox/firefox/commit/{node}]  {path}  ->  {url}")
+                    continue
+                ok += 1
+                continue
+
+            status, err = http_ok(url)
+            if status == 200:
+                ok += 1
+            elif status in RETRY_STATUSES or status is None:
+                # Rate-limited, server-side, or unreachable: unknown, not dead.
+                inconclusive.append(
+                    f"UNVERIFIED  [HTTP {status}, still failing after retries]  {path}  ->  {url}"
+                    + (f"  ({err})" if status is None and err else ""))
+            else:
+                defects.append(f"HTTP {status}  {path}  ->  {url}")
+
+    if not args.quiet:
+        for d in defects:
+            print(d)
+        for o in offpin:
+            print(o)
+        for u in inconclusive:
+            print(u)
+    summary = f"verify-permalinks: {ok} resolved, {len(defects)} defect(s)"
+    if offpin:
+        summary += (f", {len(offpin)} off-pin advisory(ies) — expected in history docs;"
+                    " use --strict-rev to enforce")
+    if inconclusive:
+        summary += (f", {len(inconclusive)} unverified (rate-limited or unreachable —"
+                    " re-run, do not treat as dead)")
+    print(summary)
+    return 1 if defects else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -11,7 +11,8 @@ metadata:
 
 # Sherlock: Root Cause Analysis and Solution Design
 
-Follow the `source-permalinks` skill for ALL source and documentation references.
+Load and follow the `source-permalinks` skill for ALL source and documentation
+references, including its verifier for every citation audit.
 Follow `references/spec-check.md` when verifying web specification compliance.
 Follow `references/gecko-architecture.md` for Gecko architecture lookups.
 Follow `references/agent-teams.md` for the agent-team I/O contracts and prompts.
@@ -314,15 +315,48 @@ Resume, or start fresh?" — "start fresh" archives or overwrites per the user).
    Hereafter `<run-dir>` = `<output-dir>/sherlock-bug-<id>/`.
 5. **Resolve `$SHERLOCK_REV`** (pin a searchfox revision for the whole run so all
    links are permanent):
-   1. Get local HEAD: `git rev-parse HEAD`
-   2. Validate on searchfox:
-      fetch `https://searchfox.org/firefox-main/rev/<hash>/moz.configure`
-      - 200 → use this hash as `$SHERLOCK_REV`
-      - 404 (not yet indexed) → fetch
-        `https://searchfox.org/firefox-main/source/moz.configure` and extract the
-        latest indexed revision from the page
+   1. Get local HEAD, then **walk past any local-only overlay commit**. Checkouts on
+      this machine carry an `Install <X> overlay` commit at the tip that adds only
+      `.claude/` / `.codex/` and `.gitignore` and is never pushed upstream. Pinning to
+      it makes *every* link in the run render **"Bad Revision"** — this silently
+      invalidated an entire nine-iteration run (bug 2054288). Because the overlay
+      commit touches no source file, the tree is byte-identical at the ancestor, so
+      line anchors are unaffected:
+      ```bash
+      SHERLOCK_REV=$(git rev-parse HEAD)
+      while git log -1 --format=%s "$SHERLOCK_REV" | grep -q '^Install .* overlay$'; do
+        SHERLOCK_REV=$(git rev-parse "$SHERLOCK_REV^")
+      done
+      ```
+   2. Validate on searchfox with the current web open/fetch mechanism, **never
+      `curl`**:
+      fetch `https://searchfox.org/firefox-main/rev/$SHERLOCK_REV/moz.configure`
+      - Renders source → use this hash as `$SHERLOCK_REV`
+      - **HTTP 500** → searchfox does not know this revision (either local-only or not
+        yet indexed). Fetch `https://searchfox.org/firefox-main/source/moz.configure`
+        and extract the latest indexed revision from the page.
+
+      > **Never validate a searchfox URL by HTTP status from `curl`** — it returns
+      > 200 from an anti-bot page for any URL, live revision or not. The rule and its
+      > rationale are stated once, canonically, under "Never validate a permalink by
+      > HTTP status" in the `source-permalinks` skill; do not restate them here, or the
+      > two copies will drift.
    3. For ESR/beta branches, repeat with the appropriate repo id
       (e.g. `firefox-esr128`).
+   4. Record the pin in `plan.md`, then sanity-check it at any time with the verifier
+      the `source-permalinks` skill ships. It refuses an overlay pin outright, so this
+      doubles as a check on step 1:
+      ```bash
+      .codex/skills/source-permalinks/verify-permalinks --repo <firefox-repo> \
+        [--repo <library-repo>] --expect-rev "$SHERLOCK_REV" \
+        <run-dir>/*.md <run-dir>/teams/*.md
+      ```
+      Off-pin citations come back as advisories, which is correct: a design-archaeology
+      doc pins to the commit it is discussing. Add `--strict-rev` when checking the
+      analysis doc on its own, which should be entirely on-pin.
+      If that path does not exist, the Codex `source-permalinks` skill has not been
+      installed into `.codex/skills/` yet — say so rather than falling back to an
+      HTTP check.
 6. **Resolve `$SHERLOCK_AUTHOR`:**
    `SHERLOCK_AUTHOR=$(.codex/skills/sherlock/sherlock-config --get-patch-author)`
    (reads `patch_author` from config, else `git config user.name`/`user.email`).
@@ -1412,10 +1446,18 @@ local pre-flight, then launch Reviewer L, Reviewer T, and the root-cause critic
 directly **in one message**, each with `fork_turns: "none"` (full contracts in
 `references/agent-teams.md`).
 
-- **Reviewer L (links / citations)** → `review/L.md`. Opens every local source
-  target or uses the web open mechanism for remote permalinks; confirms the cited
-  file:line still says what the doc claims; replaces any trunk URL with a
-  `$SHERLOCK_REV` link.
+- **Reviewer L (links / citations)** → `review/L.md`. Confirms the cited file:line
+  still says what the doc claims, and replaces any trunk URL with a `$SHERLOCK_REV`
+  link. **Resolve every source citation out of the local git object, not over HTTP**
+  — `git -C <repo> show <rev>:<path>`, then check the cited line range is within the
+  file length, then read those lines and confirm they support the citing sentence.
+  That validates revision, path and anchor together. HTTP status cannot: a bare GET
+  of any searchfox URL returns 200 from an anti-bot challenge page, so a transport
+  check certifies dead links (bug 2054288). Run
+  `.codex/skills/source-permalinks/verify-permalinks --repo <firefox-repo> [--repo
+  <library-repo>] --expect-rev "$SHERLOCK_REV" <files>` for the mechanical pass,
+  then do the semantic pass by hand. A link that resolves to the *wrong* lines is
+  still a fail, and a Reviewer L verdict must never rest on transport alone.
 - **Reviewer T (test re-runner)** → `review/T.md`. Re-reads every applicable
   `firefox/debug/bug-<id>-<proof-id>-test-run.log` and confirms the proof test
   FAILs on the bug, not on setup. When re-execution is warranted, create a
@@ -2156,9 +2198,19 @@ Mark row 45 `in-progress` before starting.
    explicitly recorded rejection in the analysis doc's Review #1 Response. Same for
    the Decide red-pen against the evaluation doc's Review Response. An unanswered
    reviewer concern is the most expensive thing to discover later.
-4. **Check formatting and consistency.** No placeholders left. Every link
-   revision-pinned — no trunk URLs. Nothing security-sensitive outside the run dir.
-   Relative links between the docs all resolve. For a Branch A or C run, **re-run
+4. **Check formatting, citations, and consistency.** No placeholders left. Run
+   the `source-permalinks` verifier across the final document set before the manual
+   semantic pass:
+   ```bash
+   .codex/skills/source-permalinks/verify-permalinks --repo <firefox-repo> \
+     [--repo <library-repo>] --expect-rev "$SHERLOCK_REV" \
+     <run-dir>/*.md <run-dir>/teams/*.md <run-dir>/review/*.md
+   ```
+   Resolve every defect; re-run any `UNVERIFIED` non-source link instead of treating
+   it as dead. Then manually confirm that every cited line supports the citing claim.
+   Every link must be revision-pinned — no trunk URLs. Nothing security-sensitive
+   may live outside the run dir. Relative links between the docs all resolve.
+   For a Branch A or C run, **re-run
    the A3 sanitisation check** on the upstream report — no Firefox or Gecko
    references, no Bugzilla links, no sec ratings, and for a security bug no
    reproducer. That check currently only happens at authoring time, and the report

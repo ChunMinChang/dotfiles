@@ -445,7 +445,7 @@ file under `<run_dir>/review/` and returns a short verdict.
 
 | Reviewer | File | Job |
 |---|---|---|
-| **L (links / citations)** | `review/L.md` | Open local source targets or remote permalinks with the appropriate current tool. Confirm the cited file/line still says what the doc claims. Replace any trunk URL with a `$SHERLOCK_REV` link. Report pass/fail + fix-up diffs. |
+| **L (links / citations)** | `review/L.md` | Run `.codex/skills/source-permalinks/verify-permalinks --repo <firefox-repo> [--repo <library-repo>] --expect-rev "$SHERLOCK_REV" <files>` for the mechanical pass; never validate source links by HTTP status. Then resolve and read the cited lines from the local git object to confirm they support the claim. Replace trunk URLs with `$SHERLOCK_REV` links. Report pass/fail + fix-up diffs. |
 | **T (test re-runner)** | `review/T.md` | Re-read every applicable `firefox/debug/bug-<id>-<proof-id>-test-run.log`. Re-verify by applying exported patches onto a disposable worktree at `$SHERLOCK_BASE`, never onto the working branch. Confirm each proof FAILs **on the bug**, not setup. Reject landing-branch injection tests. Report pass/fail. |
 | **R (red-pen on root cause)** | `review/R.md` + `review/bug-<id>-rootcause-review.md` | The main agent performs Red Pen pre-flight and spawns the critic directly at depth one with `fork_turns: "none"`; no wrapper agent may spawn another child. The critic writes the full explicit-path review. The main agent writes `review/R.md` from the returned verdict/headline/iteration plus a pointer to the exact full-review path. |
 
