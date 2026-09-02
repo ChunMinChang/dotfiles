@@ -196,7 +196,7 @@ Trusted spec domains:
 - webaudio.github.io — Web Audio API
 - tc39.es — ECMAScript
 - datatracker.ietf.org — IETF RFCs
-- www.rfc-editor.org — RFC editor
+- `www.rfc-editor.org` — RFC editor
 - itu.int — ITU-T codec specs (H.264, H.265)
 
 Format: `[Section Name](full URL with anchor)`
