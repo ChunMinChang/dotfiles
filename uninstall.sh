@@ -181,6 +181,9 @@ fi
 # Unlink the $DOTFILES ($DOTFILES is set in $BASHRC_HERE)
 UnlinkIfSymlink "$DOTFILES" "$SCRIPT_DIR"
 
+# Unlink `git restack` (DOTFILES_LOCAL_BIN_DIR comes from config.sh via $BASHRC_HERE)
+UnlinkIfSymlink "${DOTFILES_LOCAL_BIN_DIR:-$HOME/.local/bin}/git-restack" "$SCRIPT_DIR/git/restack.py"
+
 # Remove git config
 # Note: Manual removal required - user file may contain customizations
 if [ -f "$HOME/.gitconfig" ] && grep -q "path.*dotfiles/git/config" "$HOME/.gitconfig" 2>/dev/null; then

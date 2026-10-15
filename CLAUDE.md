@@ -22,6 +22,7 @@
 - `utils.sh` - Cross-platform utilities
 - `git/config` - Git aliases (included in ~/.gitconfig)
 - `git/utils.sh` - Git workflow functions
+- `git/restack.py` - `git restack` (linked as `~/.local/bin/git-restack`)
 - `claude/session_sync.py` - Session transcript export CLI
 - `claude/CLAUDE.md.template` - Template appended to `~/.claude/CLAUDE.md`
 - `mozilla/firefox/alias.sh` - Mach shortcuts
@@ -194,6 +195,58 @@
 - `show_setup_summary()` with symbols
 - Exit codes: 0=success, 1=failure, 130=Ctrl+C
 
+## git restack (`git/restack.py`)
+
+Stdlib-only, repo-agnostic: nothing Firefox-specific is hardcoded.
+Layers come only from `restack.layer` config. Installed by
+`git_restack_link()` from `git_init()`; a missing symlink capability
+skips it without failing `git_init()`.
+
+- **Parents are detected before anything moves**, from history, not
+  current ancestry. A branch built on an older, since-rewritten layer is
+  otherwise attributed to the base, and a plain `git rebase <layer>`
+  replays the stale layer commit (which conflicts whenever the layer's
+  content changed). Every rebase is `--onto <new parent> <old fork
+  point>`. What counts as "sits on" differs by candidate kind (see
+  `detect_parents()`): base = merge-base; layer = any commit the layer
+  ever pointed at (reflog + record); target = its current tip or a
+  placement restack recorded.
+- **Never read a feature branch's reflog for parentage.**
+  `git checkout -b b a` writes a's tip into b's reflog, so it can't tell
+  "b made from a" from "a made from b". Using it (as
+  `merge-base --fork-point` does) reset a real branch to a copy of
+  another in the Firefox checkout. Layers are exempt because nobody
+  makes a layer from a feature branch.
+  `TestBranchReflogsAreNotTrusted` guards this.
+- **`.git/restack-tips`** (common dir, so all worktrees share it):
+  `<sha> <branch> [<dependent>]` lines. Each real run (not `-n`) adds
+  every layer's tip plus where each branch sits on a non-base parent
+  (before moving), and the new placement (after). It is saved in a
+  `finally`, so a failed run still records. Layer reflogs are only two
+  weeks deep in the Firefox checkout (the overlay was recreated), which
+  is why this exists. Pruning is by need, not age: keep an entry while
+  it is its branch's tip or another local branch (not the base)
+  contains it. That costs about 0.1 s per entry with a commit-graph.
+- `lookalike_warnings()` only warns, never moves anything. It flags a branch whose
+  own commits include a subject from a layer it isn't placed on, which
+  is how a layer version that neither the reflog nor the record knows
+  shows up.
+- **Avoid `git replay`.** It keeps commits that become empty, while
+  `git rebase` drops them, so a patch that landed upstream would survive
+  as an empty commit. It also needs git 2.44 (Ubuntu 24.04 has 2.43).
+  `replay_in_memory()` builds on `merge-tree --write-tree --merge-base`
+  (2.40) and mirrors rebase's empty-commit rules. Below 2.40 it falls
+  back to checking out each branch, which requires a clean tree.
+- `<base>@{push}` is computed from config (`push_destination()`), not
+  `rev-parse`, which fails until the remote-tracking ref exists. A push
+  target equal to the upstream is refused: in a fork clone with
+  `branch.main.remote=upstream` and no `remote.pushDefault`, a bare
+  `git push` from main targets upstream.
+- `--push` only takes a value as `--push=<remote>` (`normalize_argv()`),
+  like git's optional-value flags, so `--push topic` restacks `topic`.
+- Every precondition (dirty tree, operation in progress, push target)
+  is checked before the base moves.
+
 ## Session Sync (`claude/session_sync.py`)
 
 **Architecture:** Single-file stdlib-only CLI with two-pass
@@ -236,7 +289,7 @@ See [README.md](README.md#testing) for how to run tests.
 
 **Test suites:**
 
-- `test_setup.py` - 159 tests (symlinks, file ops, main flow,
+- `test_setup.py` - 155 tests (symlinks, file ops, main flow,
   Windows elevation/Dev Mode probes, Windows Dev Mode commit
   gate, claude-overlay branch-exists handling, stuck-state
   auto-switch, Windows post-checkout hook for re-materializing
@@ -248,6 +301,10 @@ See [README.md](README.md#testing) for how to run tests.
 - `test_prompt_colors.sh` - 22 tests (prompt colors; the 12 zsh
   assertions report as skipped, not failed, when zsh is absent)
 - `claude/test_session_sync.py` - 56 tests (parsing, rendering, manifest, discovery, env var)
+- `git/test_restack.py` - 56 tests (real throwaway repos: parent
+  detection incl. rewritten/recreated layers and expired reflogs, the
+  tips record and its pruning, lookalike warnings, in-memory rebase,
+  push targets, worktrees, git < 2.40 fallback)
 
 Skill test suites (run manually, not part of `test_all.sh`):
 

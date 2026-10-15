@@ -40,7 +40,8 @@ Developer Mode is enabled — this guarantees the committed symlink
 entries (mode 120000) can be checked out from any shell on the
 machine.
 
-**Git config:** `git/config` included via `~/.gitconfig`
+**Git config:** `git/config` included via `~/.gitconfig`, plus
+`git restack` (symlinked into `~/.local/bin` as `git-restack`)
 
 **Mozilla (optional):** Mach aliases, machrc, pernosco-submit,
 Rust/Cargo environment, plus the CLI tools Firefox skills rely on
@@ -87,6 +88,52 @@ GitAddExcept -u file1 file2    # Add all except listed files
 GitDeleteBranch <branch>       # Delete local+remote branch
 GitRenameBranch <old> <new>    # Rename local+remote branch
 ```
+
+### Keeping branches up to date: `git restack`
+
+Fast-forwards the base branch from its upstream, then rebases the
+current branch (or the branches you name) onto it. Works in any repo:
+
+```bash
+git restack                  # update base, rebase current branch onto it
+git restack a b              # restack branches a and b (stacks detected)
+git restack --push           # also push the base to <base>@{push}
+git restack --push=origin    # ... or to a named remote
+git restack --autostash      # stash local changes around the rebase
+git restack -n               # show the plan only
+```
+
+Defaults come from git itself. The base is `restack.base`, else what
+`upstream/HEAD` or `origin/HEAD` points to, else `main` or `master`.
+Its upstream is `<base>@{upstream}`. Override with `--base` and
+`--upstream <remote>/<branch>`.
+
+*Layers* are long-lived branches kept on top of the base (e.g.
+Firefox's `claude-overlay`/`codex-overlay`). They are always rebased,
+and branches built on them follow them. Configure per repo:
+
+```bash
+git config --add restack.layer claude-overlay
+git config --add restack.layer codex-overlay
+git config restack.push origin          # push the base by default
+git config remote.pushDefault origin    # make bare `git push` go to your fork
+```
+
+Each branch's parent is detected before anything moves, even if its
+layer was rewritten, deleted or recreated since. Only the current
+branch is rebased in the working tree; others are rebased in memory
+(`git merge-tree`) and branches open in other worktrees are rebased
+there if clean. On a conflict that branch and anything stacked on it
+are left as they were, and the summary says how to finish by hand.
+
+To find what a branch left alone for months was built on, each run
+notes the layers' tips and where it placed each branch in
+`.git/restack-tips` (shared by all worktrees). An entry is dropped once
+no other local branch contains it, so the file follows your live
+branches, not time. It is only a hint: deleting it is always safe, and
+it goes away with the repository. A branch placed on the base that
+carries a commit titled like a layer's (e.g. an old `Install Claude
+overlay`) gets a warning with the `git rebase --onto` to move it.
 
 ### Shell
 
@@ -266,6 +313,7 @@ bash test_shell_utils.sh                   # Shell utilities
 python3 test_claude_security.py            # Security hooks
 bash test_prompt_colors.sh                 # Prompt colors
 python3 claude/test_session_sync.py        # Session sync (51 tests)
+python3 git/test_restack.py                # git restack (56 tests)
 ```
 
 See [TESTING.md](TESTING.md) for details.

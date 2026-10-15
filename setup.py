@@ -1262,7 +1262,31 @@ def git_init(tracker=None):
         print_warning("Git config file not found: {}".format(git_config))
         print_warning("Git configuration may not be complete")
 
+    git_restack_link(tracker)
     return True
+
+
+def git_restack_link(tracker=None):
+    """Expose git/restack.py as `git restack` via ~/.local/bin/git-restack.
+
+    git runs any `git-<name>` on PATH as `git <name>`. A missing symlink
+    capability only costs this convenience, so it never fails git_init().
+    """
+    source = os.path.join(BASE_DIR, "git", "restack.py")
+    target = os.path.join(get_config()["DOTFILES_LOCAL_BIN_DIR"], "git-restack")
+    if DRY_RUN:
+        print_dry_run("Would link {} to {}".format(source, target))
+        return True
+    if not ensure_symlink_capability():
+        print_warning(
+            "Symlinks unavailable; skipping git-restack (run {} directly)".format(
+                source
+            )
+        )
+        return None
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    os.chmod(source, 0o755)
+    return link(source, target, tracker)
 
 
 # mozilla stuff
@@ -3332,6 +3356,11 @@ def verify_symlinks():
     """Verify all symlinks created during setup are valid."""
     symlinks_to_check = [
         (os.path.join(HOME_DIR, ".dotfiles"), BASE_DIR, True),  # Must exist
+        (
+            os.path.join(get_config()["DOTFILES_LOCAL_BIN_DIR"], "git-restack"),
+            os.path.join(BASE_DIR, "git", "restack.py"),
+            False,
+        ),  # Optional
     ]
 
     # Add platform-specific symlinks

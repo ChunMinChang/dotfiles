@@ -1833,6 +1833,64 @@ class TestMozillaInitSymlinkGate(unittest.TestCase):
         mock_cli.assert_not_called()
 
 
+class TestGitRestackLink(unittest.TestCase):
+    """git/restack.py is exposed as `git restack` via <local bin>/git-restack."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.bin_dir = os.path.join(self.test_dir, "bin")  # not created yet
+        self.target = os.path.join(self.bin_dir, "git-restack")
+        config = patch(
+            "setup.get_config",
+            return_value={"DOTFILES_LOCAL_BIN_DIR": self.bin_dir},
+        )
+        config.start()
+        self.addCleanup(config.stop)
+
+    def tearDown(self):
+        setup.DRY_RUN = False
+        _force_rmtree(self.test_dir)
+
+    @patch("setup.ensure_symlink_capability", return_value=True)
+    def test_links_into_local_bin_creating_it(self, _mock_gate):
+        tracker = setup.ChangeTracker()
+
+        self.assertTrue(setup.git_restack_link(tracker))
+
+        self.assertTrue(os.path.islink(self.target))
+        self.assertTrue(
+            os.path.samefile(
+                self.target, os.path.join(setup.BASE_DIR, "git", "restack.py")
+            )
+        )
+        self.assertTrue(os.access(self.target, os.X_OK))
+
+    @patch("setup.ensure_symlink_capability", return_value=False)
+    def test_skipped_without_symlink_capability(self, _mock_gate):
+        self.assertIsNone(setup.git_restack_link())
+        self.assertFalse(os.path.lexists(self.target))
+
+    @patch("setup.ensure_symlink_capability")
+    def test_dry_run_creates_nothing(self, mock_gate):
+        setup.DRY_RUN = True
+
+        self.assertTrue(setup.git_restack_link())
+
+        mock_gate.assert_not_called()
+        self.assertFalse(os.path.lexists(self.bin_dir))
+
+    def test_verify_symlinks_flags_a_broken_link(self):
+        os.makedirs(self.bin_dir)
+        os.symlink(os.path.join(self.test_dir, "gone.py"), self.target)
+        old_home = setup.HOME_DIR
+        setup.HOME_DIR = self.test_dir
+        self.addCleanup(setattr, setup, "HOME_DIR", old_home)
+
+        issues = setup.verify_symlinks()
+
+        self.assertTrue(any("git-restack" in issue for issue in issues))
+
+
 class TestMozillaCliTools(unittest.TestCase):
     """Tests for mozilla_cli_tools_init and the per-tool installers."""
 
