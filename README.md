@@ -105,8 +105,12 @@ git restack -n               # show the plan only
 
 Defaults come from git itself. The base is `restack.base`, else what
 `upstream/HEAD` or `origin/HEAD` points to, else `main` or `master`.
-Its upstream is `<base>@{upstream}`. Override with `--base` and
-`--upstream <remote>/<branch>`.
+It is fast-forwarded from `upstream/<base>` when a remote named
+`upstream` exists and has been fetched, even if the base tracks your
+fork (as it does after cloning the fork); otherwise from
+`<base>@{upstream}`. Override with `--base` and
+`--upstream <remote>/<branch>`, or per repo with `restack.base` and
+`restack.upstream`.
 
 *Layers* are long-lived branches kept on top of the base (e.g.
 Firefox's `claude-overlay`/`codex-overlay`). They are always rebased,
@@ -313,7 +317,7 @@ bash test_shell_utils.sh                   # Shell utilities
 python3 test_claude_security.py            # Security hooks
 bash test_prompt_colors.sh                 # Prompt colors
 python3 claude/test_session_sync.py        # Session sync (51 tests)
-python3 git/test_restack.py                # git restack (56 tests)
+python3 git/test_restack.py                # git restack (61 tests)
 ```
 
 See [TESTING.md](TESTING.md) for details.

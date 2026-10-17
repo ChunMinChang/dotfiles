@@ -237,6 +237,14 @@ skips it without failing `git_init()`.
   `replay_in_memory()` builds on `merge-tree --write-tree --merge-base`
   (2.40) and mirrors rebase's empty-commit rules. Below 2.40 it falls
   back to checking out each branch, which requires a clean tree.
+- **The base comes from `upstream`, not from what it tracks**, once
+  `upstream/<base>` is fetched (`resolve_upstream()`). Cloning a fork
+  leaves `main` tracking `origin`, which nobody syncs, so following the
+  tracking branch reported "up to date" 651 commits behind in the
+  Firefox checkout. This matches `default_base()`, which also asks
+  `upstream` first. `restack.upstream` / `--upstream` override it, and
+  the plan prints a note when the tracking branch is overridden.
+  `TestBaseTrackingAFork` guards this.
 - `<base>@{push}` is computed from config (`push_destination()`), not
   `rev-parse`, which fails until the remote-tracking ref exists. A push
   target equal to the upstream is refused: in a fork clone with
@@ -301,10 +309,11 @@ See [README.md](README.md#testing) for how to run tests.
 - `test_prompt_colors.sh` - 22 tests (prompt colors; the 12 zsh
   assertions report as skipped, not failed, when zsh is absent)
 - `claude/test_session_sync.py` - 56 tests (parsing, rendering, manifest, discovery, env var)
-- `git/test_restack.py` - 56 tests (real throwaway repos: parent
+- `git/test_restack.py` - 61 tests (real throwaway repos: parent
   detection incl. rewritten/recreated layers and expired reflogs, the
   tips record and its pruning, lookalike warnings, in-memory rebase,
-  push targets, worktrees, git < 2.40 fallback)
+  push targets, a base tracking the fork, worktrees, git < 2.40
+  fallback)
 
 Skill test suites (run manually, not part of `test_all.sh`):
 

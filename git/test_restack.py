@@ -480,6 +480,62 @@ class TestBaseAndPush(RepoTestCase):
         self.assertEqual(self.rev("feature~1", cwd=repo), tip)
 
 
+class TestBaseTrackingAFork(RepoTestCase):
+    """Cloning a fork leaves main tracking origin, which nobody syncs."""
+
+    def setUp(self):
+        super().setUp()
+        self.git("push", "-q", "origin", "main")
+        self.git("fetch", "-q", "origin")
+        self.git("branch", "-q", "--set-upstream-to=origin/main", "main")
+        self.branch("feature", "main", "f.txt", "f\n")
+        self.stale = self.rev("main")
+        self.upstream_commit()
+        self.git("fetch", "-q", "upstream")
+
+    def test_base_is_updated_from_upstream_not_the_fork(self):
+        result = self.assertRestackOk()
+
+        self.assertIn("main <- upstream/main", result.stdout)
+        self.assertIn("note: main tracks origin/main", result.stdout)
+        self.assertEqual(self.rev("main"), self.upstream_tip())
+        self.assertEqual(self.rev("feature~1"), self.upstream_tip())
+
+    def test_restack_upstream_config_keeps_the_fork(self):
+        self.git("config", "restack.upstream", "origin")
+
+        result = self.assertRestackOk()
+
+        self.assertIn("main <- origin/main", result.stdout)
+        self.assertNotIn("note:", result.stdout)
+        self.assertEqual(self.rev("main"), self.stale)
+
+    def test_bad_restack_upstream_names_the_config(self):
+        self.git("config", "restack.upstream", "nowhere/main")
+
+        result = self.restack()
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("restack.upstream 'nowhere/main'", result.stderr)
+
+    def test_bare_push_syncs_the_fork(self):
+        # main@{push} is origin/main, no longer the place main comes from.
+        self.assertRestackOk("--push")
+
+        self.assertEqual(
+            self.git("rev-parse", "main", cwd=self.fork), self.upstream_tip()
+        )
+
+    def test_unfetched_upstream_branch_falls_back_to_tracking(self):
+        # The upstream may call it something else; do not guess.
+        self.git("update-ref", "-d", "refs/remotes/upstream/main")
+
+        result = self.assertRestackOk()
+
+        self.assertIn("main <- origin/main", result.stdout)
+        self.assertEqual(self.rev("main"), self.stale)
+
+
 class TestBaseDetection(RepoTestCase):
     """The base is whatever the remote calls its default, not just main/master."""
 

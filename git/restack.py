@@ -5,10 +5,11 @@ the branches stacked on top of it.
 Installed as `git-restack` on PATH, so it runs as `git restack`.
 
 The base (default: the remote's default branch, else main/master) is
-fast-forwarded to its upstream. Then every *layer* (long-lived branches
-kept on top of the base, configured per repository; none by default) and
-every requested branch (default: the current one) is rebased onto the
-fresh tip of its parent. Parents are detected *before* anything moves:
+fast-forwarded from the remote named `upstream` if there is one (even when
+the base tracks a fork), else from what it tracks. Then every *layer*
+(long-lived branches kept on top of the base, configured per repository;
+none by default) and every requested branch (default: the current one)
+is rebased onto the fresh tip of its parent. Parents are detected *before* anything moves:
 a branch containing any commit a layer ever pointed at (its reflog, like
 `git rebase --fork-point`) was built on that layer, so it still finds the
 layer after the layer was rewritten and is moved with
@@ -30,10 +31,13 @@ checked out in another worktree are rebased there if that worktree is
 clean.
 
 Configuration (per repository, all optional):
-    restack.base   base branch (default: what upstream/HEAD or origin/HEAD
-                   points to, else main, else master)
-    restack.layer  multi-valued; branches always rebased onto the base
-    restack.push   true / false / <remote>: push the base after updating
+    restack.base      base branch (default: what upstream/HEAD or
+                      origin/HEAD points to, else main, else master)
+    restack.upstream  <remote>[/<branch>] the base is fast-forwarded to
+                      (default: upstream/<base> once fetched, else what
+                      the base tracks, else origin/<base>)
+    restack.layer     multi-valued; branches always rebased onto the base
+    restack.push      true / false / <remote>: push the base after updating
 """
 
 import argparse
@@ -120,8 +124,12 @@ def rev(ref):
     return git("rev-parse", "--verify", "--quiet", ref + "^{commit}")
 
 
+def ref_exists(ref):
+    return git_ok("show-ref", "--verify", "--quiet", ref)
+
+
 def branch_exists(name):
-    return git_ok("show-ref", "--verify", "--quiet", "refs/heads/" + name)
+    return ref_exists("refs/heads/" + name)
 
 
 def config_get(key):
@@ -209,24 +217,51 @@ def default_base(remotes):
     return None
 
 
-def resolve_upstream(arg, base, remotes):
-    """Return (remote, branch) the base is fast-forwarded to."""
-    if arg:
-        remote, branch = split_remote_ref(arg, remotes)
-        if remote is None:
-            raise RestackError(
-                "--upstream {!r}: not <remote>/<branch> for any remote ({})".format(
-                    arg, ", ".join(remotes) or "none configured"
-                )
-            )
-        return remote, branch or base
-
+def tracking_branch(base):
+    """The (remote, branch) `base` tracks, or None (unset or a local branch)."""
     remote = config_get("branch.{}.remote".format(base))
     merge = config_get("branch.{}.merge".format(base))
     if remote and merge and remote != ".":
         return remote, re.sub(r"^refs/heads/", "", merge)
-    # No tracking branch: prefer a remote named `upstream` (the fork
-    # convention), then `origin`, using the same branch name.
+    return None
+
+
+def resolve_upstream(arg, base, remotes):
+    """Return (remote, branch) the base is fast-forwarded to.
+
+    --upstream, else restack.upstream, else the tracking branch, else
+    `upstream` then `origin` with the base's name. A remote named `upstream`
+    (the fork convention, as in default_base()) beats a tracking branch on
+    another remote: cloning a fork leaves the base tracking the fork, which
+    nobody syncs, so following it restacks onto a stale base and calls it
+    up to date. Only once `upstream/<base>` has been fetched, since the
+    upstream may name the branch differently.
+    """
+    source = "--upstream"
+    if not arg:
+        arg = config_get("restack.upstream")
+        source = "restack.upstream"
+    if arg:
+        remote, branch = split_remote_ref(arg, remotes)
+        if remote is None:
+            raise RestackError(
+                "{} {!r}: not <remote>/<branch> for any remote ({})".format(
+                    source, arg, ", ".join(remotes) or "none configured"
+                )
+            )
+        return remote, branch or base
+
+    tracked = tracking_branch(base)
+    if (
+        tracked
+        and tracked[0] != "upstream"
+        and "upstream" in remotes
+        and ref_exists("refs/remotes/upstream/" + base)
+    ):
+        return "upstream", base  # the base tracks a fork
+    if tracked:
+        return tracked
+    # No tracking branch: prefer `upstream`, then `origin`, same branch name.
     for remote in ("upstream", "origin"):
         if remote in remotes:
             return remote, base
@@ -594,7 +629,8 @@ def build_parser():
         "-u",
         "--upstream",
         metavar="<remote>[/<branch>]",
-        help="where the base comes from (default: <base>@{upstream})",
+        help="where the base comes from (default: restack.upstream, else "
+        "upstream/<base> if fetched, else <base>@{upstream}, else origin)",
     )
     parser.add_argument(
         "-l",
@@ -702,6 +738,13 @@ def main(argv=None):
 
     print("==> Plan")
     print("  {} <- {}/{}".format(base, *upstream))
+    tracked = tracking_branch(base)
+    chosen = args.upstream or config_get("restack.upstream")
+    if tracked and tracked != upstream and not chosen:
+        print(
+            "  note: {} tracks {}/{}; set restack.upstream to use that "
+            "instead".format(base, *tracked)
+        )
     for branch in order:
         parent, point = parents[branch]
         print(
