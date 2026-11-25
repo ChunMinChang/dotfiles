@@ -205,7 +205,7 @@ claude-session-sync export <session.jsonl>                          # uses $CLAU
 claude-session-sync export <session.jsonl> ~/transcripts            # explicit dest
 claude-session-sync export <session.jsonl> --format raw             # Copy JSONL as-is
 claude-session-sync export <session.jsonl> --force                  # Re-export even if unchanged
-claude-session-sync export <session.jsonl> --include-subagents      # Include subagent messages
+claude-session-sync export <session.jsonl> --include-subagents      # Include subagent transcripts
 ```
 
 **Batch sync all sessions:**
@@ -214,7 +214,7 @@ claude-session-sync export <session.jsonl> --include-subagents      # Include su
 claude-session-sync sync-all                                        # uses $CLAUDE_TRANSCRIPT_DIR
 claude-session-sync sync-all ~/transcripts --project-filter ~/Work  # Only projects under ~/Work
 claude-session-sync sync-all --force                                # Re-export everything
-claude-session-sync sync-all --include-subagents                    # Include subagent messages
+claude-session-sync sync-all --include-subagents                    # Include subagent transcripts
 ```
 
 **Check sync status:**
@@ -241,6 +241,13 @@ claude-session-sync export-current --project-dir ~/Work/firefox
     2026-02-24_abc12345.md
   .claude-sync-manifest.json        # Tracks sync state (mtime-based)
 ```
+
+`--include-subagents` reads the subagent transcripts Claude Code stores in
+`<session>/subagents/` (Agent tool calls and Workflow agents). Markdown output
+appends one `## Subagent:` section per agent, in start order. With
+`--format raw`, the `subagents/` directory is copied next to the JSONL
+(`2026-02-24_9191a42c.jsonl` + `2026-02-24_9191a42c/subagents/`).
+Sessions exported without the flag are re-exported the next time it is used.
 
 When `sync-all` encounters projects with the same basename
 (e.g., `/Work/X/Z` and `/Work/Y/Z`), it automatically uses
@@ -316,7 +323,7 @@ python3 test_setup.py                      # Setup + Claude security
 bash test_shell_utils.sh                   # Shell utilities
 python3 test_claude_security.py            # Security hooks
 bash test_prompt_colors.sh                 # Prompt colors
-python3 claude/test_session_sync.py        # Session sync (51 tests)
+python3 claude/test_session_sync.py        # Session sync (66 tests)
 python3 git/test_restack.py                # git restack (61 tests)
 ```
 

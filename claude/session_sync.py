@@ -8,6 +8,8 @@ Usage:
     claude-session-sync export-current [dest] [--project-dir CWD] [--format ...]
 
 Set $CLAUDE_TRANSCRIPT_DIR to avoid passing <dest> every time.
+Add --include-subagents to export, sync-all or export-current to include
+subagent transcripts from <session>/subagents/.
 """
 
 import argparse
@@ -35,6 +37,10 @@ def get_home_dir():
 MANIFEST_FILENAME = ".claude-sync-manifest.json"
 CLAUDE_PROJECTS_DIR = os.path.join(get_home_dir(), ".claude", "projects")
 TRANSCRIPT_DIR_ENV = "CLAUDE_TRANSCRIPT_DIR"
+SUBAGENTS_HELP = (
+    "Include subagent transcripts (Agent tool and Workflow agents); "
+    "with --format raw, also copy the session's subagents/ directory"
+)
 
 # ---------------------------------------------------------------------------
 # Parsing layer
@@ -156,6 +162,63 @@ def discover_sessions(project_filter=None):
     return sorted(sessions)
 
 
+def subagents_dir(jsonl_path):
+    """Return <session>/subagents/, where Claude Code stores subagent transcripts.
+
+    Claude Code keeps a per-session directory next to <sessionId>.jsonl.
+    Subagents (Agent tool calls) are written to subagents/agent-<id>.jsonl,
+    and Workflow agents to subagents/workflows/<run>/agent-<id>.jsonl, each
+    with an optional agent-<id>.meta.json sidecar.
+    """
+    return os.path.join(os.path.splitext(jsonl_path)[0], "subagents")
+
+
+def find_subagent_transcripts(jsonl_path):
+    """Find a session's subagent transcripts.
+
+    Returns a list of (transcript_path, meta_dict) sorted by each subagent's
+    first timestamp. meta_dict is {} when the sidecar is missing or unreadable.
+    """
+    root = subagents_dir(jsonl_path)
+    if not os.path.isdir(root):
+        return []
+
+    found = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        for fname in sorted(filenames):
+            if not (fname.startswith("agent-") and fname.endswith(".jsonl")):
+                continue
+            path = os.path.join(dirpath, fname)
+            meta = {}
+            try:
+                with open(path[: -len(".jsonl")] + ".meta.json") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    meta = data
+            except (OSError, ValueError):
+                pass
+            found.append((path, meta))
+
+    def start_key(item):
+        meta = scan_metadata(item[0]) or {}
+        return (meta.get("timestamp") or "", item[0])
+
+    return sorted(found, key=start_key)
+
+
+def subagents_mtime(jsonl_path):
+    """Latest mtime of any file under <session>/subagents/, or 0 if none."""
+    latest = 0
+    for dirpath, _dirnames, filenames in os.walk(subagents_dir(jsonl_path)):
+        for fname in filenames:
+            try:
+                latest = max(latest, os.path.getmtime(os.path.join(dirpath, fname)))
+            except OSError:
+                continue
+    return latest
+
+
 def compute_project_paths(cwd_list):
     """Compute minimum trailing path components for uniqueness.
 
@@ -255,8 +318,12 @@ def save_manifest(dest_dir, manifest):
     os.replace(tmp_path, manifest_path)
 
 
-def needs_sync(manifest, jsonl_path, force=False):
-    """Check if session needs syncing based on mtime."""
+def needs_sync(manifest, jsonl_path, force=False, include_subagents=False):
+    """Check if session needs syncing based on mtime.
+
+    With include_subagents, also re-export when the previous export left
+    subagents out, or when any subagent file changed since then.
+    """
     if force:
         return True
     entry = manifest.get("sessions", {}).get(jsonl_path)
@@ -266,7 +333,13 @@ def needs_sync(manifest, jsonl_path, force=False):
         current_mtime = os.path.getmtime(jsonl_path)
     except OSError:
         return True
-    return current_mtime != entry.get("source_mtime")
+    if current_mtime != entry.get("source_mtime"):
+        return True
+    if include_subagents:
+        if not entry.get("include_subagents"):
+            return True
+        return subagents_mtime(jsonl_path) != entry.get("subagents_mtime")
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -324,7 +397,7 @@ def render_tool_input(tool_name, tool_input):
             return f"> Pattern: `{pattern}` in `{path}`"
         return f"> Pattern: `{pattern}`"
 
-    if tool_name == "Task":
+    if tool_name in ("Task", "Agent"):
         desc = tool_input.get("description", "")
         agent_type = tool_input.get("subagent_type", "")
         return f"> {agent_type}: {desc}"
@@ -399,6 +472,42 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
         out_file.write(f"- **Session ID:** {session_id}\n")
         out_file.write("\n---\n\n")
 
+    progress_messages = _render_records(
+        jsonl_path, out_file, collect_progress=include_subagents
+    )
+    if not include_subagents:
+        return
+
+    transcripts = find_subagent_transcripts(jsonl_path)
+    # Older Claude Code versions embedded subagent progress records in the main
+    # transcript instead. Render those only for agents with no full transcript.
+    have_transcript = {
+        os.path.basename(path)[len("agent-") : -len(".jsonl")]
+        for path, _meta in transcripts
+    }
+    progress_messages = [
+        msg
+        for msg in progress_messages
+        if msg.get("data", {}).get("agentId") not in have_transcript
+    ]
+    if progress_messages:
+        _render_subagent_section(out_file, progress_messages)
+    for path, meta in transcripts:
+        _render_subagent_transcript(out_file, path, meta)
+
+
+def _render_records(
+    jsonl_path, out_file, level=2, mark_sidechain=True, collect_progress=False
+):
+    """Stream conversation records from jsonl_path and write them as markdown.
+
+    State machine that pairs tool_use with tool_result by id. Turn headings
+    use `level` and tool headings one level deeper. Returns the progress
+    (legacy subagent) records seen, if collect_progress is set.
+    """
+    h = "#" * level
+    h_tool = "#" * (level + 1)
+
     # State for tool pairing
     pending_tool_uses = {}  # tool_use_id -> {name, input}
     subagent_messages = []  # collected progress messages
@@ -410,7 +519,7 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
                 continue
 
             msg_type = record.get("type")
-            is_sidechain = record.get("isSidechain", False)
+            is_sidechain = mark_sidechain and record.get("isSidechain", False)
 
             # Skip file-history-snapshot
             if msg_type == "file-history-snapshot":
@@ -422,7 +531,7 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
 
             # Collect progress/subagent messages
             if msg_type == "progress":
-                if include_subagents:
+                if collect_progress:
                     subagent_messages.append(record)
                 continue
 
@@ -441,7 +550,7 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
                     text = sys_content.strip()
                     if len(text) > 500:
                         text = text[:500] + "..."
-                    out_file.write("## System\n\n")
+                    out_file.write(f"{h} System\n\n")
                     for sys_line in text.split("\n"):
                         out_file.write(f"> {sys_line}\n")
                     out_file.write("\n---\n\n")
@@ -454,7 +563,7 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
                     if text:
                         if len(text) > 500:
                             text = text[:500] + "..."
-                        out_file.write("## System\n\n")
+                        out_file.write(f"{h} System\n\n")
                         for sys_line in text.split("\n"):
                             out_file.write(f"> {sys_line}\n")
                         out_file.write("\n---\n\n")
@@ -483,7 +592,7 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
                 text = extract_user_text(content)
                 if text.strip():
                     sidechain_marker = " *(sidechain)*" if is_sidechain else ""
-                    out_file.write(f"## User{sidechain_marker}\n\n")
+                    out_file.write(f"{h} User{sidechain_marker}\n\n")
                     out_file.write(text.strip() + "\n\n")
                     out_file.write("---\n\n")
                 continue
@@ -504,7 +613,7 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
 
                     if block_type == "thinking":
                         if not wrote_header:
-                            out_file.write(f"## Assistant{sidechain_marker}\n\n")
+                            out_file.write(f"{h} Assistant{sidechain_marker}\n\n")
                             wrote_header = True
                         rendered = render_thinking_block(block.get("thinking", ""))
                         out_file.write(rendered + "\n\n")
@@ -521,13 +630,13 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
                         text = "\n".join(filtered).strip()
                         if text:
                             if not wrote_header:
-                                out_file.write(f"## Assistant{sidechain_marker}\n\n")
+                                out_file.write(f"{h} Assistant{sidechain_marker}\n\n")
                                 wrote_header = True
                             out_file.write(text + "\n\n")
 
                     elif block_type == "tool_use":
                         if not wrote_header:
-                            out_file.write(f"## Assistant{sidechain_marker}\n\n")
+                            out_file.write(f"{h} Assistant{sidechain_marker}\n\n")
                             wrote_header = True
                         tool_name = block.get("name", "Unknown")
                         tool_id = block.get("id", "")
@@ -537,7 +646,7 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
                             "input": tool_input,
                         }
 
-                        out_file.write(f"### Tool: {tool_name}\n\n")
+                        out_file.write(f"{h_tool} Tool: {tool_name}\n\n")
                         rendered_input = render_tool_input(tool_name, tool_input)
                         if rendered_input:
                             out_file.write(rendered_input + "\n\n")
@@ -545,13 +654,28 @@ def render_markdown(jsonl_path, out_file, include_subagents=False):
                 if wrote_header:
                     out_file.write("---\n\n")
 
-    # Append subagent sections if included
-    if subagent_messages:
-        _render_subagent_section(out_file, subagent_messages)
+    return subagent_messages
+
+
+def _render_subagent_transcript(out_file, jsonl_path, meta):
+    """Render one subagents/agent-<id>.jsonl transcript inside <details>."""
+    agent_id = os.path.basename(jsonl_path)[len("agent-") : -len(".jsonl")]
+    out_file.write(f"## Subagent: {meta.get('description') or agent_id}\n\n")
+    for label, key in (
+        ("Agent Type", "agentType"),
+        ("Model", "model"),
+        ("Workflow Phase", "workflowPhase"),
+    ):
+        if meta.get(key):
+            out_file.write(f"- **{label}:** {meta[key]}\n")
+    out_file.write(f"- **Agent ID:** {agent_id}\n\n")
+    out_file.write("<details><summary>Transcript</summary>\n\n")
+    _render_records(jsonl_path, out_file, level=3, mark_sidechain=False)
+    out_file.write("</details>\n\n---\n\n")
 
 
 def _render_subagent_section(out_file, subagent_messages):
-    """Group subagent messages by agentId and render each in <details>."""
+    """Group legacy progress messages by agentId and render each in <details>."""
     # Group by agentId
     agents = {}
     for msg in subagent_messages:
@@ -623,16 +747,26 @@ def export_session(
         print(f"Warning: Could not read metadata from {jsonl_path}", file=sys.stderr)
         return False
 
-    if not needs_sync(manifest, jsonl_path, force):
+    if not needs_sync(manifest, jsonl_path, force, include_subagents):
         return False
 
     output_name = make_output_filename(meta, fmt)
     project_dir = os.path.join(dest_dir, project_name)
     os.makedirs(project_dir, exist_ok=True)
     output_path = os.path.join(project_dir, output_name)
+    # Read before exporting so a subagent that writes mid-export gets re-synced.
+    subagent_mtime = subagents_mtime(jsonl_path) if include_subagents else 0
 
     if fmt == "raw":
         shutil.copy2(jsonl_path, output_path)
+        source_subagents = subagents_dir(jsonl_path)
+        if include_subagents and os.path.isdir(source_subagents):
+            # Mirror Claude Code's layout: <name>.jsonl + <name>/subagents/
+            shutil.copytree(
+                source_subagents,
+                os.path.join(os.path.splitext(output_path)[0], "subagents"),
+                dirs_exist_ok=True,
+            )
     else:
         with open(output_path, "w", encoding="utf-8", newline="\n") as out:
             render_markdown(jsonl_path, out, include_subagents=include_subagents)
@@ -643,13 +777,17 @@ def export_session(
     except OSError:
         source_mtime = 0
 
-    manifest.setdefault("sessions", {})[jsonl_path] = {
+    entry = {
         "session_id": meta.get("sessionId", ""),
         "project_name": project_name,
         "source_mtime": source_mtime,
         "exported_path": os.path.join(project_name, output_name),
         "format": fmt,
     }
+    if include_subagents:
+        entry["include_subagents"] = True
+        entry["subagents_mtime"] = subagent_mtime
+    manifest.setdefault("sessions", {})[jsonl_path] = entry
 
     return True
 
@@ -931,7 +1069,7 @@ def main(argv=None):
     p_export.add_argument(
         "--include-subagents",
         action="store_true",
-        help="Include subagent messages in output",
+        help=SUBAGENTS_HELP,
     )
 
     # sync-all
@@ -952,7 +1090,7 @@ def main(argv=None):
     p_sync.add_argument(
         "--include-subagents",
         action="store_true",
-        help="Include subagent messages in output",
+        help=SUBAGENTS_HELP,
     )
 
     # status
@@ -985,7 +1123,7 @@ def main(argv=None):
     p_current.add_argument(
         "--include-subagents",
         action="store_true",
-        help="Include subagent messages in output",
+        help=SUBAGENTS_HELP,
     )
 
     args = parser.parse_args(argv[1:])

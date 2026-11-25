@@ -133,6 +133,21 @@ def make_progress_message(
     }
 
 
+def write_subagent(session_jsonl, agent_id, messages, meta=None, subdir=""):
+    """Write <session>/subagents/[subdir/]agent-<id>.jsonl (+ .meta.json).
+
+    Mirrors where current Claude Code versions store subagent transcripts.
+    Returns the transcript path.
+    """
+    root = os.path.join(os.path.splitext(session_jsonl)[0], "subagents", subdir)
+    os.makedirs(root, exist_ok=True)
+    path = make_synthetic_jsonl(messages, os.path.join(root, f"agent-{agent_id}.jsonl"))
+    if meta is not None:
+        with open(os.path.join(root, f"agent-{agent_id}.meta.json"), "w") as f:
+            json.dump(meta, f)
+    return path
+
+
 # ---------------------------------------------------------------------------
 # Test: extract_user_text
 # ---------------------------------------------------------------------------
@@ -359,6 +374,35 @@ class TestManifest(unittest.TestCase):
         m = {"version": 1, "sessions": {path: {"source_mtime": mtime}}}
         self.assertTrue(session_sync.needs_sync(m, path, force=True))
 
+    def _synced_session_with_subagent(self):
+        path = make_synthetic_jsonl(
+            [make_user_message("hi")], os.path.join(self.tmpdir, "s.jsonl")
+        )
+        agent = write_subagent(path, "a1", [make_user_message("task")])
+        entry = {
+            "source_mtime": os.path.getmtime(path),
+            "include_subagents": True,
+            "subagents_mtime": session_sync.subagents_mtime(path),
+        }
+        return path, agent, {"version": 1, "sessions": {path: entry}}
+
+    def test_needs_sync_subagents_up_to_date(self):
+        path, _agent, m = self._synced_session_with_subagent()
+        self.assertFalse(session_sync.needs_sync(m, path, include_subagents=True))
+
+    def test_needs_sync_subagent_changed(self):
+        path, agent, m = self._synced_session_with_subagent()
+        mtime = os.path.getmtime(agent) + 10
+        os.utime(agent, (mtime, mtime))
+        self.assertTrue(session_sync.needs_sync(m, path, include_subagents=True))
+        # Without the flag, subagent changes don't matter
+        self.assertFalse(session_sync.needs_sync(m, path))
+
+    def test_needs_sync_previously_exported_without_subagents(self):
+        path, _agent, m = self._synced_session_with_subagent()
+        del m["sessions"][path]["include_subagents"]
+        self.assertTrue(session_sync.needs_sync(m, path, include_subagents=True))
+
 
 # ---------------------------------------------------------------------------
 # Test: render_markdown
@@ -530,6 +574,90 @@ class TestRenderMarkdown(unittest.TestCase):
         md = self._render(messages, include_subagents=True)
         self.assertIn("<details>", md)
         self.assertIn("</details>", md)
+
+    def _session_path(self):
+        return os.path.join(self.tmpdir, "session.jsonl")
+
+    def test_subagent_transcript_files_included(self):
+        write_subagent(
+            self._session_path(),
+            "a111",
+            [
+                make_user_message("Review the diff", sidechain=True),
+                make_assistant_message(
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_sub",
+                            "name": "Read",
+                            "input": {"file_path": "/tmp/diff.patch"},
+                        }
+                    ],
+                    sidechain=True,
+                ),
+                make_tool_result_message("toolu_sub", "patch contents"),
+                make_assistant_message(
+                    [{"type": "text", "text": "No issues found"}], sidechain=True
+                ),
+            ],
+            meta={
+                "agentType": "general-purpose",
+                "description": "review: correctness",
+                "model": "opus",
+            },
+        )
+        md = self._render([make_user_message("hello")], include_subagents=True)
+        self.assertIn("## Subagent: review: correctness", md)
+        self.assertIn("**Agent Type:** general-purpose", md)
+        self.assertIn("**Model:** opus", md)
+        self.assertIn("**Agent ID:** a111", md)
+        # Subagent turns are nested one heading level below the main transcript
+        self.assertIn("### User\n\nReview the diff", md)
+        self.assertIn("#### Tool: Read", md)
+        self.assertIn("patch contents", md)
+        self.assertIn("### Assistant\n\nNo issues found", md)
+        # Every subagent record is a sidechain; don't tag each heading
+        self.assertNotIn("*(sidechain)*", md)
+
+    def test_subagent_transcript_files_excluded_by_default(self):
+        write_subagent(self._session_path(), "a111", [make_user_message("secret task")])
+        md = self._render([make_user_message("hello")])
+        self.assertNotIn("Subagent", md)
+        self.assertNotIn("secret task", md)
+
+    def test_workflow_subagents_included_in_start_order(self):
+        path = self._session_path()
+        write_subagent(
+            path,
+            "late",
+            [make_user_message("second", timestamp="2026-02-24T12:00:00Z")],
+            meta={"description": "review:ipc", "workflowPhase": "Review"},
+            subdir=os.path.join("workflows", "wf_1"),
+        )
+        write_subagent(
+            path,
+            "early",
+            [make_user_message("first", timestamp="2026-02-24T11:00:00Z")],
+        )
+        md = self._render([make_user_message("hello")], include_subagents=True)
+        self.assertIn("**Workflow Phase:** Review", md)
+        # No meta sidecar: falls back to the agent id as the title
+        self.assertIn("## Subagent: early", md)
+        self.assertLess(md.index("first"), md.index("second"))
+
+    def test_legacy_progress_skipped_when_transcript_exists(self):
+        write_subagent(
+            self._session_path(), "dup", [make_user_message("full transcript")]
+        )
+        messages = [
+            make_user_message("hello"),
+            make_progress_message(agent_id="dup", nested_text="partial copy"),
+            make_progress_message(agent_id="old", nested_text="legacy only"),
+        ]
+        md = self._render(messages, include_subagents=True)
+        self.assertNotIn("partial copy", md)
+        self.assertIn("legacy only", md)
+        self.assertIn("full transcript", md)
 
     def test_signature_stripped(self):
         messages = [
@@ -916,6 +1044,55 @@ class TestIntegration(unittest.TestCase):
             text=True,
         )
         self.assertIn("Exported:", result.stdout)
+
+    def _export(self, *extra):
+        return subprocess.run(
+            [sys.executable, self.script, "export", self.jsonl, self.destdir, *extra],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_export_markdown_include_subagents(self):
+        write_subagent(
+            self.jsonl,
+            "a1",
+            [make_user_message("Count to three")],
+            meta={"description": "counter"},
+        )
+        result = self._export("--include-subagents")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        project_dir = os.path.join(self.destdir, "project")
+        [md_name] = os.listdir(project_dir)
+        with open(os.path.join(project_dir, md_name)) as f:
+            content = f.read()
+        self.assertIn("## Subagent: counter", content)
+        self.assertIn("Count to three", content)
+
+    def test_export_raw_include_subagents_copies_dir(self):
+        write_subagent(
+            self.jsonl,
+            "a1",
+            [make_user_message("sub")],
+            meta={"description": "d"},
+            subdir=os.path.join("workflows", "wf_1"),
+        )
+        result = self._export("--format", "raw", "--include-subagents")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        stem = os.path.join(self.destdir, "project", "2026-02-24_abcd1234")
+        self.assertTrue(os.path.isfile(stem + ".jsonl"))
+        copied = os.path.join(stem, "subagents", "workflows", "wf_1")
+        self.assertTrue(os.path.isfile(os.path.join(copied, "agent-a1.jsonl")))
+        self.assertTrue(os.path.isfile(os.path.join(copied, "agent-a1.meta.json")))
+
+    def test_include_subagents_reexports_after_plain_export(self):
+        write_subagent(self.jsonl, "a1", [make_user_message("sub")])
+        self._export()
+        # Same session, but the earlier export left subagents out
+        result = self._export("--include-subagents")
+        self.assertIn("Exported:", result.stdout)
+        # Now it's up to date
+        result = self._export("--include-subagents")
+        self.assertIn("up to date", result.stdout)
 
 
 if __name__ == "__main__":
